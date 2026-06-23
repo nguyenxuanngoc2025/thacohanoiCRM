@@ -61,7 +61,7 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
         .from('leads')
         .select('id', { count: 'exact', head: true })
         .eq('assigned_to', t.id)
-        .not('status', 'in', '("Fail")');
+        .neq('status', 'Fail');
       loads.push({ id: t.id, activeLeadCount: count ?? 0 });
     }
     assignedTo = pickNextAssignee(loads);
