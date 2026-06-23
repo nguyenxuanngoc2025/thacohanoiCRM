@@ -27,10 +27,17 @@ export async function updateSession(request: NextRequest) {
   const isApiRoute = request.nextUrl.pathname.startsWith('/api/');
   const isDashboard = !isAuthPage && !isApiRoute;
 
-  if (!user && isDashboard) {
+  // helper: redirect while preserving cookies refreshed/cleared on supabaseResponse
+  const redirectTo = (pathname: string) => {
     const url = request.nextUrl.clone();
-    url.pathname = '/login';
-    return NextResponse.redirect(url);
+    url.pathname = pathname;
+    const res = NextResponse.redirect(url);
+    supabaseResponse.cookies.getAll().forEach((c) => res.cookies.set(c));
+    return res;
+  };
+
+  if (!user && isDashboard) {
+    return redirectTo('/login');
   }
 
   // Co auth session nhung khong co profile trong crm_thacoauto → khong thuoc CRM
@@ -44,9 +51,7 @@ export async function updateSession(request: NextRequest) {
       const { data: profile } = await admin.from('users').select('id,is_active').eq('id', user.id).maybeSingle();
       if (!profile || !profile.is_active) {
         await supabase.auth.signOut();
-        const url = request.nextUrl.clone();
-        url.pathname = '/login';
-        return NextResponse.redirect(url);
+        return redirectTo('/login');
       }
     } catch (e) {
       console.error('[middleware] profile check failed (allowing through):', e);
@@ -54,9 +59,7 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (user && isAuthPage) {
-    const url = request.nextUrl.clone();
-    url.pathname = '/leads';
-    return NextResponse.redirect(url);
+    return redirectTo('/leads');
   }
 
   return supabaseResponse;

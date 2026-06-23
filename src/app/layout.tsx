@@ -3,7 +3,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'CRM THACO Auto',
-  description: 'Quan ly lead da kenh',
+  description: 'Quản lý lead đa kênh',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
