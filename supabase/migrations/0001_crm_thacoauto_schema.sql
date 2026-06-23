@@ -141,6 +141,15 @@ USING (EXISTS (SELECT 1 FROM crm_thacoauto.leads l WHERE l.id = lead_id));
 -- Master catalog (companies/brands/showrooms/channel_accounts) — không bật RLS,
 -- chỉ service_role + đọc nội bộ; client không ghi trực tiếp. (cố ý OFF)
 
+-- Grants cho role PostgREST (RLS vẫn gác từng dòng; GRANT chỉ mở cổng schema/bảng)
+GRANT USAGE ON SCHEMA crm_thacoauto TO anon, authenticated, service_role;
+GRANT ALL ON ALL TABLES IN SCHEMA crm_thacoauto TO anon, authenticated, service_role;
+GRANT ALL ON ALL ROUTINES IN SCHEMA crm_thacoauto TO anon, authenticated, service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA crm_thacoauto TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA crm_thacoauto GRANT ALL ON TABLES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA crm_thacoauto GRANT ALL ON ROUTINES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA crm_thacoauto GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
+
 -- Seed: company + brands + 1 showroom test
 INSERT INTO crm_thacoauto.companies (name, slug)
 VALUES ('Thaco Auto Hà Nội', 'thaco-auto-hanoi');
