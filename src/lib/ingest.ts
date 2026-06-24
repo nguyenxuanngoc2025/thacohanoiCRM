@@ -78,7 +78,7 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
       .from('leads')
       .select('id', { count: 'exact', head: true })
       .eq('showroom_id', sid)
-      .neq('status', 'Fail');
+      .or('status.is.null,status.neq.Fail');
     showroomLoads.push({ id: sid, activeLeadCount: count ?? 0 });
   }
   const chosenShowroomId = pickNextAssignee(showroomLoads) ?? candidateShowroomIds[0];
@@ -121,7 +121,7 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
           .from('leads')
           .select('id', { count: 'exact', head: true })
           .eq('assigned_to', id)
-          .neq('status', 'Fail');
+          .or('status.is.null,status.neq.Fail');
         loads.push({ id, activeLeadCount: count ?? 0 });
       }
       assignedTo = pickNextAssignee(loads);
