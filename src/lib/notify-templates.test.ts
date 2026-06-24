@@ -21,6 +21,14 @@ describe('notify-templates', () => {
     expect(t).toContain('chưa phân');
   });
 
+  it('renderNewLead: có model → hiện "Xe:"; không model → ẩn hẳn dòng xe', () => {
+    const co = renderNewLead({ showroom: 'KIA', fullName: 'A', phone: '+8490', source: 'fb', model: 'Sonet', assignee: 'B' });
+    expect(co).toContain('Xe: Sonet');
+    const khong = renderNewLead({ showroom: 'KIA', fullName: 'A', phone: '+8490', source: 'fb', model: null, assignee: 'B' });
+    expect(khong).not.toContain('Xe:');
+    expect(khong).toContain('Nguồn: fb');
+  });
+
   it('renderOverdue: tiêu đề có số lead, mỗi dòng có KH + TVBH + số giờ', () => {
     const t = renderOverdue('KIA Hà Nội', [
       { fullName: 'A', phone: '+8490', assignee: 'B', overdueHours: 5 },

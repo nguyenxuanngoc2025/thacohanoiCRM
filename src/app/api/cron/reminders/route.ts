@@ -21,10 +21,10 @@ export async function POST(request: NextRequest) {
   // và chưa nhắc trong REPEAT_GUARD_HOURS.
   const { data: leads, error } = await db
     .from('leads')
-    .select('id, showroom_id, full_name, phone, assigned_to, next_contact_at, showrooms(name), users(full_name)')
+    .select('id, showroom_id, full_name, phone, assigned_to, next_contact_at, showrooms(name), users!assigned_to(full_name)')
     .lte('next_contact_at', now.toISOString())
     .is('last_contact_at', null)
-    .not('status', 'in', '("KHĐ","Fail")')
+    .or('status.is.null,status.not.in.("KHĐ","Fail")')
     .not('showroom_id', 'is', null)
     .or(`last_overdue_notified_at.is.null,last_overdue_notified_at.lt.${guardCutoff}`);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

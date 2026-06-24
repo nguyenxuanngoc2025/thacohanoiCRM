@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     const op = body.op as 'create' | 'update' | 'delete' | 'test';
 
     if (op === 'delete') {
-      const { error } = await service.from('notification_channels').delete().eq('id', body.id);
+      const { error } = await service.from('notification_channels').delete().eq('id', body.id).eq('company_id', companyId);
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
       return NextResponse.json({ success: true });
     }
@@ -24,6 +24,7 @@ export async function POST(request: NextRequest) {
         .from('notification_channels')
         .select('id, channel, target, name, scope, showroom_id')
         .eq('id', body.id)
+        .eq('company_id', companyId)
         .maybeSingle();
       if (chErr || !ch) return NextResponse.json({ error: 'Không tìm thấy kênh' }, { status: 404 });
       const text = `THÔNG BÁO THỬ — ${ch.name}\nNếu bạn thấy tin này trong nhóm, cấu hình đã đúng.`;
@@ -56,7 +57,7 @@ export async function POST(request: NextRequest) {
     };
 
     if (op === 'update') {
-      const { error } = await service.from('notification_channels').update(row).eq('id', body.id);
+      const { error } = await service.from('notification_channels').update(row).eq('id', body.id).eq('company_id', companyId);
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
       return NextResponse.json({ success: true });
     }

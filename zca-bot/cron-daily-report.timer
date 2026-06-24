@@ -3,6 +3,7 @@ Description=CRM Thaco Auto - báo cáo cuối ngày 18:00
 
 [Timer]
 OnCalendar=Mon..Sat 18:00:00
+Timezone=Asia/Ho_Chi_Minh
 Persistent=false
 
 [Install]

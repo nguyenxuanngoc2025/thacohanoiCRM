@@ -3,6 +3,7 @@ Description=CRM Thaco Auto - reminders mỗi giờ trong giờ hành chính
 
 [Timer]
 OnCalendar=Mon..Sat 08..18:00:00
+Timezone=Asia/Ho_Chi_Minh
 Persistent=false
 
 [Install]

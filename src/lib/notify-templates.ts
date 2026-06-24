@@ -13,12 +13,12 @@ export interface NewLeadInput {
 export function renderNewLead(i: NewLeadInput): string {
   const ten = i.fullName?.trim() || 'Khách lẻ';
   const nguon = i.source?.trim() || 'không rõ';
-  const xe = i.model?.trim() || 'chưa rõ';
+  const xe = i.model?.trim();
   const tvbh = i.assignee?.trim() || 'chưa phân';
   return [
     `LEAD MỚI — ${i.showroom}`,
     `KH: ${ten} · ${i.phone}`,
-    `Nguồn: ${nguon} · Xe: ${xe}`,
+    xe ? `Nguồn: ${nguon} · Xe: ${xe}` : `Nguồn: ${nguon}`,
     `Giao cho: ${tvbh}`,
   ].join('\n');
 }
