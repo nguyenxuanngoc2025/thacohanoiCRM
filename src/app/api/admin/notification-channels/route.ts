@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { requireAdmin } from '@/lib/admin-guard';
 
-const VALID_EVENTS = ['new_lead', 'overdue', 'status_change'];
+const VALID_EVENTS = ['new_lead', 'overdue', 'daily_report'];
 
 // CRUD notification_channels (kênh Zalo / Telegram nhận thông báo)
 export async function POST(request: NextRequest) {
@@ -25,12 +25,16 @@ export async function POST(request: NextRequest) {
     const events = Array.isArray(body.events)
       ? body.events.filter((e: string) => VALID_EVENTS.includes(e))
       : ['new_lead'];
+    const scope = body.scope === 'management' ? 'management' : 'showroom';
     const row = {
       channel,
       name,
       target: body.target ? String(body.target).trim() : null,
       events: events.length ? events : ['new_lead'],
       is_active: body.is_active ?? true,
+      scope,
+      // Nhóm BLĐ không gắn showroom; nhóm showroom phải có showroom_id
+      showroom_id: scope === 'management' ? null : (body.showroom_id || null),
     };
 
     if (op === 'update') {
