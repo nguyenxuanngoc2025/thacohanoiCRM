@@ -28,9 +28,16 @@ async function login() {
       console.warn('[zca-bot] Cred cũ hỏng, quét QR lại:', e.message);
     }
   }
+  const qrPath = process.env.ZALO_QR_PATH || './qr.png';
   const api = await zalo.loginQR(undefined, (qrData) => {
-    console.log('[zca-bot] QUÉT QR ĐĂNG NHẬP (mở log, dùng app Zalo quét):');
-    if (qrData?.data?.image) console.log('QR base64:', qrData.data.image.slice(0, 60), '...(xem README để render)');
+    const img = qrData?.data?.image;
+    if (img) {
+      const b64 = img.replace(/^data:image\/\w+;base64,/, '');
+      fs.writeFileSync(qrPath, Buffer.from(b64, 'base64'));
+      console.log(`[zca-bot] ĐÃ LƯU MÃ QR: ${qrPath} — mở file này quét bằng app Zalo của tài khoản bot.`);
+    } else {
+      console.log('[zca-bot] QR event (chưa có image):', JSON.stringify(qrData).slice(0, 200));
+    }
   });
   try {
     const ctx = api.getContext?.();

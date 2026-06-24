@@ -7,9 +7,10 @@ showroom + nhóm BLĐ, bằng 1 tài khoản Zalo "bot" do doanh nghiệp sở h
 1. `mkdir -p /opt/zca-bot && cd /opt/zca-bot` rồi copy index.mjs + package.json.
 2. `cp .env.example .env` và điền SUPABASE_SERVICE_ROLE_KEY (lấy từ .env.master).
 3. `npm install`
-4. Lần đầu chạy tay để quét QR: `node index.mjs` → log in QR (base64). Render QR:
-   dán base64 vào trình xem ảnh, hoặc dùng `npx qrcode-terminal` từ chuỗi data.
-   Mở app Zalo của tài khoản bot → Quét QR. Sau khi xong, cred lưu ở `zalo-cred.json`.
+4. Lần đầu chạy tay để quét QR: `node index.mjs` → lưu mã QR ra file `qr.png`
+   (đường dẫn đổi bằng env `ZALO_QR_PATH`). Tải `qr.png` về máy (scp) mở ra, dùng
+   app Zalo của tài khoản bot → Quét QR. Xong cred lưu ở `zalo-cred.json`, Ctrl-C dừng,
+   rồi bật service. (Trên SSH không màn hình: `scp crm... :/opt/zca-bot/qr.png .`)
 5. Cài service: `cp zca-bot.service /etc/systemd/system/ && systemctl daemon-reload`
    `systemctl enable --now zca-bot` → `journalctl -u zca-bot -f` để xem log.
 
