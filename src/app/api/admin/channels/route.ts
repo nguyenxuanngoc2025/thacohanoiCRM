@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { requireAdmin } from '@/lib/admin-guard';
+import { subscribePageWebhook } from '@/lib/facebook';
 
 // CRUD channel_accounts (trang/biểu mẫu của 1 kênh → showroom · thương hiệu · chiến dịch)
 export async function POST(request: NextRequest) {
@@ -45,17 +46,27 @@ export async function POST(request: NextRequest) {
       );
     };
 
+    // Tự đăng ký webhook cho fanpage (chỉ Facebook). Không chặn lưu nếu lỗi —
+    // trả subscribe_error để UI cảnh báo (vd page chưa nằm trong BM).
+    const subscribe = async (): Promise<string | null> => {
+      if (row.platform !== 'facebook') return null;
+      const res = await subscribePageWebhook(page_id);
+      return res.ok ? null : (res.error ?? 'Đăng ký webhook thất bại.');
+    };
+
     if (op === 'update') {
       const { error } = await service.from('channel_accounts').update(row).eq('id', body.id);
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
       await syncShowrooms(body.id);
-      return NextResponse.json({ success: true });
+      const subscribe_error = await subscribe();
+      return NextResponse.json({ success: true, subscribe_error });
     }
 
     const { data, error } = await service.from('channel_accounts').insert(row).select('id').single();
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
     await syncShowrooms(data.id);
-    return NextResponse.json({ success: true, id: data.id });
+    const subscribe_error = await subscribe();
+    return NextResponse.json({ success: true, id: data.id, subscribe_error });
   } catch {
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }

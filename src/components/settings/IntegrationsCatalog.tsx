@@ -199,7 +199,14 @@ function ChannelModal({
     });
     setBusy(false);
     if (!r.ok) { setError(r.error ?? null); return; }
-    onDone(isNew ? `Đã kết nối ${unit} mới.` : 'Đã cập nhật đăng ký kênh.');
+    const base = isNew ? `Đã kết nối ${unit} mới.` : 'Đã cập nhật đăng ký kênh.';
+    if (isFb && r.subscribe_error) {
+      onDone(`${base} ⚠ Webhook chưa tự đăng ký được: ${r.subscribe_error}`);
+    } else if (isFb) {
+      onDone(`${base} Đã tự đăng ký webhook — lead sẽ về tự động.`);
+    } else {
+      onDone(base);
+    }
   };
 
   return (

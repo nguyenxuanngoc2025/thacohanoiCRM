@@ -121,14 +121,14 @@ export function Panel({ children }: { children: React.ReactNode }) {
 }
 
 // POST helper dùng chung cho mọi API admin cấu hình
-export async function postAdmin(url: string, body: Record<string, unknown>): Promise<{ ok: boolean; error?: string; id?: string }> {
+export async function postAdmin(url: string, body: Record<string, unknown>): Promise<{ ok: boolean; error?: string; id?: string; subscribe_error?: string | null }> {
   try {
     const res = await fetch(url, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) return { ok: false, error: data.error ?? 'Thao tác thất bại.' };
-    return { ok: true, id: data.id };
+    return { ok: true, id: data.id, subscribe_error: data.subscribe_error ?? null };
   } catch {
     return { ok: false, error: 'Lỗi kết nối máy chủ.' };
   }
