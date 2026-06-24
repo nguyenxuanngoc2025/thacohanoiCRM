@@ -17,7 +17,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
 };
 
 const SIDEBAR_W_OPEN = 248;
-const SIDEBAR_W_COLLAPSED = 56;
+const SIDEBAR_W_COLLAPSED = 64;
 const HOVER_DELAY_IN = 150;
 const HOVER_DELAY_OUT = 350;
 
@@ -43,15 +43,15 @@ function NavLink({
       style={{
         display: 'flex', alignItems: 'center',
         justifyContent: isOpen ? 'flex-start' : 'center',
-        gap: 10,
-        padding: isOpen ? '9px 12px' : '10px 0',
-        margin: '1px 8px',
+        gap: 11,
+        padding: isOpen ? '10px 12px' : '12px 0',
+        margin: '2px 8px',
         borderRadius: 7,
-        color: isActive ? '#FFFFFF' : 'rgba(255,255,255,0.6)',
+        color: isActive ? '#FFFFFF' : 'rgba(255,255,255,0.7)',
         background: isActive ? 'rgba(255,255,255,0.13)' : 'transparent',
         textDecoration: 'none',
-        fontWeight: isActive ? 600 : 400,
-        fontSize: 13.5,
+        fontWeight: isActive ? 600 : 500,
+        fontSize: 14.5,
         transition: 'all 0.18s ease',
         borderLeft: isOpen && isActive ? '3px solid rgba(255,255,255,0.7)' : '3px solid transparent',
         overflow: 'hidden', whiteSpace: 'nowrap',
@@ -60,7 +60,7 @@ function NavLink({
       onMouseEnter={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.07)'; }}
       onMouseLeave={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
     >
-      <Icon size={18} style={{ opacity: isActive ? 1 : 0.65, flexShrink: 0 }} />
+      <Icon size={isOpen ? 20 : 22} style={{ opacity: isActive ? 1 : 0.8, flexShrink: 0 }} />
       <span style={{
         opacity: isOpen ? 1 : 0,
         maxWidth: isOpen ? 180 : 0,
