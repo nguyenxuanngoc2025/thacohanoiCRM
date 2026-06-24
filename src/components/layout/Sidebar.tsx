@@ -29,18 +29,6 @@ export interface SidebarProps {
   onToggleCollapse: () => void;
 }
 
-// Biểu tượng Thaco — 2 ovan lồng nhau, nét trắng (hợp nền sidebar xanh).
-function BrandSymbol({ style }: { style?: React.CSSProperties }) {
-  return (
-    <svg viewBox="0 0 100 100" fill="none" style={style} aria-hidden>
-      <ellipse cx="42" cy="48" rx="24" ry="19" transform="rotate(-20 42 48)"
-        stroke="#ffffff" strokeWidth="11" />
-      <ellipse cx="62" cy="52" rx="30" ry="24"
-        stroke="#ffffff" strokeWidth="11" />
-    </svg>
-  );
-}
-
 function NavLink({
   href, icon: Icon, label, isActive, isOpen,
 }: {
@@ -175,16 +163,6 @@ export default function Sidebar({
               objectFit: 'contain',
               flexShrink: 0,
               transition: 'height 0.2s ease, opacity 0.2s ease',
-            }}
-          />
-          {/* Logo symbol (2 ovan Thaco) — chỉ hiện khi sidebar thu gọn */}
-          <BrandSymbol
-            style={{
-              height: isOpen ? 0 : 30,
-              width: isOpen ? 0 : 30,
-              opacity: isOpen ? 0 : 1,
-              flexShrink: 0,
-              transition: 'height 0.2s ease, width 0.2s ease, opacity 0.2s ease',
             }}
           />
           <div style={{
