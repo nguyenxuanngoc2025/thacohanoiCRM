@@ -6,9 +6,9 @@ import { STATUS_OPTIONS, type LeadStatus } from '@/lib/lead-status';
 
 const VALID = new Set<LeadStatus>(STATUS_OPTIONS.map((s) => s.code));
 
-/** Đặt phân loại cho lead. Đồng thời ghi log đổi trạng thái. */
-export async function setLeadStatus(leadId: string, status: LeadStatus) {
-  if (!VALID.has(status)) return;
+/** Đặt phân loại cho lead (null = bỏ phân loại). Đồng thời ghi log đổi trạng thái. */
+export async function setLeadStatus(leadId: string, status: LeadStatus | null) {
+  if (status !== null && !VALID.has(status)) return;
   const db = await createClient();
   const { data: { user } } = await db.auth.getUser();
   if (!user) return;
@@ -23,7 +23,7 @@ export async function setLeadStatus(leadId: string, status: LeadStatus) {
     type: 'status_change',
     old_status: prev?.status ?? null,
     new_status: status,
-    content: `Đổi phân loại sang ${status}.`,
+    content: status ? `Đổi phân loại sang ${status}.` : 'Bỏ phân loại.',
   });
   revalidatePath('/leads');
 }
@@ -48,7 +48,7 @@ export async function markContacted(leadId: string) {
 
 export interface LeadUpdateInput {
   leadId: string;
-  status: LeadStatus;
+  status: LeadStatus | null;
   modelId: string | null;
   note: string;
   nextContactAt: string | null;
@@ -59,7 +59,7 @@ export interface LeadUpdateInput {
  * hẹn gọi lại, đồng thời đánh dấu đã liên hệ (last_contact_at = now) và ghi log.
  */
 export async function updateLead(input: LeadUpdateInput) {
-  if (!VALID.has(input.status)) return { ok: false as const, error: 'Phân loại không hợp lệ.' };
+  if (input.status !== null && !VALID.has(input.status)) return { ok: false as const, error: 'Phân loại không hợp lệ.' };
   const db = await createClient();
   const { data: { user } } = await db.auth.getUser();
   if (!user) return { ok: false as const, error: 'Chưa đăng nhập.' };

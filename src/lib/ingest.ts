@@ -111,7 +111,7 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
       phone_raw: payload.phone_raw,
       full_name: payload.full_name ?? null,
       source: payload.source ?? 'facebook',
-      status: 'KHQT',
+      status: null, // chưa phân loại — TVBH phân loại sau khi liên hệ
       round: 1,
       next_contact_at: nextContactAt,
       fb_lead_id: payload.fb_lead_id ?? null,

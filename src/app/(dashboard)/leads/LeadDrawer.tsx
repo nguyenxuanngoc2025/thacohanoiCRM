@@ -32,7 +32,7 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 export default function LeadDrawer({
   lead, models, onClose,
 }: { lead: LeadRow; models: ModelOption[]; onClose: () => void }) {
-  const [status, setStatus] = useState<LeadStatus>(lead.status);
+  const [status, setStatus] = useState<LeadStatus | ''>(lead.status ?? '');
   const [modelId, setModelId] = useState<string>(lead.model_id ?? '');
   const [note, setNote] = useState('');
   const [nextDate, setNextDate] = useState(toDateInput(lead.next_contact_at));
@@ -57,7 +57,7 @@ export default function LeadDrawer({
     start(async () => {
       const res = await updateLead({
         leadId: lead.id,
-        status,
+        status: status || null,
         modelId: modelId || null,
         note,
         nextContactAt: nextDate ? new Date(nextDate + 'T00:00:00').toISOString() : null,
@@ -109,9 +109,10 @@ export default function LeadDrawer({
               <label className="text-sm text-slate-600 block mb-1">Phân loại</label>
               <select
                 value={status}
-                onChange={(e) => setStatus(e.target.value as LeadStatus)}
+                onChange={(e) => setStatus(e.target.value as LeadStatus | '')}
                 className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:border-[#004B9B] outline-none"
               >
+                <option value="">— Chưa phân loại —</option>
                 {STATUS_OPTIONS.map((s) => (
                   <option key={s.code} value={s.code}>{s.code} · {s.label}</option>
                 ))}

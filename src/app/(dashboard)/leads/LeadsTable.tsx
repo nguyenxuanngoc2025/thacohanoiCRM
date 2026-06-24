@@ -13,7 +13,7 @@ export interface LeadRow {
   full_name: string | null;
   phone: string;
   source: string | null;
-  status: LeadStatus;
+  status: LeadStatus | null;
   created_at: string;
   last_contact_at: string | null;
   next_contact_at: string | null;
@@ -50,7 +50,7 @@ function compare(key: ColKey, a: LeadRow, b: LeadRow): number {
     case 'model': return (a.model_name ?? '').localeCompare(b.model_name ?? '', 'vi');
     case 'assignee': return (a.assignee_name ?? '').localeCompare(b.assignee_name ?? '', 'vi');
     case 'contacted': return (isContacted(a.last_contact_at) ? 1 : 0) - (isContacted(b.last_contact_at) ? 1 : 0);
-    case 'class': return (STATUS_ORDER[a.status] ?? 99) - (STATUS_ORDER[b.status] ?? 99);
+    case 'class': return (STATUS_ORDER[a.status ?? ''] ?? 99) - (STATUS_ORDER[b.status ?? ''] ?? 99);
     case 'contactedAt': return tsOrNeg(a.last_contact_at) - tsOrNeg(b.last_contact_at);
     case 'note': return (a.last_note ?? '').localeCompare(b.last_note ?? '', 'vi');
     case 'source': return (a.source ?? '').localeCompare(b.source ?? '', 'vi');
@@ -280,13 +280,18 @@ export default function LeadsTable({ leads, models }: { leads: LeadRow[]; models
       case 'class':
         return (
           <select
-            value={l.status}
+            value={l.status ?? ''}
             disabled={pending || !contacted}
             title={contacted ? undefined : 'Cần đánh dấu đã liên hệ trước khi phân loại'}
             onClick={(e) => e.stopPropagation()}
-            onChange={(e) => { e.stopPropagation(); start(() => setLeadStatus(l.id, e.target.value as LeadStatus)); }}
+            onChange={(e) => {
+              e.stopPropagation();
+              const v = e.target.value === '' ? null : (e.target.value as LeadStatus);
+              start(() => setLeadStatus(l.id, v));
+            }}
             className="text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white focus:border-[#004B9B] outline-none disabled:opacity-40 disabled:cursor-not-allowed"
           >
+            <option value="">—</option>
             {STATUS_OPTIONS.map((s) => (
               <option key={s.code} value={s.code}>{s.code}</option>
             ))}
