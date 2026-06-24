@@ -143,7 +143,7 @@ export async function createLead(input: NewLeadInput) {
       phone,
       phone_raw: input.phone.trim(),
       full_name: input.fullName.trim() || null,
-      source: input.source.trim() || 'Nhập tay',
+      source: input.source.trim() || 'Khác',
       status: null,
       round: 1,
       last_note: note || null,

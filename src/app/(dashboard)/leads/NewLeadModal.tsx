@@ -4,6 +4,7 @@ import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { X, UserPlus } from 'lucide-react';
 import { createLead } from './actions';
+import { LEAD_SOURCES, DEFAULT_LEAD_SOURCE } from '@/lib/lead-source';
 import type { ModelOption, BrandOption, ShowroomOption, AssigneeOption } from './LeadsView';
 
 export default function NewLeadModal({
@@ -24,7 +25,7 @@ export default function NewLeadModal({
   const [brandId, setBrandId] = useState('');
   const [showroomId, setShowroomId] = useState('');
   const [modelId, setModelId] = useState('');
-  const [source, setSource] = useState('Nhập tay');
+  const [source, setSource] = useState<string>(DEFAULT_LEAD_SOURCE);
   const [assignedTo, setAssignedTo] = useState('');
   const [note, setNote] = useState('');
 
@@ -104,7 +105,9 @@ export default function NewLeadModal({
 
           <div>
             <label className={lblCls}>Nguồn</label>
-            <input value={source} onChange={(e) => setSource(e.target.value)} placeholder="Nhập tay" className={inputCls} />
+            <select value={source} onChange={(e) => setSource(e.target.value)} className={inputCls}>
+              {LEAD_SOURCES.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
           </div>
 
           <div>
