@@ -20,6 +20,7 @@ export default async function SettingsPage() {
     { data: staff },
     { data: showrooms },
     { data: brands },
+    { data: models },
     { data: channels },
     { data: assignmentRules },
     { data: slaConfig },
@@ -30,6 +31,7 @@ export default async function SettingsPage() {
     service.from('users').select('id, full_name, email, role, showroom_id, is_active').order('role'),
     service.from('showrooms').select('id, name, code, brand_id').order('name'),
     service.from('brands').select('id, name, slug').order('name'),
+    service.from('models').select('id, brand_id, name, sort_order, is_active').order('sort_order'),
     service.from('channel_accounts').select('id, page_name, platform, page_id, showroom_id, brand_id, campaign, is_active').order('created_at', { ascending: false }),
     service.from('assignment_rules').select('id, showroom_id, strategy, specific_user_id, is_active, priority').order('priority', { ascending: false }),
     service.from('sla_config').select('id, round, first_response_hours, follow_up_hours, is_active').order('round'),
@@ -56,6 +58,7 @@ export default async function SettingsPage() {
         staff={staff ?? []}
         showrooms={showrooms ?? []}
         brands={brands ?? []}
+        models={models ?? []}
         companyId={companyId}
         currentUserId={user.id}
         channels={channels ?? []}

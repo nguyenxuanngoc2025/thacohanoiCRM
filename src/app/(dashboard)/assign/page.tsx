@@ -1,0 +1,15 @@
+export const dynamic = 'force-dynamic';
+
+export default function AssignPage() {
+  return (
+    <div className="p-6 space-y-6">
+      <div>
+        <h1 className="text-xl font-bold text-slate-900">Phân giao</h1>
+        <p className="text-sm text-slate-400 mt-0.5">Phân bổ lead cho tư vấn bán hàng</p>
+      </div>
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-10 text-center text-slate-400">
+        Tính năng phân giao đang được phát triển.
+      </div>
+    </div>
+  );
+}

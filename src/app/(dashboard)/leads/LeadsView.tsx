@@ -10,9 +10,15 @@ export interface StatCard {
   bg: string;
 }
 
+export interface ModelOption {
+  id: string;
+  name: string;
+  brand_id: string;
+}
+
 const THRESHOLD = 140; // px cuộn trong bảng để thu hết card
 
-export default function LeadsView({ cards, leads }: { cards: StatCard[]; leads: LeadRow[] }) {
+export default function LeadsView({ cards, leads, models }: { cards: StatCard[]; leads: LeadRow[]; models: ModelOption[] }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const cardsRef = useRef<HTMLDivElement>(null);
 
@@ -65,7 +71,7 @@ export default function LeadsView({ cards, leads }: { cards: StatCard[]; leads: 
       </div>
 
       <div className="flex-1 min-h-0">
-        <LeadsTable leads={leads} />
+        <LeadsTable leads={leads} models={models} />
       </div>
     </div>
   );

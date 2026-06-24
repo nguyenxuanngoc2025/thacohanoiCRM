@@ -1,4 +1,125 @@
 @import "tailwindcss";
 
-:root { --background: #ffffff; --foreground: #171717; }
-body { background: var(--background); color: var(--foreground); font-family: system-ui, -apple-system, sans-serif; }
+@custom-variant dark (&:is(.dark *));
+
+/* ============================================================
+   CRM THACO AUTO — DESIGN TOKENS (mượn từ MKT Budget)
+   ============================================================ */
+:root {
+  --color-primary:        #004b9b;
+  --color-primary-hover:  #003b7a;
+  --color-primary-light:  #e6f0fa;
+
+  --color-bg:             #f1f5f9;
+  --color-surface:        #ffffff;
+  --color-surface-hover:  #f1f5f9;
+
+  --color-text:           #0f172a;
+  --color-text-secondary: #475569;
+  --color-text-muted:     #94a3b8;
+
+  --color-border:         #e2e8f0;
+  --color-border-light:   #f1f5f9;
+
+  --color-danger:         #ef4444;
+  --color-danger-bg:      #fee2e2;
+  --color-success:        #16a34a;
+
+  --sidebar-bg:           linear-gradient(180deg, #0056b3 0%, #00264d 100%);
+
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+html.dark {
+  --color-bg:             #14141b;
+  --color-surface:        #1c1c24;
+  --color-surface-hover:  #2a2a38;
+  --color-text:           #e4e4ee;
+  --color-text-secondary: #b4b4c8;
+  --color-text-muted:     #7a7a92;
+  --color-border:         #2e2e3e;
+  --color-border-light:   #22222c;
+  --sidebar-bg:           #1c1c24;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── dropdown-panel: popup nền trắng ───────────────────────── */
+.dropdown-panel {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+}
+html.dark .dropdown-panel {
+  background: #24242f;
+  border-color: #2e2e3e;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+}
+
+.dropdown-header {
+  padding: 10px 14px 8px;
+  border-bottom: 1px solid #f3f4f6;
+  background: #fafafa;
+}
+html.dark .dropdown-header {
+  background: #1c1c28;
+  border-bottom-color: #2e2e3e;
+}
+
+.dropdown-item {
+  width: 100%; display: flex; align-items: flex-start;
+  gap: 12px; padding: 10px 14px;
+  background: transparent; border: none; cursor: pointer;
+  text-align: left; border-bottom: 1px solid #f9fafb;
+  transition: background 0.1s;
+}
+.dropdown-item:hover { background: #f9fafb; }
+html.dark .dropdown-item { border-bottom-color: #22222c; color: #e4e4ee; }
+html.dark .dropdown-item:hover { background: #2a2a38; }
+.dropdown-item.active { background: #f0f6ff; }
+html.dark .dropdown-item.active { background: #1a2240; }
+
+.dropdown-footer {
+  padding: 8px 14px;
+  border-top: 1px solid #f3f4f6;
+  background: #fafafa;
+}
+html.dark .dropdown-footer {
+  background: #1c1c28;
+  border-top-color: #2e2e3e;
+  color: #5c5c78;
+}
+
+/* ── status-bar (chân trang IDE-style) ─────────────────────── */
+.status-bar {
+  height: 28px;
+  background: #e5e7eb;
+  border-top: 1px solid #d1d5db;
+  color: #111827;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 12px;
+  flex-shrink: 0;
+  z-index: 500;
+  user-select: none;
+}
+html.dark .status-bar {
+  background: #1c1c24;
+  border-top-color: #2e2e3e;
+  color: #9090aa;
+}
+
+.status-sep {
+  width: 1px; height: 14px;
+  background: rgba(0,0,0,0.15);
+}
+html.dark .status-sep { background: rgba(255,255,255,0.1); }
