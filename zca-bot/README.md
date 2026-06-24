@@ -19,3 +19,9 @@ showroom + nhóm BLĐ, bằng 1 tài khoản Zalo "bot" do doanh nghiệp sở h
 ## Lấy group_id
 - group_id điền ở trang Cài đặt > Kênh thông báo (ô "Đích gửi"). Lấy bằng cách bot
   đọc danh sách nhóm (xem zca-js `getAllGroups`) hoặc log group_id khi nhận tin.
+
+## Cron (systemd timer)
+1. Tạo `/opt/zca-bot/.cron.env` chứa `CRON_SECRET=...` (khớp env CRM trên Hostinger).
+2. Sửa `<DOMAIN_CRM>` trong cron-reminders.service thành domain CRM thật.
+3. `cp cron-reminders.* /etc/systemd/system/ && systemctl daemon-reload`
+   `systemctl enable --now cron-reminders.timer` → `systemctl list-timers | grep reminders`.

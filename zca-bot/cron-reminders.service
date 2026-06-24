@@ -1,0 +1,7 @@
+[Unit]
+Description=CRM Thaco Auto - cron reminders (gọi /api/cron/reminders)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/curl -fsS -X POST https://<DOMAIN_CRM>/api/cron/reminders -H "x-cron-secret: ${CRON_SECRET}"
+EnvironmentFile=/opt/zca-bot/.cron.env
