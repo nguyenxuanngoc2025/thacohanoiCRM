@@ -40,3 +40,8 @@ export const PLATFORMS: Platform[] = [
 export const DIGITAL_SOURCES = PLATFORMS.filter((p) => p.digital).map((p) => p.name);
 
 export const DEFAULT_SOURCE = DIGITAL_SOURCES[0];
+
+/** Kênh digital dạng {key, name} — form thêm lead chọn theo key để map sang phân nhánh. */
+export const DIGITAL_PLATFORMS = PLATFORMS.filter((p) => p.digital).map((p) => ({ key: p.key, name: p.name }));
+
+export const DEFAULT_PLATFORM_KEY = DIGITAL_PLATFORMS[0].key;

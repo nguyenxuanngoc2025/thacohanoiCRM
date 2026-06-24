@@ -4,7 +4,8 @@ import React, { useState, useTransition, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { X, UserPlus, Sparkles } from 'lucide-react';
 import { createLead, recommendAssignment } from './actions';
-import { DIGITAL_SOURCES, DEFAULT_SOURCE } from '@/lib/platforms';
+import { DIGITAL_PLATFORMS, DEFAULT_PLATFORM_KEY } from '@/lib/platforms';
+import { SOURCE_VARIANTS } from '@/lib/source';
 import type { ModelOption, BrandOption, ShowroomOption, AssigneeOption } from './LeadsView';
 
 export default function NewLeadModal({
@@ -25,7 +26,10 @@ export default function NewLeadModal({
   const [brandId, setBrandId] = useState('');
   const [showroomId, setShowroomId] = useState('');
   const [modelId, setModelId] = useState('');
-  const [source, setSource] = useState<string>(DEFAULT_SOURCE);
+  // Nguồn = kênh (platform key); nếu kênh có phân nhánh thì chọn thêm chi tiết kênh
+  const [sourceKey, setSourceKey] = useState<string>(DEFAULT_PLATFORM_KEY);
+  const variants = SOURCE_VARIANTS[sourceKey];
+  const [variant, setVariant] = useState<string>(variants?.[0]?.value ?? '');
   const [assignedTo, setAssignedTo] = useState('');
   const [note, setNote] = useState('');
 
@@ -58,10 +62,19 @@ export default function NewLeadModal({
     });
   };
 
+  // Đổi kênh → đặt lại nhánh mặc định (nhánh đầu nếu kênh có phân nhánh)
+  const onSourceChange = (key: string) => {
+    setSourceKey(key);
+    setVariant(SOURCE_VARIANTS[key]?.[0]?.value ?? '');
+  };
+
   const submit = () => {
     setError(null);
     if (!phone.trim()) { setError('Nhập số điện thoại.'); return; }
     if (!brandId) { setError('Chọn thương hiệu.'); return; }
+    // Kênh có phân nhánh → lưu giá trị nhánh (vd fb_message); không nhánh → lưu tên kênh
+    const platformName = DIGITAL_PLATFORMS.find((p) => p.key === sourceKey)?.name ?? sourceKey;
+    const source = variants ? (variant || variants[0].value) : platformName;
     start(async () => {
       const res = await createLead({
         fullName,
@@ -137,10 +150,19 @@ export default function NewLeadModal({
 
           <div>
             <label className={lblCls}>Nguồn</label>
-            <select value={source} onChange={(e) => setSource(e.target.value)} className={inputCls}>
-              {DIGITAL_SOURCES.map((s) => <option key={s} value={s}>{s}</option>)}
+            <select value={sourceKey} onChange={(e) => onSourceChange(e.target.value)} className={inputCls}>
+              {DIGITAL_PLATFORMS.map((p) => <option key={p.key} value={p.key}>{p.name}</option>)}
             </select>
           </div>
+
+          {variants && (
+            <div>
+              <label className={lblCls}>Chi tiết kênh</label>
+              <select value={variant} onChange={(e) => setVariant(e.target.value)} className={inputCls}>
+                {variants.map((v) => <option key={v.value} value={v.value}>{v.label}</option>)}
+              </select>
+            </div>
+          )}
 
           <div>
             <label className={lblCls}>Phụ trách</label>
