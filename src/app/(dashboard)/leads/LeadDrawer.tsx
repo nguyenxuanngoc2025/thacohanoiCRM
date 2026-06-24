@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useTransition } from 'react';
 import { X, PhoneCall, RefreshCw, Clock, Save, Pencil, Check } from 'lucide-react';
 import { formatPhoneDisplay } from '@/lib/phone';
-import { sourceLabel } from '@/lib/source';
+import { sourceLabel, sourcePlatform } from '@/lib/source';
 import { STATUS_OPTIONS, type LeadStatus } from '@/lib/lead-status';
 import { updateLead, reassignLead, renameLead, getLeadLogs, type LeadLogItem } from './actions';
 import type { LeadRow } from './LeadsTable';
@@ -160,6 +160,7 @@ export default function LeadDrawer({
           <section className="bg-slate-50 rounded-xl p-3">
             <InfoRow label="Showroom" value={lead.showroom_name ?? '—'} />
             <InfoRow label="Thương hiệu" value={lead.brand_name} />
+            <InfoRow label="Nguồn" value={sourcePlatform(lead.source)} />
             <InfoRow label="Chi tiết kênh" value={sourceLabel(lead.source)} />
             {canManage ? (
               <div className="flex justify-between items-center gap-3 py-1.5 text-sm">

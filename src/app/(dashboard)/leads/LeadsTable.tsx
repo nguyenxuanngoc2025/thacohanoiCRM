@@ -4,7 +4,7 @@ import React, { useState, useMemo, useTransition, useEffect } from 'react';
 import { PhoneCall, Check, ChevronUp, ChevronDown, ChevronsUpDown, SlidersHorizontal, UserPlus } from 'lucide-react';
 import { formatPhoneDisplay } from '@/lib/phone';
 import { STATUS_OPTIONS, isContacted, type LeadStatus } from '@/lib/lead-status';
-import { sourceLabel } from '@/lib/source';
+import { sourceLabel, sourcePlatform } from '@/lib/source';
 import { setLeadStatus, markContacted } from './actions';
 import type { ModelOption, BrandOption, ShowroomOption, AssigneeOption } from './LeadsView';
 import LeadDrawer from './LeadDrawer';
@@ -33,7 +33,7 @@ export interface LeadRow {
 
 type Tab = 'all' | 'pending' | 'contacted';
 type ColKey =
-  | 'time' | 'name' | 'phone' | 'showroom' | 'brand' | 'model' | 'assignee'
+  | 'time' | 'name' | 'phone' | 'showroom' | 'brand' | 'model' | 'platform' | 'assignee'
   | 'contacted' | 'class' | 'contactedAt' | 'note' | 'source' | 'next' | 'count';
 
 const STATUS_ORDER: Record<string, number> = Object.fromEntries(
@@ -56,6 +56,7 @@ function compare(key: ColKey, a: LeadRow, b: LeadRow): number {
     case 'class': return (STATUS_ORDER[a.status ?? ''] ?? 99) - (STATUS_ORDER[b.status ?? ''] ?? 99);
     case 'contactedAt': return tsOrNeg(a.last_contact_at) - tsOrNeg(b.last_contact_at);
     case 'note': return (a.last_note ?? '').localeCompare(b.last_note ?? '', 'vi');
+    case 'platform': return sourcePlatform(a.source).localeCompare(sourcePlatform(b.source), 'vi');
     case 'source': return sourceLabel(a.source).localeCompare(sourceLabel(b.source), 'vi');
     case 'next': return tsOrNeg(a.next_contact_at) - tsOrNeg(b.next_contact_at);
     case 'count': return a.contact_count - b.contact_count;
@@ -71,6 +72,7 @@ const COLS: ColDef[] = [
   { key: 'showroom', label: 'Showroom', pad: 'px-4' },
   { key: 'brand', label: 'Thương hiệu', pad: 'px-4' },
   { key: 'model', label: 'Dòng xe', pad: 'px-4' },
+  { key: 'platform', label: 'Nguồn', pad: 'px-4' },
   { key: 'assignee', label: 'Phụ trách', pad: 'px-4' },
   { key: 'contacted', label: 'Trạng thái', pad: 'px-4' },
   { key: 'class', label: 'Phân loại', pad: 'px-4' },
@@ -85,8 +87,8 @@ const COLS: ColDef[] = [
 const STICKY: ColKey[] = ['time', 'name', 'phone'];
 const STICKY_W: Record<string, number> = { time: 150, name: 180, phone: 140 };
 
-const STORAGE_KEY = 'leads.cols.v3';
-const DEFAULT_HIDDEN: ColKey[] = ['contactedAt', 'next', 'count'];
+const STORAGE_KEY = 'leads.cols.v4';
+const DEFAULT_HIDDEN: ColKey[] = ['contactedAt', 'source', 'next', 'count'];
 
 const fmtDate = (v: string) => new Date(v).toLocaleString('vi-VN', {
   day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
@@ -314,6 +316,7 @@ export default function LeadsTable({
         return <span className="text-slate-500">{contacted ? fmtDate(l.last_contact_at!) : '—'}</span>;
       case 'note':
         return <span className="text-slate-500 line-clamp-1 max-w-[220px] inline-block align-bottom">{l.last_note ?? '—'}</span>;
+      case 'platform': return <span className="text-slate-600">{sourcePlatform(l.source)}</span>;
       case 'source': return <span className="text-slate-500">{sourceLabel(l.source)}</span>;
       case 'next': return <span className="text-slate-500">{l.next_contact_at ? fmtDay(l.next_contact_at) : '—'}</span>;
       case 'count': return <span className="text-slate-600 tabular-nums">{l.contact_count}</span>;
