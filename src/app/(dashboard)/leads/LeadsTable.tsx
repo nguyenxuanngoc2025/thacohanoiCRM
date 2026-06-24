@@ -85,8 +85,8 @@ const COLS: ColDef[] = [
 const STICKY: ColKey[] = ['time', 'name', 'phone'];
 const STICKY_W: Record<string, number> = { time: 150, name: 180, phone: 140 };
 
-const STORAGE_KEY = 'leads.cols.v2';
-const DEFAULT_HIDDEN: ColKey[] = ['contactedAt', 'source', 'next', 'count'];
+const STORAGE_KEY = 'leads.cols.v3';
+const DEFAULT_HIDDEN: ColKey[] = ['contactedAt', 'next', 'count'];
 
 const fmtDate = (v: string) => new Date(v).toLocaleString('vi-VN', {
   day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
