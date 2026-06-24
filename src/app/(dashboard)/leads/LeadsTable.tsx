@@ -356,7 +356,7 @@ export default function LeadsTable({
           {colMenu && (
             <>
               <div className="fixed inset-0 z-20" onClick={() => setColMenu(false)} />
-              <div className="absolute right-0 mt-1 z-30 w-56 bg-white rounded-xl shadow-lg border border-slate-200 p-2 max-h-80 overflow-y-auto">
+              <div className="absolute right-0 mt-1 z-30 w-56 bg-white rounded-xl shadow-lg border border-slate-200 p-2 max-h-[70vh] overflow-y-auto">
                 <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide px-2 py-1.5">Tùy chỉnh cột</div>
                 {COLS.map((c) => (
                   <label key={c.key} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer text-sm text-slate-700">
