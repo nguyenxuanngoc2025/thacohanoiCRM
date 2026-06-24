@@ -17,8 +17,10 @@ showroom + nhóm BLĐ, bằng 1 tài khoản Zalo "bot" do doanh nghiệp sở h
 - Xoá `zalo-cred.json`, `systemctl restart zca-bot`, xem log lấy QR, quét lại.
 
 ## Lấy group_id
-- group_id điền ở trang Cài đặt > Kênh thông báo (ô "Đích gửi"). Lấy bằng cách bot
-  đọc danh sách nhóm (xem zca-js `getAllGroups`) hoặc log group_id khi nhận tin.
+1. Đăng nhập bot (quét QR, có `zalo-cred.json`).
+2. Dùng app Zalo của tài khoản bot vào TỪNG nhóm (bot phải là thành viên).
+3. `node list-groups.mjs` → in `group_id  <tab>  tên nhóm` từng nhóm.
+4. Dán group_id vào trang Cài đặt > Kênh thông báo (ô "Đích gửi") cho đúng nhóm.
 
 ## Cron (systemd timer)
 1. Tạo `/opt/zca-bot/.cron.env` chứa `CRON_SECRET=...` (khớp env CRM trên Hostinger).
