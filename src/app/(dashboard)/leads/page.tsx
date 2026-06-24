@@ -17,9 +17,11 @@ interface RawLead {
   last_note: string | null;
   brand_id: string;
   model_id: string | null;
+  showroom_id: string | null;
   assigned_to: string | null;
   brand: { name: string } | null;
   model: { name: string } | null;
+  showroom: { name: string } | null;
   assignee: { full_name: string } | null;
 }
 
@@ -30,7 +32,7 @@ export default async function LeadsPage() {
     supabase
       .from('leads')
       .select(
-        'id, full_name, phone, source, status, created_at, last_contact_at, next_contact_at, last_note, brand_id, model_id, assigned_to, brand:brands(name), model:models(name), assignee:users!assigned_to(full_name)',
+        'id, full_name, phone, source, status, created_at, last_contact_at, next_contact_at, last_note, brand_id, model_id, showroom_id, assigned_to, brand:brands(name), model:models(name), showroom:showrooms(name), assignee:users!assigned_to(full_name)',
       )
       .order('created_at', { ascending: false })
       .limit(300),
@@ -58,6 +60,8 @@ export default async function LeadsPage() {
     brand_name: l.brand?.name ?? '—',
     model_id: l.model_id,
     model_name: l.model?.name ?? null,
+    showroom_id: l.showroom_id,
+    showroom_name: l.showroom?.name ?? null,
     assignee_name: l.assignee?.full_name ?? null,
     contact_count: contactCount[l.id] ?? 0,
   }));

@@ -93,6 +93,7 @@ export default function LeadDrawer({
         <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-5">
           {/* Thông tin (chỉ đọc) */}
           <section className="bg-slate-50 rounded-xl p-3">
+            <InfoRow label="Showroom" value={lead.showroom_name ?? '—'} />
             <InfoRow label="Thương hiệu" value={lead.brand_name} />
             <InfoRow label="Nguồn" value={lead.source ?? '—'} />
             <InfoRow label="Phụ trách" value={lead.assignee_name ?? '—'} />
