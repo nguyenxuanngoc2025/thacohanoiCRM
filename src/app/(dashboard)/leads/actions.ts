@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { STATUS_OPTIONS, type LeadStatus } from '@/lib/lead-status';
+import { normalizePhone } from '@/lib/phone';
 
 const VALID = new Set<LeadStatus>(STATUS_OPTIONS.map((s) => s.code));
 
@@ -104,6 +105,66 @@ export async function updateLead(input: LeadUpdateInput) {
 
   revalidatePath('/leads');
   return { ok: true as const };
+}
+
+export interface NewLeadInput {
+  fullName: string;
+  phone: string;
+  brandId: string;
+  showroomId: string | null;
+  modelId: string | null;
+  source: string;
+  assignedTo: string | null;
+  note: string;
+}
+
+/** Tạo lead thủ công (nhập tay). Lead mới: chưa liên hệ, chưa phân loại. */
+export async function createLead(input: NewLeadInput) {
+  const db = await createClient();
+  const { data: { user } } = await db.auth.getUser();
+  if (!user) return { ok: false as const, error: 'Chưa đăng nhập.' };
+
+  if (!input.brandId) return { ok: false as const, error: 'Chọn thương hiệu.' };
+  const phone = normalizePhone(input.phone);
+  if (!phone) return { ok: false as const, error: 'Số điện thoại không hợp lệ.' };
+
+  const { data: me } = await db.from('users').select('company_id').eq('id', user.id).maybeSingle();
+  if (!me?.company_id) return { ok: false as const, error: 'Tài khoản chưa gắn công ty.' };
+
+  const note = input.note.trim();
+  const { data: inserted, error } = await db
+    .from('leads')
+    .insert({
+      company_id: me.company_id,
+      brand_id: input.brandId,
+      showroom_id: input.showroomId,
+      model_id: input.modelId,
+      assigned_to: input.assignedTo,
+      phone,
+      phone_raw: input.phone.trim(),
+      full_name: input.fullName.trim() || null,
+      source: input.source.trim() || 'Nhập tay',
+      status: null,
+      round: 1,
+      last_note: note || null,
+    })
+    .select('id')
+    .single();
+
+  if (error) {
+    if (error.code === '23505') return { ok: false as const, error: 'Lead đã tồn tại (trùng SĐT cho thương hiệu này).' };
+    return { ok: false as const, error: error.message };
+  }
+
+  await db.from('lead_logs').insert({
+    lead_id: inserted.id,
+    user_id: user.id,
+    type: 'system',
+    content: 'Tạo lead thủ công.',
+  });
+
+  revalidatePath('/leads');
+  return { ok: true as const, id: inserted.id };
 }
 
 export interface LeadLogItem {

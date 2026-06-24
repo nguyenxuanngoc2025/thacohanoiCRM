@@ -16,9 +16,22 @@ export interface ModelOption {
   brand_id: string;
 }
 
+export interface BrandOption { id: string; name: string }
+export interface ShowroomOption { id: string; name: string }
+export interface AssigneeOption { id: string; full_name: string }
+
 const THRESHOLD = 140; // px cuộn trong bảng để thu hết card
 
-export default function LeadsView({ cards, leads, models }: { cards: StatCard[]; leads: LeadRow[]; models: ModelOption[] }) {
+export default function LeadsView({
+  cards, leads, models, brands, showrooms, assignees,
+}: {
+  cards: StatCard[];
+  leads: LeadRow[];
+  models: ModelOption[];
+  brands: BrandOption[];
+  showrooms: ShowroomOption[];
+  assignees: AssigneeOption[];
+}) {
   const rootRef = useRef<HTMLDivElement>(null);
   const cardsRef = useRef<HTMLDivElement>(null);
 
@@ -71,7 +84,7 @@ export default function LeadsView({ cards, leads, models }: { cards: StatCard[];
       </div>
 
       <div className="flex-1 min-h-0">
-        <LeadsTable leads={leads} models={models} />
+        <LeadsTable leads={leads} models={models} brands={brands} showrooms={showrooms} assignees={assignees} />
       </div>
     </div>
   );

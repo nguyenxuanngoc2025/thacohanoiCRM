@@ -1,12 +1,13 @@
 'use client';
 
 import React, { useState, useMemo, useTransition, useEffect } from 'react';
-import { PhoneCall, Check, ChevronUp, ChevronDown, ChevronsUpDown, SlidersHorizontal } from 'lucide-react';
+import { PhoneCall, Check, ChevronUp, ChevronDown, ChevronsUpDown, SlidersHorizontal, UserPlus } from 'lucide-react';
 import { formatPhoneDisplay } from '@/lib/phone';
 import { STATUS_OPTIONS, isContacted, type LeadStatus } from '@/lib/lead-status';
 import { setLeadStatus, markContacted } from './actions';
-import type { ModelOption } from './LeadsView';
+import type { ModelOption, BrandOption, ShowroomOption, AssigneeOption } from './LeadsView';
 import LeadDrawer from './LeadDrawer';
+import NewLeadModal from './NewLeadModal';
 
 export interface LeadRow {
   id: string;
@@ -163,8 +164,17 @@ function Filter({ value, onChange, placeholder, options }: {
   );
 }
 
-export default function LeadsTable({ leads, models }: { leads: LeadRow[]; models: ModelOption[] }) {
+export default function LeadsTable({
+  leads, models, brands, showrooms, assignees,
+}: {
+  leads: LeadRow[];
+  models: ModelOption[];
+  brands: BrandOption[];
+  showrooms: ShowroomOption[];
+  assignees: AssigneeOption[];
+}) {
   const [tab, setTab] = useState<Tab>('all');
+  const [showNew, setShowNew] = useState(false);
   const [sortKey, setSortKey] = useState<ColKey | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [pending, start] = useTransition();
@@ -330,7 +340,15 @@ export default function LeadsTable({ leads, models }: { leads: LeadRow[]; models
         <Filter value={fBrand} onChange={(v) => { setFBrand(v); setFModel(''); }} placeholder="Tất cả thương hiệu" options={brandOpts} />
         <Filter value={fModel} onChange={setFModel} placeholder="Tất cả dòng xe" options={modelOpts} />
 
-        <div className="ml-auto relative">
+        <button
+          onClick={() => setShowNew(true)}
+          className="ml-auto inline-flex items-center gap-1.5 text-sm font-semibold text-white rounded-lg px-3 py-1.5 hover:opacity-90"
+          style={{ background: '#004B9B' }}
+        >
+          <UserPlus size={15} /> Thêm lead
+        </button>
+
+        <div className="relative">
           <button
             onClick={() => setColMenu((v) => !v)}
             className="inline-flex items-center gap-1.5 text-sm text-slate-600 border border-slate-200 rounded-lg px-3 py-1.5 hover:bg-slate-50"
@@ -405,6 +423,16 @@ export default function LeadsTable({ leads, models }: { leads: LeadRow[]; models
 
       {openLead && (
         <LeadDrawer lead={openLead} models={models} onClose={() => setOpenLead(null)} />
+      )}
+
+      {showNew && (
+        <NewLeadModal
+          brands={brands}
+          showrooms={showrooms}
+          models={models}
+          assignees={assignees}
+          onClose={() => setShowNew(false)}
+        />
       )}
     </div>
   );

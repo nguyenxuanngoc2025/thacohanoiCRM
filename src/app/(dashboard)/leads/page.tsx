@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { type LeadRow } from './LeadsTable';
-import LeadsView, { type StatCard, type ModelOption } from './LeadsView';
+import LeadsView, { type StatCard, type ModelOption, type BrandOption, type ShowroomOption, type AssigneeOption } from './LeadsView';
 import { isContacted } from '@/lib/lead-status';
 
 export const dynamic = 'force-dynamic';
@@ -28,7 +28,14 @@ interface RawLead {
 export default async function LeadsPage() {
   const supabase = await createClient();
 
-  const [{ data: rawLeads }, { data: rawModels }, { data: contactLogs }] = await Promise.all([
+  const [
+    { data: rawLeads },
+    { data: rawModels },
+    { data: contactLogs },
+    { data: rawBrands },
+    { data: rawShowrooms },
+    { data: rawAssignees },
+  ] = await Promise.all([
     supabase
       .from('leads')
       .select(
@@ -38,6 +45,9 @@ export default async function LeadsPage() {
       .limit(300),
     supabase.from('models').select('id, name, brand_id').eq('is_active', true).order('sort_order'),
     supabase.from('lead_logs').select('lead_id').eq('type', 'contact'),
+    supabase.from('brands').select('id, name').order('name'),
+    supabase.from('showrooms').select('id, name').order('name'),
+    supabase.from('users').select('id, full_name').eq('is_active', true).order('full_name'),
   ]);
 
   // Đếm số lần liên hệ theo lead
@@ -67,6 +77,9 @@ export default async function LeadsPage() {
   }));
 
   const models: ModelOption[] = ((rawModels ?? []) as ModelOption[]);
+  const brands: BrandOption[] = ((rawBrands ?? []) as BrandOption[]);
+  const showrooms: ShowroomOption[] = ((rawShowrooms ?? []) as ShowroomOption[]);
+  const assignees: AssigneeOption[] = ((rawAssignees ?? []) as AssigneeOption[]);
 
   const total = leads.length;
   const pending = leads.filter((l) => !isContacted(l.last_contact_at)).length;
@@ -82,5 +95,14 @@ export default async function LeadsPage() {
     { label: 'GDTD', value: gdtd, color: '#7c3aed', bg: '#f5f3ff' },
   ];
 
-  return <LeadsView cards={cards} leads={leads} models={models} />;
+  return (
+    <LeadsView
+      cards={cards}
+      leads={leads}
+      models={models}
+      brands={brands}
+      showrooms={showrooms}
+      assignees={assignees}
+    />
+  );
 }
