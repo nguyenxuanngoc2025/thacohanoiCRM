@@ -11,10 +11,28 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const op = body.op as 'create' | 'update' | 'delete';
+    const op = body.op as 'create' | 'update' | 'delete' | 'test';
 
     if (op === 'delete') {
       const { error } = await service.from('notification_channels').delete().eq('id', body.id);
+      if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+      return NextResponse.json({ success: true });
+    }
+
+    if (op === 'test') {
+      const { data: ch, error: chErr } = await service
+        .from('notification_channels')
+        .select('id, channel, target, name, scope, showroom_id')
+        .eq('id', body.id)
+        .maybeSingle();
+      if (chErr || !ch) return NextResponse.json({ error: 'Không tìm thấy kênh' }, { status: 404 });
+      const text = `THÔNG BÁO THỬ — ${ch.name}\nNếu bạn thấy tin này trong nhóm, cấu hình đã đúng.`;
+      const { error } = await service.from('notifications').insert({
+        channel: ch.channel,
+        channel_id: ch.id,
+        status: 'pending',
+        payload: { event: 'test', target: ch.target, text },
+      });
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
       return NextResponse.json({ success: true });
     }

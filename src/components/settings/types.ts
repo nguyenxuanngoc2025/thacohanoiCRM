@@ -59,6 +59,8 @@ export interface NotifChannelRow {
   target: string | null;
   events: string[];
   is_active: boolean;
+  showroom_id: string | null;
+  scope: 'showroom' | 'management';
 }
 
 export interface LeadLogRow {

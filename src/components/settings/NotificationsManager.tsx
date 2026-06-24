@@ -3,19 +3,19 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Bell, Plus, Edit2, Trash2, X, Send } from 'lucide-react';
-import type { NotifChannelRow } from './types';
+import type { NotifChannelRow, ShowroomRow } from './types';
 import {
   PanelHeader, PrimaryBtn, GhostBtn, Field, TextInput, Select, Toggle, StatusPill, FlashBar, Panel, postAdmin,
 } from './ui';
 
 const EVENT_LABELS: Record<string, string> = {
-  new_lead: 'Lead mới',
-  overdue: 'Lead quá hạn',
-  status_change: 'Đổi trạng thái',
+  new_lead: 'Data mới',
+  overdue: 'Nhắc quá hạn',
+  daily_report: 'Báo cáo ngày',
 };
 const ALL_EVENTS = Object.keys(EVENT_LABELS);
 
-export default function NotificationsManager({ channels }: { channels: NotifChannelRow[] }) {
+export default function NotificationsManager({ channels, showrooms }: { channels: NotifChannelRow[]; showrooms: ShowroomRow[] }) {
   const router = useRouter();
   const [flash, setFlash] = useState<string | null>(null);
   const flashMsg = (m: string) => { setFlash(m); setTimeout(() => setFlash(null), 3000); };
@@ -26,6 +26,12 @@ export default function NotificationsManager({ channels }: { channels: NotifChan
     const r = await postAdmin('/api/admin/notification-channels', { op: 'delete', id: c.id });
     if (!r.ok) { window.alert(r.error); return; }
     flashMsg('Đã xoá kênh thông báo.'); router.refresh();
+  };
+
+  const sendTest = async (c: NotifChannelRow) => {
+    const r = await postAdmin('/api/admin/notification-channels', { op: 'test', id: c.id });
+    if (!r.ok) { window.alert(r.error); return; }
+    flashMsg(`Đã xếp hàng tin thử vào "${c.name}". Kiểm tra nhóm Zalo sau ít giây.`);
   };
 
   return (
@@ -55,12 +61,16 @@ export default function NotificationsManager({ channels }: { channels: NotifChan
                     {(c.events ?? []).map((e) => (
                       <span key={e} className="bg-slate-100 rounded px-1.5 py-0.5">{EVENT_LABELS[e] ?? e}</span>
                     ))}
+                    <span className="bg-slate-100 rounded px-1.5 py-0.5">
+                      {c.scope === 'management' ? 'Nhóm BLĐ' : (showrooms.find((s) => s.id === c.showroom_id)?.name ?? 'Chưa gán SR')}
+                    </span>
                     {c.target && <span className="font-mono">· {c.target}</span>}
                   </div>
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <StatusPill active={c.is_active} />
+                <IconBtn title="Gửi thử" onClick={() => sendTest(c)}><Send size={14} style={{ color: '#0068FF' }} /></IconBtn>
                 <IconBtn title="Sửa" onClick={() => setEdit(c)}><Edit2 size={14} style={{ color: '#004B9B' }} /></IconBtn>
                 <IconBtn title="Xoá" onClick={() => del(c)}><Trash2 size={14} className="text-rose-600" /></IconBtn>
               </div>
@@ -71,7 +81,7 @@ export default function NotificationsManager({ channels }: { channels: NotifChan
       </Panel>
 
       {edit && (
-        <NotifModal target={edit}
+        <NotifModal target={edit} showrooms={showrooms}
           onClose={() => setEdit(null)}
           onDone={(m) => { setEdit(null); flashMsg(m); router.refresh(); }} />
       )}
@@ -88,7 +98,7 @@ function IconBtn({ title, onClick, children }: { title: string; onClick: () => v
   );
 }
 
-function NotifModal({ target, onClose, onDone }: { target: NotifChannelRow | 'new'; onClose: () => void; onDone: (m: string) => void }) {
+function NotifModal({ target, showrooms, onClose, onDone }: { target: NotifChannelRow | 'new'; showrooms: ShowroomRow[]; onClose: () => void; onDone: (m: string) => void }) {
   const isNew = target === 'new';
   const init = isNew ? null : target;
   const [channel, setChannel] = useState<'zalo' | 'telegram'>(init?.channel ?? 'zalo');
@@ -96,6 +106,8 @@ function NotifModal({ target, onClose, onDone }: { target: NotifChannelRow | 'ne
   const [tgt, setTgt] = useState(init?.target ?? '');
   const [events, setEvents] = useState<string[]>(init?.events ?? ['new_lead']);
   const [isActive, setIsActive] = useState(init?.is_active ?? true);
+  const [scope, setScope] = useState<'showroom' | 'management'>(init?.scope ?? 'showroom');
+  const [showroomId, setShowroomId] = useState<string>(init?.showroom_id ?? '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -106,11 +118,13 @@ function NotifModal({ target, onClose, onDone }: { target: NotifChannelRow | 'ne
     setError(null);
     if (!name.trim()) { setError('Nhập tên kênh.'); return; }
     if (events.length === 0) { setError('Chọn ít nhất 1 sự kiện.'); return; }
+    if (scope === 'showroom' && !showroomId) { setError('Chọn showroom cho nhóm.'); return; }
     setBusy(true);
     const r = await postAdmin('/api/admin/notification-channels', {
       op: isNew ? 'create' : 'update',
       id: isNew ? undefined : (target as NotifChannelRow).id,
       channel, name: name.trim(), target: tgt.trim() || null, events, is_active: isActive,
+      scope, showroom_id: scope === 'showroom' ? showroomId : null,
     });
     setBusy(false);
     if (!r.ok) { setError(r.error ?? null); return; }
@@ -131,6 +145,20 @@ function NotifModal({ target, onClose, onDone }: { target: NotifChannelRow | 'ne
               <option value="telegram">Telegram</option>
             </Select>
           </Field>
+          <Field label="Nhóm thuộc về">
+            <Select value={scope} onChange={(e) => setScope(e.target.value as 'showroom' | 'management')}>
+              <option value="showroom">Một showroom</option>
+              <option value="management">Nhóm Ban Lãnh Đạo (tổng hợp)</option>
+            </Select>
+          </Field>
+          {scope === 'showroom' && (
+            <Field label="Showroom">
+              <Select value={showroomId} onChange={(e) => setShowroomId(e.target.value)}>
+                <option value="">— Chọn showroom —</option>
+                {showrooms.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </Select>
+            </Field>
+          )}
           <Field label="Tên hiển thị"><TextInput value={name} onChange={(e) => setName(e.target.value)} placeholder="Nhóm CSKH KIA Hà Nội" /></Field>
           <Field label="Đích gửi (group/chat id)" hint="ID nhóm Zalo hoặc chat_id Telegram nhận thông báo.">
             <TextInput value={tgt} onChange={(e) => setTgt(e.target.value)} placeholder="-1001234567890" />

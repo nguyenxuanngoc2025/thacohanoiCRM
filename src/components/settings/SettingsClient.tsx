@@ -122,7 +122,7 @@ export default function SettingsClient({
         {active === 'assignment' && (
           <AssignmentManager showrooms={showrooms} staff={staff} rules={assignmentRules} sla={slaConfig} companyId={companyId} />
         )}
-        {active === 'notifications' && <NotificationsManager channels={notifChannels} />}
+        {active === 'notifications' && <NotificationsManager channels={notifChannels} showrooms={showrooms} />}
         {active === 'audit' && <ActivityLog logs={recentLogs} staff={staff} />}
       </div>
     </div>

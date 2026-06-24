@@ -40,7 +40,7 @@ export default async function SettingsPage() {
     service.from('channel_account_showrooms').select('channel_account_id, showroom_id'),
     service.from('assignment_rules').select('id, showroom_id, strategy, specific_user_id, is_active, priority').order('priority', { ascending: false }),
     service.from('sla_config').select('id, round, first_response_hours, follow_up_hours, is_active').order('round'),
-    service.from('notification_channels').select('id, channel, name, target, events, is_active').order('created_at', { ascending: false }),
+    service.from('notification_channels').select('id, channel, name, target, events, is_active, showroom_id, scope').order('created_at', { ascending: false }),
     service.from('lead_logs').select('id, lead_id, user_id, type, content, old_status, new_status, created_at').order('created_at', { ascending: false }).limit(50),
     service.from('leads').select('status').eq('company_id', companyId),
   ]);
