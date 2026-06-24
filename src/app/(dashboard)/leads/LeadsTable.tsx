@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useTransition, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { PhoneCall, Check, ChevronUp, ChevronDown, ChevronsUpDown, SlidersHorizontal, UserPlus } from 'lucide-react';
 import { formatPhoneDisplay } from '@/lib/phone';
 import { STATUS_OPTIONS, isContacted, type LeadStatus } from '@/lib/lead-status';
@@ -179,7 +180,7 @@ function StatusPicker({ lead, variant, pending, start }: {
   start: (cb: () => void) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const [pos, setPos] = useState<{ left: number; top?: number; bottom?: number } | null>(null);
   const btnRef = React.useRef<HTMLButtonElement>(null);
   const contacted = isContacted(lead.last_contact_at);
   const status = lead.status;
@@ -192,7 +193,12 @@ function StatusPicker({ lead, variant, pending, start }: {
     e.stopPropagation();
     if (open) { setOpen(false); return; }
     const r = btnRef.current?.getBoundingClientRect();
-    if (r) setPos({ top: r.bottom + 4, left: r.left });
+    if (r) {
+      const below = window.innerHeight - r.bottom;
+      // Gần đáy màn hình → lật lên trên để không bị footer/scrollbar che.
+      if (below < 300 && r.top > below) setPos({ left: r.left, bottom: window.innerHeight - r.top + 4 });
+      else setPos({ left: r.left, top: r.bottom + 4 });
+    }
     setOpen(true);
   };
   const pickStatus = (code: LeadStatus | null) => { setOpen(false); start(() => classifyLead(lead.id, code)); };
@@ -235,15 +241,16 @@ function StatusPicker({ lead, variant, pending, start }: {
   return (
     <>
       {trigger}
-      {open && pos && (
+      {open && pos && createPortal(
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 9998 }} onClick={(e) => { e.stopPropagation(); setOpen(false); }} />
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
-              position: 'fixed', top: pos.top, left: pos.left, minWidth: 220, zIndex: 9999,
+              position: 'fixed', top: pos.top, bottom: pos.bottom, left: pos.left, minWidth: 220, zIndex: 9999,
               background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10,
               boxShadow: '0 8px 24px rgba(0,0,0,0.12)', padding: 6,
+              maxHeight: '70vh', overflowY: 'auto',
             }}
           >
             {mode === 'toggle' ? (
@@ -289,7 +296,8 @@ function StatusPicker({ lead, variant, pending, start }: {
               </>
             )}
           </div>
-        </>
+        </>,
+        document.body,
       )}
     </>
   );
