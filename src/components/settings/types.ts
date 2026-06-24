@@ -27,7 +27,9 @@ export interface ChannelRow {
   page_name: string | null;
   platform: string | null;
   page_id: string | null;
+  // showroom_id = anchor (mặc định); 1 kênh có thể phục vụ nhiều showroom qua junction channel_account_showrooms.
   showroom_id: string | null;
+  showroom_ids: string[];
   brand_id: string | null;
   campaign: string | null;
   is_active: boolean;

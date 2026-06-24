@@ -18,10 +18,14 @@ export async function POST(request: NextRequest) {
     }
 
     const page_id = body.page_id ? String(body.page_id).trim() : '';
-    const showroom_id = body.showroom_id || null;
     const brand_id = body.brand_id || null;
+    // 1 kênh có thể phục vụ nhiều showroom; showroom_ids[] là nguồn chính, showroom_id = anchor (phần tử đầu).
+    const showroom_ids: string[] = Array.isArray(body.showroom_ids)
+      ? body.showroom_ids.filter(Boolean)
+      : (body.showroom_id ? [body.showroom_id] : []);
+    const showroom_id = showroom_ids[0] ?? null;
     if (!page_id) return NextResponse.json({ error: 'Thiếu mã trang / biểu mẫu (page_id)' }, { status: 400 });
-    if (!showroom_id) return NextResponse.json({ error: 'Chọn showroom' }, { status: 400 });
+    if (showroom_ids.length === 0) return NextResponse.json({ error: 'Chọn ít nhất 1 showroom' }, { status: 400 });
     if (!brand_id) return NextResponse.json({ error: 'Chọn thương hiệu' }, { status: 400 });
     const row = {
       platform: String(body.platform ?? 'facebook').toLowerCase().trim() || 'facebook',
@@ -33,14 +37,24 @@ export async function POST(request: NextRequest) {
       is_active: body.is_active ?? true,
     };
 
+    // Đồng bộ junction channel_account_showrooms: xoá cũ + chèn mới
+    const syncShowrooms = async (channelId: string) => {
+      await service.from('channel_account_showrooms').delete().eq('channel_account_id', channelId);
+      await service.from('channel_account_showrooms').insert(
+        showroom_ids.map((sid) => ({ channel_account_id: channelId, showroom_id: sid }))
+      );
+    };
+
     if (op === 'update') {
       const { error } = await service.from('channel_accounts').update(row).eq('id', body.id);
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+      await syncShowrooms(body.id);
       return NextResponse.json({ success: true });
     }
 
     const { data, error } = await service.from('channel_accounts').insert(row).select('id').single();
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    await syncShowrooms(data.id);
     return NextResponse.json({ success: true, id: data.id });
   } catch {
     return NextResponse.json({ error: 'Server error' }, { status: 500 });

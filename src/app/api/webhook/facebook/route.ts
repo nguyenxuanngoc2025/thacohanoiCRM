@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { fetchLeadDetail } from '@/lib/facebook';
 import { ingestLead } from '@/lib/ingest';
+import { extractPhone } from '@/lib/phone';
 
 // GET — Facebook xác minh webhook (hub.challenge)
 export async function GET(request: NextRequest) {
@@ -22,18 +23,54 @@ export async function POST(request: NextRequest) {
 
     for (const entry of body.entry ?? []) {
       const pageId = String(entry.id);
+
+      // a) Lead Ads (form) — leadgen
+      // b) Comment công khai có SĐT — field 'feed', item 'comment'
       for (const change of entry.changes ?? []) {
-        if (change.field !== 'leadgen') continue;
-        const leadgenId = change.value?.leadgen_id;
-        if (!leadgenId) continue;
-        const detail = await fetchLeadDetail(String(leadgenId));
+        if (change.field === 'leadgen') {
+          const leadgenId = change.value?.leadgen_id;
+          if (!leadgenId) continue;
+          const detail = await fetchLeadDetail(String(leadgenId));
+          await ingestLead({
+            page_id: pageId,
+            phone_raw: detail.phone,
+            full_name: detail.fullName,
+            source: 'facebook',
+            fb_lead_id: String(leadgenId),
+            external_payload: detail.raw as Record<string, unknown>,
+          });
+          continue;
+        }
+
+        if (change.field === 'feed') {
+          const v = change.value ?? {};
+          if (v.item !== 'comment' || v.verb !== 'add') continue;
+          if (v.from?.id && String(v.from.id) === pageId) continue; // bỏ comment của chính page
+          const phone = extractPhone(v.message);
+          if (!phone) continue;
+          await ingestLead({
+            page_id: pageId,
+            phone_raw: phone,
+            full_name: v.from?.name ?? null,
+            source: 'fb_comment',
+            fb_lead_id: v.comment_id ? String(v.comment_id) : null,
+            external_payload: v as Record<string, unknown>,
+          });
+        }
+      }
+
+      // c) Tin nhắn Messenger có SĐT (chỉ thu lead, KHÔNG trả lời tự động)
+      for (const m of entry.messaging ?? []) {
+        if (m.message?.is_echo) continue; // bỏ tin do page gửi
+        const phone = extractPhone(m.message?.text);
+        if (!phone) continue;
         await ingestLead({
           page_id: pageId,
-          phone_raw: detail.phone,
-          full_name: detail.fullName,
-          source: 'facebook',
-          fb_lead_id: String(leadgenId),
-          external_payload: detail.raw as Record<string, unknown>,
+          phone_raw: phone,
+          full_name: null,
+          source: 'fb_message',
+          fb_lead_id: m.message?.mid ? String(m.message.mid) : null,
+          external_payload: m as Record<string, unknown>,
         });
       }
     }

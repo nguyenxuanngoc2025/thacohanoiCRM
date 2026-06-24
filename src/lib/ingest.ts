@@ -20,15 +20,22 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
 
   if (!channel) return { ok: false, reason: 'unknown_channel' };
 
-  const { data: showroom } = await db
-    .from('showrooms')
-    .select('id, company_id')
-    .eq('id', channel.showroom_id)
-    .maybeSingle();
+  // 1 fanpage có thể phục vụ NHIỀU showroom (junction). Fallback: anchor showroom_id.
+  const { data: junction } = await db
+    .from('channel_account_showrooms')
+    .select('showroom_id')
+    .eq('channel_account_id', channel.id);
 
-  if (!showroom) return { ok: false, reason: 'unknown_showroom' };
+  const candidateShowroomIds =
+    junction && junction.length > 0
+      ? junction.map((j) => j.showroom_id)
+      : channel.showroom_id
+        ? [channel.showroom_id]
+        : [];
 
-  // Chống trùng theo (phone, brand_id)
+  if (candidateShowroomIds.length === 0) return { ok: false, reason: 'no_showroom' };
+
+  // Chống trùng theo (phone, brand_id) — brand cố định theo fanpage
   const { data: existing } = await db
     .from('leads')
     .select('id, assigned_to')
@@ -45,6 +52,46 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
     return { ok: true, leadId: existing.id, deduped: true };
   }
 
+  // TVBH active của tất cả showroom ứng viên (1 truy vấn)
+  const { data: tvbhAll } = await db
+    .from('users')
+    .select('id, showroom_id')
+    .in('showroom_id', candidateShowroomIds)
+    .eq('role', 'tvbh')
+    .eq('is_active', true);
+
+  const tvbhByShowroom = new Map<string, string[]>();
+  for (const t of tvbhAll ?? []) {
+    const arr = tvbhByShowroom.get(t.showroom_id) ?? [];
+    arr.push(t.id);
+    tvbhByShowroom.set(t.showroom_id, arr);
+  }
+
+  // CẤP 1 — chia đều cho showroom: chọn showroom ít lead đang mở nhất.
+  // Chỉ xét showroom có ≥1 TVBH active để lead có người nhận; nếu không có thì xét hết.
+  const withTvbh = candidateShowroomIds.filter((id) => (tvbhByShowroom.get(id)?.length ?? 0) > 0);
+  const showroomPool = withTvbh.length > 0 ? withTvbh : candidateShowroomIds;
+
+  const showroomLoads: AssigneeLoad[] = [];
+  for (const sid of showroomPool) {
+    const { count } = await db
+      .from('leads')
+      .select('id', { count: 'exact', head: true })
+      .eq('showroom_id', sid)
+      .neq('status', 'Fail');
+    showroomLoads.push({ id: sid, activeLeadCount: count ?? 0 });
+  }
+  const chosenShowroomId = pickNextAssignee(showroomLoads) ?? candidateShowroomIds[0];
+
+  // Công ty của showroom đã chọn
+  const { data: showroom } = await db
+    .from('showrooms')
+    .select('id, company_id')
+    .eq('id', chosenShowroomId)
+    .maybeSingle();
+
+  if (!showroom) return { ok: false, reason: 'unknown_showroom' };
+
   // Luật phân giao: rule showroom (priority cao) ưu tiên hơn rule mặc định toàn công ty
   const { data: rules } = await db
     .from('assignment_rules')
@@ -53,7 +100,7 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
     .eq('is_active', true);
 
   const applicable = (rules ?? [])
-    .filter((r) => r.showroom_id === channel.showroom_id || r.showroom_id === null)
+    .filter((r) => r.showroom_id === chosenShowroomId || r.showroom_id === null)
     .sort((a, b) => {
       // ưu tiên: số priority cao trước; cùng priority thì rule showroom trước rule mặc định
       if (b.priority !== a.priority) return b.priority - a.priority;
@@ -65,23 +112,17 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
   if (rule?.strategy === 'specific_user' && rule.specific_user_id) {
     assignedTo = rule.specific_user_id;
   } else {
-    // least_loaded (mặc định): TVBH active trong showroom + đếm lead đang mở
-    const { data: tvbhs } = await db
-      .from('users')
-      .select('id')
-      .eq('showroom_id', channel.showroom_id)
-      .eq('role', 'tvbh')
-      .eq('is_active', true);
-
-    if (tvbhs && tvbhs.length > 0) {
+    // CẤP 2 — least_loaded TVBH trong showroom đã chọn
+    const tvbhIds = tvbhByShowroom.get(chosenShowroomId) ?? [];
+    if (tvbhIds.length > 0) {
       const loads: AssigneeLoad[] = [];
-      for (const t of tvbhs) {
+      for (const id of tvbhIds) {
         const { count } = await db
           .from('leads')
           .select('id', { count: 'exact', head: true })
-          .eq('assigned_to', t.id)
+          .eq('assigned_to', id)
           .neq('status', 'Fail');
-        loads.push({ id: t.id, activeLeadCount: count ?? 0 });
+        loads.push({ id, activeLeadCount: count ?? 0 });
       }
       assignedTo = pickNextAssignee(loads);
     }
@@ -103,7 +144,7 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
     .from('leads')
     .insert({
       company_id: showroom.company_id,
-      showroom_id: channel.showroom_id,
+      showroom_id: chosenShowroomId,
       brand_id: channel.brand_id,
       channel_account_id: channel.id,
       assigned_to: assignedTo,

@@ -128,7 +128,8 @@ export default function IntegrationsCatalog({
 function ChannelItem({
   c, showrooms, brands, onEdit, onDelete,
 }: { c: ChannelRow; showrooms: ShowroomRow[]; brands: BrandRow[]; onEdit: () => void; onDelete: () => void }) {
-  const sr = showrooms.find((s) => s.id === c.showroom_id)?.name ?? '—';
+  const srIds = c.showroom_ids?.length ? c.showroom_ids : (c.showroom_id ? [c.showroom_id] : []);
+  const sr = srIds.map((id) => showrooms.find((s) => s.id === id)?.name).filter(Boolean).join(', ') || '—';
   const br = brands.find((b) => b.id === c.brand_id)?.name ?? '—';
   return (
     <div className="flex items-center justify-between text-xs bg-white border border-slate-200 rounded-lg px-3 py-2">
@@ -165,7 +166,9 @@ function ChannelModal({
   const init = isNew ? null : target;
   const [pageId, setPageId] = useState(init?.page_id ?? '');
   const [pageName, setPageName] = useState(init?.page_name ?? '');
-  const [showroomId, setShowroomId] = useState(init?.showroom_id ?? '');
+  const [showroomIds, setShowroomIds] = useState<string[]>(
+    init?.showroom_ids?.length ? init.showroom_ids : (init?.showroom_id ? [init.showroom_id] : [])
+  );
   const [brandId, setBrandId] = useState(init?.brand_id ?? '');
   const [campaign, setCampaign] = useState(init?.campaign ?? '');
   const [isActive, setIsActive] = useState(init?.is_active ?? true);
@@ -175,10 +178,13 @@ function ChannelModal({
   const isFb = platform === 'facebook';
   const idLabel = isFb ? 'Page ID (Fanpage)' : 'Mã biểu mẫu / form key';
 
+  const toggleShowroom = (id: string) =>
+    setShowroomIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+
   const submit = async () => {
     setError(null);
     if (!pageId.trim()) { setError(`Nhập ${idLabel}.`); return; }
-    if (!showroomId) { setError('Chọn showroom.'); return; }
+    if (showroomIds.length === 0) { setError('Chọn ít nhất 1 showroom nhận lead.'); return; }
     if (!brandId) { setError('Chọn thương hiệu.'); return; }
     setBusy(true);
     const r = await postAdmin('/api/admin/channels', {
@@ -187,7 +193,7 @@ function ChannelModal({
       platform,
       page_id: pageId.trim(),
       page_name: pageName.trim() || null,
-      showroom_id: showroomId, brand_id: brandId,
+      showroom_ids: showroomIds, brand_id: brandId,
       campaign: campaign.trim() || null,
       is_active: isActive,
     });
@@ -208,11 +214,20 @@ function ChannelModal({
             <TextInput value={pageId} onChange={(e) => setPageId(e.target.value)} placeholder={isFb ? '1234567890' : 'form-landing-kia'} disabled={!isNew} />
           </Field>
           <Field label="Tên hiển thị"><TextInput value={pageName} onChange={(e) => setPageName(e.target.value)} placeholder={isFb ? 'KIA Hà Nội Official' : 'Landing KIA Sonet'} /></Field>
-          <Field label="Showroom nhận lead">
-            <Select value={showroomId} onChange={(e) => setShowroomId(e.target.value)}>
-              <option value="">— Chọn showroom —</option>
-              {showrooms.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </Select>
+          <Field label="Showroom nhận lead" hint="Tick các showroom dùng chung kênh này. Lead sẽ được chia đều cho các showroom đã chọn.">
+            <div className="space-y-1.5">
+              {showrooms.map((s) => {
+                const checked = showroomIds.includes(s.id);
+                return (
+                  <label key={s.id}
+                    className="flex items-center gap-2.5 px-3 py-2 rounded-lg border cursor-pointer transition-colors"
+                    style={{ borderColor: checked ? '#004B9B' : '#e2e8f0', background: checked ? '#e6f0fa' : '#fff' }}>
+                    <input type="checkbox" checked={checked} onChange={() => toggleShowroom(s.id)} className="accent-[#004B9B]" />
+                    <span className="text-sm font-medium text-slate-700">{s.name}</span>
+                  </label>
+                );
+              })}
+            </div>
           </Field>
           <Field label="Thương hiệu">
             <Select value={brandId} onChange={(e) => setBrandId(e.target.value)}>
@@ -221,7 +236,7 @@ function ChannelModal({
             </Select>
           </Field>
           <Field label="Chiến dịch (tuỳ chọn)" hint="Gắn nhãn nguồn để báo cáo theo chiến dịch quảng cáo.">
-            <TextInput value={campaign} onChange={(e) => setCampaign(e.target.value)} placeholder="Tết 2026" />
+            <TextInput value={campaign} onChange={(e) => setCampaign(e.target.value)} placeholder="Nhập tên chiến dịch nếu có" />
           </Field>
           <Toggle checked={isActive} onChange={setIsActive} label="Đang nhận lead" />
           {error && <div className="text-sm bg-rose-50 text-rose-600 border border-rose-100 rounded-lg px-3 py-2">{error}</div>}
