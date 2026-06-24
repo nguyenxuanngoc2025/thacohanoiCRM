@@ -32,6 +32,40 @@ export async function setLeadStatus(leadId: string, status: LeadStatus | null) {
   revalidatePath('/leads');
 }
 
+/**
+ * Phân loại lead. Gán phân loại đồng thời TỰ đánh dấu đã liên hệ (vì đã phân loại
+ * tức là đã làm việc với lead). status=null = bỏ phân loại (KHÔNG đụng last_contact_at).
+ * Ghi log liên hệ (nếu lần đầu) + log đổi phân loại.
+ */
+export async function classifyLead(leadId: string, status: LeadStatus | null) {
+  if (status !== null && !VALID.has(status)) return;
+  const db = await createClient();
+  const { data: { user } } = await db.auth.getUser();
+  if (!user) return;
+
+  const { data: prev } = await db.from('leads').select('status, last_contact_at').eq('id', leadId).maybeSingle();
+  const now = new Date().toISOString();
+  const willMarkContacted = status !== null && !prev?.last_contact_at;
+
+  const patch: { status: LeadStatus | null; last_contact_at?: string } = { status };
+  if (willMarkContacted) patch.last_contact_at = now;
+
+  const { error } = await db.from('leads').update(patch).eq('id', leadId);
+  if (error) return;
+
+  if (willMarkContacted) {
+    await db.from('lead_logs').insert({ lead_id: leadId, user_id: user.id, type: 'contact', content: 'Đánh dấu đã liên hệ.' });
+  }
+  if ((prev?.status ?? null) !== status) {
+    await db.from('lead_logs').insert({
+      lead_id: leadId, user_id: user.id, type: 'status_change',
+      old_status: prev?.status ?? null, new_status: status,
+      content: status ? `Đổi phân loại sang ${status}.` : 'Bỏ phân loại.',
+    });
+  }
+  revalidatePath('/leads');
+}
+
 /** Đánh dấu đã liên hệ (set last_contact_at = now). */
 export async function markContacted(leadId: string) {
   const db = await createClient();

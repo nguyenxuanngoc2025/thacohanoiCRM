@@ -5,7 +5,7 @@ import { PhoneCall, Check, ChevronUp, ChevronDown, ChevronsUpDown, SlidersHorizo
 import { formatPhoneDisplay } from '@/lib/phone';
 import { STATUS_OPTIONS, isContacted, type LeadStatus } from '@/lib/lead-status';
 import { sourceLabel, sourcePlatform } from '@/lib/source';
-import { setLeadStatus, markContacted } from './actions';
+import { classifyLead, markContacted } from './actions';
 import type { ModelOption, BrandOption, ShowroomOption, AssigneeOption } from './LeadsView';
 import LeadDrawer from './LeadDrawer';
 import NewLeadModal from './NewLeadModal';
@@ -69,16 +69,16 @@ const COLS: ColDef[] = [
   { key: 'time', label: 'Thời gian', pad: 'px-4' },
   { key: 'name', label: 'Khách hàng', pad: 'px-5' },
   { key: 'phone', label: 'SĐT', pad: 'px-4' },
-  { key: 'showroom', label: 'Showroom', pad: 'px-4' },
-  { key: 'brand', label: 'Thương hiệu', pad: 'px-4' },
-  { key: 'model', label: 'Dòng xe', pad: 'px-4' },
-  { key: 'platform', label: 'Nguồn', pad: 'px-4' },
-  { key: 'assignee', label: 'Phụ trách', pad: 'px-4' },
   { key: 'contacted', label: 'Trạng thái', pad: 'px-4' },
   { key: 'class', label: 'Phân loại', pad: 'px-4' },
+  { key: 'platform', label: 'Nguồn', pad: 'px-4' },
+  { key: 'brand', label: 'Thương hiệu', pad: 'px-4' },
+  { key: 'showroom', label: 'Showroom', pad: 'px-4' },
+  { key: 'assignee', label: 'Phụ trách', pad: 'px-4' },
+  { key: 'source', label: 'Chi tiết kênh', pad: 'px-4' },
+  { key: 'model', label: 'Dòng xe', pad: 'px-4' },
   { key: 'contactedAt', label: 'Liên hệ lúc', pad: 'px-4' },
   { key: 'note', label: 'Nội dung liên hệ', pad: 'px-4' },
-  { key: 'source', label: 'Chi tiết kênh', pad: 'px-4' },
   { key: 'next', label: 'Hẹn gọi lại', pad: 'px-4' },
   { key: 'count', label: 'Số lần LH', pad: 'px-4' },
 ];
@@ -87,8 +87,8 @@ const COLS: ColDef[] = [
 const STICKY: ColKey[] = ['time', 'name', 'phone'];
 const STICKY_W: Record<string, number> = { time: 150, name: 180, phone: 140 };
 
-const STORAGE_KEY = 'leads.cols.v4';
-const DEFAULT_HIDDEN: ColKey[] = ['contactedAt', 'source', 'next', 'count'];
+const STORAGE_KEY = 'leads.cols.v5';
+const DEFAULT_HIDDEN: ColKey[] = ['source', 'model', 'contactedAt', 'note', 'next', 'count'];
 
 const fmtDate = (v: string) => new Date(v).toLocaleString('vi-VN', {
   day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
@@ -161,6 +161,107 @@ function Filter({ value, onChange, placeholder, options }: {
                 {o}
               </button>
             ))}
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
+// Chọn phân loại / đánh dấu liên hệ — popup tuỳ biến (đẹp + đồng bộ với Filter).
+// Click vào cột Trạng thái HOẶC Phân loại đều mở cùng 1 popup; chọn 1 phân loại = vừa
+// đánh dấu đã liên hệ vừa set status trong 1 thao tác (classifyLead).
+function StatusPicker({ lead, variant, pending, start }: {
+  lead: LeadRow;
+  variant: 'contacted' | 'class';
+  pending: boolean;
+  start: (cb: () => void) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const btnRef = React.useRef<HTMLButtonElement>(null);
+  const contacted = isContacted(lead.last_contact_at);
+  const status = lead.status;
+  const opt = status ? STATUS_OPTIONS.find((s) => s.code === status) : null;
+
+  const toggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (open) { setOpen(false); return; }
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r) setPos({ top: r.bottom + 4, left: r.left });
+    setOpen(true);
+  };
+  const pickStatus = (code: LeadStatus | null) => { setOpen(false); start(() => classifyLead(lead.id, code)); };
+  const markOnly = () => { setOpen(false); start(() => markContacted(lead.id)); };
+
+  let trigger: React.ReactNode;
+  if (variant === 'contacted') {
+    trigger = contacted ? (
+      <button ref={btnRef} disabled={pending} onClick={toggle}
+        className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-50 rounded-full px-2.5 py-1 hover:bg-emerald-100 disabled:opacity-50">
+        <Check size={13} /> Đã liên hệ
+      </button>
+    ) : (
+      <button ref={btnRef} disabled={pending} onClick={toggle}
+        className="inline-flex items-center gap-1 text-xs font-medium text-[#004B9B] border border-blue-200 rounded-full px-2.5 py-1 hover:bg-blue-50 disabled:opacity-50">
+        <PhoneCall size={12} /> Chưa liên hệ
+      </button>
+    );
+  } else {
+    trigger = opt ? (
+      <button ref={btnRef} disabled={pending} onClick={toggle}
+        className="inline-flex items-center gap-1 text-xs font-medium rounded-full px-2.5 py-1 disabled:opacity-50"
+        style={{ color: opt.color, background: opt.bg }}>
+        {opt.code} <ChevronDown size={11} className="opacity-60" />
+      </button>
+    ) : (
+      <button ref={btnRef} disabled={pending} onClick={toggle}
+        className="inline-flex items-center gap-1 text-xs text-slate-400 border border-dashed border-slate-300 rounded-full px-2.5 py-1 hover:border-slate-400 hover:text-slate-500 disabled:opacity-50">
+        Phân loại <ChevronDown size={11} className="opacity-60" />
+      </button>
+    );
+  }
+
+  return (
+    <>
+      {trigger}
+      {open && pos && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 9998 }} onClick={(e) => { e.stopPropagation(); setOpen(false); }} />
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'fixed', top: pos.top, left: pos.left, minWidth: 220, zIndex: 9999,
+              background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.12)', padding: 6,
+            }}
+          >
+            <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide px-2 py-1">Phân loại khách</div>
+            {STATUS_OPTIONS.map((s) => (
+              <button
+                key={s.code}
+                onClick={() => pickStatus(s.code)}
+                className="flex items-center gap-2 w-full text-left rounded-md px-2 py-1.5 hover:bg-slate-50"
+                style={{ background: status === s.code ? s.bg : undefined }}
+              >
+                <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ background: s.color }} />
+                <span className="text-sm font-medium" style={{ color: s.color }}>{s.code}</span>
+                <span className="text-xs text-slate-400 truncate">{s.label}</span>
+              </button>
+            ))}
+            {(!contacted || status) && <div className="h-px bg-slate-100 my-1" />}
+            {!contacted && (
+              <button onClick={markOnly}
+                className="flex items-center gap-2 w-full text-left text-sm rounded-md px-2 py-1.5 hover:bg-slate-50 text-[#004B9B]">
+                <PhoneCall size={13} /> Chỉ đánh dấu đã liên hệ
+              </button>
+            )}
+            {status && (
+              <button onClick={() => pickStatus(null)}
+                className="flex items-center gap-2 w-full text-left text-sm rounded-md px-2 py-1.5 hover:bg-slate-50 text-slate-500">
+                Bỏ phân loại
+              </button>
+            )}
           </div>
         </>
       )}
@@ -271,6 +372,10 @@ export default function LeadsTable({
   const renderCell = (key: ColKey, l: LeadRow) => {
     const contacted = isContacted(l.last_contact_at);
     switch (key) {
+      case 'contacted':
+        return <StatusPicker lead={l} variant="contacted" pending={pending} start={start} />;
+      case 'class':
+        return <StatusPicker lead={l} variant="class" pending={pending} start={start} />;
       case 'time': return <span className="text-slate-500">{fmtDate(l.created_at)}</span>;
       case 'name': return <span className="font-medium text-slate-800">{l.full_name ?? '—'}</span>;
       case 'phone': return <span className="text-slate-600">{formatPhoneDisplay(l.phone)}</span>;
@@ -278,40 +383,6 @@ export default function LeadsTable({
       case 'brand': return <span className="text-slate-600">{l.brand_name}</span>;
       case 'model': return <span className="text-slate-600">{l.model_name ?? '—'}</span>;
       case 'assignee': return <span className="text-slate-600">{l.assignee_name ?? '—'}</span>;
-      case 'contacted':
-        return contacted ? (
-          <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-50 rounded-full px-2.5 py-1">
-            <Check size={13} /> Đã liên hệ
-          </span>
-        ) : (
-          <button
-            disabled={pending}
-            onClick={(e) => { e.stopPropagation(); start(() => markContacted(l.id)); }}
-            className="inline-flex items-center gap-1 text-xs font-medium text-[#004B9B] border border-blue-200 rounded-full px-2.5 py-1 hover:bg-blue-50 disabled:opacity-50"
-          >
-            <PhoneCall size={12} /> Chưa liên hệ
-          </button>
-        );
-      case 'class':
-        return (
-          <select
-            value={l.status ?? ''}
-            disabled={pending || !contacted}
-            title={contacted ? undefined : 'Cần đánh dấu đã liên hệ trước khi phân loại'}
-            onClick={(e) => e.stopPropagation()}
-            onChange={(e) => {
-              e.stopPropagation();
-              const v = e.target.value === '' ? null : (e.target.value as LeadStatus);
-              start(() => setLeadStatus(l.id, v));
-            }}
-            className="text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white focus:border-[#004B9B] outline-none disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            <option value="">—</option>
-            {STATUS_OPTIONS.map((s) => (
-              <option key={s.code} value={s.code}>{s.code}</option>
-            ))}
-          </select>
-        );
       case 'contactedAt':
         return <span className="text-slate-500">{contacted ? fmtDate(l.last_contact_at!) : '—'}</span>;
       case 'note':
