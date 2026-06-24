@@ -7,8 +7,7 @@ import { isContacted } from '@/lib/lead-status';
 export interface StatCard {
   label: string;
   value: string | number;
-  color: string;
-  bg: string;
+  accent?: boolean; // chỉ số trọng tâm được tô nhẹ điểm nhấn
 }
 
 export interface ModelOption {
@@ -48,11 +47,11 @@ export default function LeadsView({
     const rate = total ? Math.round((contacted / total) * 100) : 0;
     const gdtd = scoped.filter((l) => l.status === 'GDTD').length;
     return [
-      { label: 'Tổng lead', value: total, color: '#004B9B', bg: '#e6f0fa' },
-      { label: 'Chưa liên hệ', value: pending, color: '#b45309', bg: '#fffbeb' },
-      { label: 'Đã liên hệ', value: contacted, color: '#047857', bg: '#ecfdf5' },
-      { label: 'Tỷ lệ liên hệ', value: `${rate}%`, color: '#0468BF', bg: '#e6f0fa' },
-      { label: 'GDTD', value: gdtd, color: '#7c3aed', bg: '#f5f3ff' },
+      { label: 'Tổng lead', value: total, accent: true },
+      { label: 'Chưa liên hệ', value: pending },
+      { label: 'Đã liên hệ', value: contacted },
+      { label: 'Tỷ lệ liên hệ', value: `${rate}%` },
+      { label: 'GDTD', value: gdtd },
     ];
   }, [scoped]);
 
@@ -87,14 +86,21 @@ export default function LeadsView({
     <div ref={rootRef} className="h-full flex flex-col p-6">
       <div
         ref={cardsRef}
-        className="shrink-0 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 overflow-hidden"
+        className="shrink-0 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 overflow-hidden"
         style={{ transition: 'opacity 0.15s, transform 0.15s', willChange: 'opacity, transform, max-height' }}
       >
         {cards.map((c) => (
-          <div key={c.label} className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-            <div className="text-xs font-medium uppercase tracking-wide" style={{ color: c.color }}>{c.label}</div>
-            <div className="text-3xl font-bold text-slate-900 mt-2">{c.value}</div>
-            <div className="mt-3 h-1 rounded-full" style={{ background: c.bg }} />
+          <div
+            key={c.label}
+            className="rounded-xl border border-slate-200 bg-white px-4 py-3.5"
+          >
+            <div className="text-[11px] font-medium uppercase tracking-wider text-slate-400">{c.label}</div>
+            <div
+              className="text-2xl font-semibold mt-1 tabular-nums"
+              style={{ color: c.accent ? '#004B9B' : '#0f172a' }}
+            >
+              {c.value}
+            </div>
           </div>
         ))}
       </div>
