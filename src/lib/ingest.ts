@@ -163,21 +163,46 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
 
   if (error || !inserted) return { ok: false, reason: error?.message ?? 'insert_failed' };
 
-  // Đẩy thông báo vào mọi kênh đang bật có sự kiện 'new_lead'
+  // Đẩy thông báo Zalo: CHỈ nhóm của showroom đã chọn + có sự kiện 'new_lead'.
+  // Nhóm BLĐ (scope='management') KHÔNG nhận từng lead — chỉ nhận báo cáo ngày.
   const { data: notifChannels } = await db
     .from('notification_channels')
-    .select('channel, target, events')
+    .select('id, channel, target, events, showroom_id, scope')
     .eq('company_id', showroom.company_id)
     .eq('is_active', true);
 
-  const targets = (notifChannels ?? []).filter((c) => (c.events ?? []).includes('new_lead'));
+  const targets = (notifChannels ?? []).filter(
+    (c) =>
+      (c.events ?? []).includes('new_lead') &&
+      c.scope === 'showroom' &&
+      c.showroom_id === chosenShowroomId
+  );
+
   if (targets.length > 0) {
+    // Tên showroom + dòng xe + TVBH để render text (1 truy vấn mỗi loại)
+    const { data: srRow } = await db
+      .from('showrooms').select('name').eq('id', chosenShowroomId).maybeSingle();
+    const assigneeName = assignedTo
+      ? (await db.from('users').select('full_name').eq('id', assignedTo).maybeSingle()).data?.full_name ?? null
+      : null;
+
+    const { renderNewLead } = await import('@/lib/notify-templates');
+    const text = renderNewLead({
+      showroom: srRow?.name ?? 'Showroom',
+      fullName: payload.full_name ?? null,
+      phone,
+      source: payload.source ?? 'facebook',
+      model: null,
+      assignee: assigneeName,
+    });
+
     await db.from('notifications').insert(
       targets.map((c) => ({
         lead_id: inserted.id,
         channel: c.channel,
+        channel_id: c.id,
         status: 'pending',
-        payload: { event: 'new_lead', leadId: inserted.id, phone, target: c.target },
+        payload: { event: 'new_lead', leadId: inserted.id, target: c.target, text },
       }))
     );
   }
