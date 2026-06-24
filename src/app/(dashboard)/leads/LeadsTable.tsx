@@ -83,8 +83,8 @@ export default function LeadsTable({ leads }: { leads: LeadRow[] }) {
   ];
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200">
-      <div className="flex items-center gap-2 px-6 py-3 border-b border-slate-100 rounded-t-xl">
+    <div className="h-full flex flex-col bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      <div className="flex items-center gap-2 px-6 py-3 border-b border-slate-100 shrink-0">
         {TABS.map((t) => (
           <button
             key={t.key}
@@ -100,6 +100,7 @@ export default function LeadsTable({ leads }: { leads: LeadRow[] }) {
           </button>
         ))}
       </div>
+      <div data-table-scroll className="flex-1 min-h-0 overflow-y-auto">
       <table className="w-full text-sm">
         <thead className="sticky top-0 z-10 bg-slate-50 text-slate-500 text-left text-xs uppercase tracking-wide shadow-sm">
           <tr>
@@ -166,6 +167,7 @@ export default function LeadsTable({ leads }: { leads: LeadRow[] }) {
           )}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
