@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useState, useEffect, useTransition } from 'react';
-import { X, PhoneCall, RefreshCw, Clock, Save } from 'lucide-react';
+import { X, PhoneCall, RefreshCw, Clock, Save, Pencil, Check } from 'lucide-react';
 import { formatPhoneDisplay } from '@/lib/phone';
+import { sourceLabel } from '@/lib/source';
 import { STATUS_OPTIONS, type LeadStatus } from '@/lib/lead-status';
-import { updateLead, reassignLead, getLeadLogs, type LeadLogItem } from './actions';
+import { updateLead, reassignLead, renameLead, getLeadLogs, type LeadLogItem } from './actions';
 import type { LeadRow } from './LeadsTable';
 import type { ModelOption, AssigneeOption } from './LeadsView';
 
@@ -39,6 +40,8 @@ export default function LeadDrawer({
   onClose: () => void;
 }) {
   const [status, setStatus] = useState<LeadStatus | ''>(lead.status ?? '');
+  const [fullName, setFullName] = useState(lead.full_name ?? '');
+  const [editingName, setEditingName] = useState(false);
   const [modelId, setModelId] = useState<string>(lead.model_id ?? '');
   const [note, setNote] = useState('');
   const [nextDate, setNextDate] = useState(toDateInput(lead.next_contact_at));
@@ -48,6 +51,21 @@ export default function LeadDrawer({
   const [flash, setFlash] = useState<string | null>(null);
 
   const brandModels = models.filter((m) => m.brand_id === lead.brand_id);
+
+  const cancelName = () => { setFullName(lead.full_name ?? ''); setEditingName(false); };
+  const onRename = () => {
+    start(async () => {
+      const res = await renameLead(lead.id, fullName.trim() || null);
+      if (res.ok) {
+        setEditingName(false);
+        setFlash('Đã lưu tên khách hàng.');
+        getLeadLogs(lead.id).then(setLogs);
+        setTimeout(() => setFlash(null), 2500);
+      } else {
+        setFlash(res.error ?? 'Lưu tên thất bại.');
+      }
+    });
+  };
 
   const onReassign = (next: string) => {
     const prev = assignedTo;
@@ -104,11 +122,35 @@ export default function LeadDrawer({
 
         {/* Header */}
         <div className="shrink-0 px-5 py-4 border-b border-slate-100 flex items-start justify-between">
-          <div>
-            <div className="text-lg font-bold text-slate-900">{lead.full_name ?? '—'}</div>
+          <div className="flex-1 min-w-0">
+            {editingName ? (
+              <div className="flex items-center gap-1.5">
+                <input
+                  autoFocus
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') onRename(); if (e.key === 'Escape') cancelName(); }}
+                  placeholder="Nhập tên khách hàng"
+                  className="text-lg font-bold text-slate-900 border-b border-[#004B9B] outline-none w-full bg-transparent"
+                />
+                <button onClick={onRename} disabled={pending} className="text-[#004B9B] p-1 shrink-0 disabled:opacity-50" title="Lưu tên">
+                  <Check size={18} />
+                </button>
+                <button onClick={cancelName} className="text-slate-400 hover:text-slate-600 p-1 shrink-0" title="Huỷ">
+                  <X size={16} />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5">
+                <span className="text-lg font-bold text-slate-900 truncate">{fullName.trim() || '—'}</span>
+                <button onClick={() => setEditingName(true)} className="text-slate-300 hover:text-[#004B9B] p-1 shrink-0" title="Sửa tên">
+                  <Pencil size={14} />
+                </button>
+              </div>
+            )}
             <div className="text-sm text-slate-500 mt-0.5">{formatPhoneDisplay(lead.phone)}</div>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 p-1 -mr-1">
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 p-1 -mr-1 shrink-0">
             <X size={20} />
           </button>
         </div>
@@ -118,7 +160,7 @@ export default function LeadDrawer({
           <section className="bg-slate-50 rounded-xl p-3">
             <InfoRow label="Showroom" value={lead.showroom_name ?? '—'} />
             <InfoRow label="Thương hiệu" value={lead.brand_name} />
-            <InfoRow label="Nguồn" value={lead.source ?? '—'} />
+            <InfoRow label="Chi tiết kênh" value={sourceLabel(lead.source)} />
             {canManage ? (
               <div className="flex justify-between items-center gap-3 py-1.5 text-sm">
                 <span className="text-slate-400">Phụ trách</span>

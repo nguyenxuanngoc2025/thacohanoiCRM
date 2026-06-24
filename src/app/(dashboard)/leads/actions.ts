@@ -58,6 +58,27 @@ export interface LeadUpdateInput {
   nextContactAt: string | null;
 }
 
+/** Sửa tên khách hàng (độc lập — KHÔNG đánh dấu liên hệ). */
+export async function renameLead(leadId: string, fullName: string | null) {
+  const db = await createClient();
+  const { data: { user } } = await db.auth.getUser();
+  if (!user) return { ok: false as const, error: 'Chưa đăng nhập.' };
+
+  const name = fullName?.trim() || null;
+  const { error } = await db.from('leads').update({ full_name: name }).eq('id', leadId);
+  if (error) return { ok: false as const, error: error.message };
+
+  await db.from('lead_logs').insert({
+    lead_id: leadId,
+    user_id: user.id,
+    type: 'system',
+    content: name ? `Sửa tên khách hàng: ${name}.` : 'Xoá tên khách hàng.',
+  });
+
+  revalidatePath('/leads');
+  return { ok: true as const };
+}
+
 /**
  * Cập nhật lead khi TVBH liên hệ: đặt phân loại + dòng xe + ghi chú liên hệ +
  * hẹn gọi lại, đồng thời đánh dấu đã liên hệ (last_contact_at = now) và ghi log.

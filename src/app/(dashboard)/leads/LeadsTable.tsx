@@ -4,6 +4,7 @@ import React, { useState, useMemo, useTransition, useEffect } from 'react';
 import { PhoneCall, Check, ChevronUp, ChevronDown, ChevronsUpDown, SlidersHorizontal, UserPlus } from 'lucide-react';
 import { formatPhoneDisplay } from '@/lib/phone';
 import { STATUS_OPTIONS, isContacted, type LeadStatus } from '@/lib/lead-status';
+import { sourceLabel } from '@/lib/source';
 import { setLeadStatus, markContacted } from './actions';
 import type { ModelOption, BrandOption, ShowroomOption, AssigneeOption } from './LeadsView';
 import LeadDrawer from './LeadDrawer';
@@ -55,7 +56,7 @@ function compare(key: ColKey, a: LeadRow, b: LeadRow): number {
     case 'class': return (STATUS_ORDER[a.status ?? ''] ?? 99) - (STATUS_ORDER[b.status ?? ''] ?? 99);
     case 'contactedAt': return tsOrNeg(a.last_contact_at) - tsOrNeg(b.last_contact_at);
     case 'note': return (a.last_note ?? '').localeCompare(b.last_note ?? '', 'vi');
-    case 'source': return (a.source ?? '').localeCompare(b.source ?? '', 'vi');
+    case 'source': return sourceLabel(a.source).localeCompare(sourceLabel(b.source), 'vi');
     case 'next': return tsOrNeg(a.next_contact_at) - tsOrNeg(b.next_contact_at);
     case 'count': return a.contact_count - b.contact_count;
   }
@@ -75,7 +76,7 @@ const COLS: ColDef[] = [
   { key: 'class', label: 'Phân loại', pad: 'px-4' },
   { key: 'contactedAt', label: 'Liên hệ lúc', pad: 'px-4' },
   { key: 'note', label: 'Nội dung liên hệ', pad: 'px-4' },
-  { key: 'source', label: 'Nguồn', pad: 'px-4' },
+  { key: 'source', label: 'Chi tiết kênh', pad: 'px-4' },
   { key: 'next', label: 'Hẹn gọi lại', pad: 'px-4' },
   { key: 'count', label: 'Số lần LH', pad: 'px-4' },
 ];
@@ -313,7 +314,7 @@ export default function LeadsTable({
         return <span className="text-slate-500">{contacted ? fmtDate(l.last_contact_at!) : '—'}</span>;
       case 'note':
         return <span className="text-slate-500 line-clamp-1 max-w-[220px] inline-block align-bottom">{l.last_note ?? '—'}</span>;
-      case 'source': return <span className="text-slate-500">{l.source ?? '—'}</span>;
+      case 'source': return <span className="text-slate-500">{sourceLabel(l.source)}</span>;
       case 'next': return <span className="text-slate-500">{l.next_contact_at ? fmtDay(l.next_contact_at) : '—'}</span>;
       case 'count': return <span className="text-slate-600 tabular-nums">{l.contact_count}</span>;
     }
