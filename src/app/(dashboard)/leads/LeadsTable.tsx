@@ -212,6 +212,11 @@ function StatusPicker({ lead, variant, pending, start }: {
         <PhoneCall size={12} /> Chưa liên hệ
       </button>
     );
+  } else if (!contacted) {
+    // Chưa liên hệ → chưa được phân loại. Hiển thị dấu '—', click không có tác dụng.
+    trigger = (
+      <span title="Cần đánh dấu đã liên hệ trước khi phân loại" className="text-slate-300 text-sm select-none">—</span>
+    );
   } else {
     trigger = opt ? (
       <button ref={btnRef} disabled={pending} onClick={toggle}
