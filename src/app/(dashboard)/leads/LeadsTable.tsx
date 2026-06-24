@@ -95,18 +95,71 @@ const fmtDay = (v: string) => new Date(v).toLocaleDateString('vi-VN', {
 const uniqSorted = (arr: (string | null)[]) =>
   [...new Set(arr.filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b, 'vi'));
 
+// Dropdown filter tuỳ biến (button + popup fixed mở xuống) — tránh native select mở ngược lên
 function Filter({ value, onChange, placeholder, options }: {
   value: string; onChange: (v: string) => void; placeholder: string; options: string[];
 }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const btnRef = React.useRef<HTMLButtonElement>(null);
+  const active = value !== '';
+
+  const toggle = () => {
+    if (open) { setOpen(false); return; }
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r) setPos({ top: r.bottom + 4, left: r.left, width: Math.max(r.width, 180) });
+    setOpen(true);
+  };
+
+  const pick = (v: string) => { onChange(v); setOpen(false); };
+
   return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white focus:border-[#004B9B] outline-none text-slate-600"
-    >
-      <option value="">{placeholder}</option>
-      {options.map((o) => <option key={o} value={o}>{o}</option>)}
-    </select>
+    <>
+      <button
+        ref={btnRef}
+        onClick={toggle}
+        className="inline-flex items-center gap-1.5 text-sm border rounded-lg px-2.5 py-1.5 outline-none transition-colors"
+        style={{
+          borderColor: active ? '#004B9B' : '#e2e8f0',
+          background: active ? '#e6f0fa' : '#fff',
+          color: active ? '#004B9B' : '#64748b',
+          fontWeight: active ? 600 : 400,
+        }}
+      >
+        {active ? value : placeholder}
+        <ChevronDown size={13} className="opacity-60" />
+      </button>
+      {open && pos && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 9998 }} onClick={() => setOpen(false)} />
+          <div
+            style={{
+              position: 'fixed', top: pos.top, left: pos.left, minWidth: pos.width, zIndex: 9999,
+              background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.12)', padding: 6, maxHeight: 280, overflowY: 'auto',
+            }}
+          >
+            <button
+              onClick={() => pick('')}
+              className="block w-full text-left text-sm rounded-md px-2.5 py-1.5 hover:bg-slate-50"
+              style={{ color: !active ? '#004B9B' : '#475569', fontWeight: !active ? 600 : 400 }}
+            >
+              {placeholder}
+            </button>
+            {options.map((o) => (
+              <button
+                key={o}
+                onClick={() => pick(o)}
+                className="block w-full text-left text-sm rounded-md px-2.5 py-1.5 hover:bg-slate-50"
+                style={{ color: value === o ? '#004B9B' : '#475569', fontWeight: value === o ? 600 : 400 }}
+              >
+                {o}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </>
   );
 }
 

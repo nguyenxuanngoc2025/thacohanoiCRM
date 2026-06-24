@@ -74,7 +74,7 @@ export default function LeadDrawer({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
+    <div className="fixed inset-0 flex justify-end" style={{ zIndex: 1000 }}>
       <div className="absolute inset-0 bg-slate-900/30" onClick={onClose} />
       <div className="relative w-full max-w-md h-full bg-white shadow-2xl flex flex-col animate-[slideIn_0.2s_ease]">
         <style>{`@keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}`}</style>
