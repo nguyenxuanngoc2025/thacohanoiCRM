@@ -197,7 +197,7 @@ function Filter({ value, onChange, placeholder, options }: {
           <div
             style={{
               position: 'fixed', top: pos.top, left: pos.left, minWidth: pos.width, zIndex: 9999,
-              background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10,
+              background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8,
               boxShadow: '0 8px 24px rgba(0,0,0,0.12)', padding: 6, maxHeight: 280, overflowY: 'auto',
             }}
           >
@@ -325,7 +325,7 @@ function StatusPicker({ lead, variant, pending, start }: {
             onClick={(e) => e.stopPropagation()}
             style={{
               position: 'fixed', top: pos.top, bottom: pos.bottom, left: pos.left, minWidth: 220, zIndex: 9999,
-              background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10,
+              background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8,
               boxShadow: '0 8px 24px rgba(0,0,0,0.12)', padding: 6,
               maxHeight: '70vh', overflowY: 'auto',
             }}
