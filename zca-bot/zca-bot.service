@@ -1,0 +1,14 @@
+[Unit]
+Description=zca-bot (Zalo notification sender for CRM Thaco Auto)
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/zca-bot
+ExecStart=/usr/bin/node index.mjs
+Restart=always
+RestartSec=10
+EnvironmentFile=/opt/zca-bot/.env
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,21 @@
+# zca-bot — cầu nối gửi thông báo Zalo cho CRM Thaco Auto
+
+Gửi thông báo vận hành (lead mới, nhắc quá hạn, báo cáo) vào các nhóm Zalo của
+showroom + nhóm BLĐ, bằng 1 tài khoản Zalo "bot" do doanh nghiệp sở hữu.
+
+## Cài trên VPS (145.79.8.92)
+1. `mkdir -p /opt/zca-bot && cd /opt/zca-bot` rồi copy index.mjs + package.json.
+2. `cp .env.example .env` và điền SUPABASE_SERVICE_ROLE_KEY (lấy từ .env.master).
+3. `npm install`
+4. Lần đầu chạy tay để quét QR: `node index.mjs` → log in QR (base64). Render QR:
+   dán base64 vào trình xem ảnh, hoặc dùng `npx qrcode-terminal` từ chuỗi data.
+   Mở app Zalo của tài khoản bot → Quét QR. Sau khi xong, cred lưu ở `zalo-cred.json`.
+5. Cài service: `cp zca-bot.service /etc/systemd/system/ && systemctl daemon-reload`
+   `systemctl enable --now zca-bot` → `journalctl -u zca-bot -f` để xem log.
+
+## Khi rớt phiên (log báo cred hỏng / không gửi được)
+- Xoá `zalo-cred.json`, `systemctl restart zca-bot`, xem log lấy QR, quét lại.
+
+## Lấy group_id
+- group_id điền ở trang Cài đặt > Kênh thông báo (ô "Đích gửi"). Lấy bằng cách bot
+  đọc danh sách nhóm (xem zca-js `getAllGroups`) hoặc log group_id khi nhận tin.
