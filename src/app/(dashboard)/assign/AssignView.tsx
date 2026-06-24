@@ -65,24 +65,17 @@ export default function AssignView({ leads, tvbh }: { leads: UnassignedLead[]; t
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">Phân giao</h1>
-          <p className="text-sm text-slate-400 mt-0.5">Giao lead chưa có người phụ trách cho tư vấn bán hàng</p>
-        </div>
-      </div>
-
+    <div className="h-full flex flex-col p-6 gap-4">
       {flash && (
-        <div className="px-4 py-2.5 text-sm bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-lg">
+        <div className="shrink-0 px-4 py-2.5 text-sm bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-lg">
           {flash}
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Lead chưa giao */}
-        <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm">
-          <div className="flex items-center justify-between gap-3 p-5 pb-3">
+        <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col min-h-0">
+          <div className="shrink-0 flex items-center justify-between gap-3 p-5 pb-3 border-b border-slate-100">
             <div>
               <h2 className="text-sm font-bold text-slate-900">Lead chưa giao ({leads.length})</h2>
               <p className="text-xs text-slate-400 mt-0.5">Chọn tư vấn bán hàng cho từng lead, hoặc chia đều tự động.</p>
@@ -100,9 +93,9 @@ export default function AssignView({ leads, tvbh }: { leads: UnassignedLead[]; t
           {leads.length === 0 ? (
             <div className="px-5 py-12 text-center text-slate-400 text-sm">Tất cả lead đã có người phụ trách.</div>
           ) : (
-            <div className="overflow-hidden">
+            <div className="flex-1 min-h-0 overflow-auto">
               <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-slate-500 text-left text-xs uppercase tracking-wide">
+                <thead className="sticky top-0 z-10 bg-slate-50 text-slate-500 text-left text-xs uppercase tracking-wide">
                   <tr>
                     <th className="px-5 py-2.5 font-semibold">Khách hàng</th>
                     <th className="px-3 py-2.5 font-semibold">Thương hiệu</th>
@@ -150,13 +143,15 @@ export default function AssignView({ leads, tvbh }: { leads: UnassignedLead[]; t
         </div>
 
         {/* Tải công việc TVBH */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-          <h2 className="text-sm font-bold text-slate-900">Tải công việc</h2>
-          <p className="text-xs text-slate-400 mt-0.5 mb-3">Số lead đang mở của mỗi tư vấn bán hàng.</p>
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col min-h-0">
+          <div className="shrink-0 p-5 pb-3 border-b border-slate-100">
+            <h2 className="text-sm font-bold text-slate-900">Tải công việc</h2>
+            <p className="text-xs text-slate-400 mt-0.5">Số lead đang mở của mỗi tư vấn bán hàng.</p>
+          </div>
           {tvbh.length === 0 ? (
-            <p className="text-sm text-slate-400">Chưa có tư vấn bán hàng nào.</p>
+            <p className="text-sm text-slate-400 p-5">Chưa có tư vấn bán hàng nào.</p>
           ) : (
-            <div className="space-y-2.5">
+            <div className="flex-1 min-h-0 overflow-auto p-5 pt-3 space-y-2.5">
               {[...tvbh].sort((a, b) => b.open_count - a.open_count).map((t) => (
                 <div key={t.id}>
                   <div className="flex items-center justify-between text-sm">
