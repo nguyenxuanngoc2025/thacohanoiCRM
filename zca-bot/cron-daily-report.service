@@ -1,0 +1,7 @@
+[Unit]
+Description=CRM Thaco Auto - cron daily report (gọi /api/cron/daily-report)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/curl -fsS -X POST https://<DOMAIN_CRM>/api/cron/daily-report -H "x-cron-secret: ${CRON_SECRET}"
+EnvironmentFile=/opt/zca-bot/.cron.env

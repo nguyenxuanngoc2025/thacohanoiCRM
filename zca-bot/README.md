@@ -25,3 +25,7 @@ showroom + nhóm BLĐ, bằng 1 tài khoản Zalo "bot" do doanh nghiệp sở h
 2. Sửa `<DOMAIN_CRM>` trong cron-reminders.service thành domain CRM thật.
 3. `cp cron-reminders.* /etc/systemd/system/ && systemctl daemon-reload`
    `systemctl enable --now cron-reminders.timer` → `systemctl list-timers | grep reminders`.
+
+## Cron báo cáo ngày
+- `cp cron-daily-report.* /etc/systemd/system/ && systemctl daemon-reload`
+  `systemctl enable --now cron-daily-report.timer`. Đổi `<DOMAIN_CRM>` như trên.
