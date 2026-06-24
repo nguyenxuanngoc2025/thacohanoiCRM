@@ -84,6 +84,24 @@ export async function markContacted(leadId: string) {
   revalidatePath('/leads');
 }
 
+/** Bỏ đánh dấu đã liên hệ (last_contact_at = null) — đưa lead về trạng thái chưa liên hệ. */
+export async function unmarkContacted(leadId: string) {
+  const db = await createClient();
+  const { data: { user } } = await db.auth.getUser();
+  if (!user) return;
+
+  const { error } = await db.from('leads').update({ last_contact_at: null }).eq('id', leadId);
+  if (error) return;
+
+  await db.from('lead_logs').insert({
+    lead_id: leadId,
+    user_id: user.id,
+    type: 'system',
+    content: 'Đưa về trạng thái chưa liên hệ.',
+  });
+  revalidatePath('/leads');
+}
+
 export interface LeadUpdateInput {
   leadId: string;
   status: LeadStatus | null;

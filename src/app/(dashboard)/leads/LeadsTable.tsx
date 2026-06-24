@@ -5,7 +5,7 @@ import { PhoneCall, Check, ChevronUp, ChevronDown, ChevronsUpDown, SlidersHorizo
 import { formatPhoneDisplay } from '@/lib/phone';
 import { STATUS_OPTIONS, isContacted, type LeadStatus } from '@/lib/lead-status';
 import { sourceLabel, sourcePlatform } from '@/lib/source';
-import { classifyLead, markContacted } from './actions';
+import { classifyLead, markContacted, unmarkContacted } from './actions';
 import type { ModelOption, BrandOption, ShowroomOption, AssigneeOption } from './LeadsView';
 import LeadDrawer from './LeadDrawer';
 import NewLeadModal from './NewLeadModal';
@@ -168,9 +168,10 @@ function Filter({ value, onChange, placeholder, options }: {
   );
 }
 
-// Chọn phân loại / đánh dấu liên hệ — popup tuỳ biến (đẹp + đồng bộ với Filter).
-// Click vào cột Trạng thái HOẶC Phân loại đều mở cùng 1 popup; chọn 1 phân loại = vừa
-// đánh dấu đã liên hệ vừa set status trong 1 thao tác (classifyLead).
+// Chọn phân loại / đổi trạng thái liên hệ — popup tuỳ biến (đẹp + đồng bộ với Filter).
+// Cột Phân loại: luôn mở picker phân loại (chọn 1 phân loại = vừa đánh dấu đã liên hệ
+// vừa set status). Cột Trạng thái: lần đầu (chưa liên hệ) mở picker phân loại; khi đã
+// liên hệ thì click mở popup ĐỔI LẠI trạng thái (đã/chưa liên hệ).
 function StatusPicker({ lead, variant, pending, start }: {
   lead: LeadRow;
   variant: 'contacted' | 'class';
@@ -184,6 +185,9 @@ function StatusPicker({ lead, variant, pending, start }: {
   const status = lead.status;
   const opt = status ? STATUS_OPTIONS.find((s) => s.code === status) : null;
 
+  // Cột Trạng thái + đã liên hệ → popup đổi trạng thái; còn lại → picker phân loại.
+  const mode: 'classify' | 'toggle' = variant === 'contacted' && contacted ? 'toggle' : 'classify';
+
   const toggle = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (open) { setOpen(false); return; }
@@ -193,30 +197,31 @@ function StatusPicker({ lead, variant, pending, start }: {
   };
   const pickStatus = (code: LeadStatus | null) => { setOpen(false); start(() => classifyLead(lead.id, code)); };
   const markOnly = () => { setOpen(false); start(() => markContacted(lead.id)); };
+  const unmark = () => { setOpen(false); start(() => unmarkContacted(lead.id)); };
 
   let trigger: React.ReactNode;
   if (variant === 'contacted') {
     trigger = contacted ? (
       <button ref={btnRef} disabled={pending} onClick={toggle}
-        className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-50 rounded-full px-2.5 py-1 hover:bg-emerald-100 disabled:opacity-50">
-        <Check size={13} /> Đã liên hệ
+        className="inline-flex items-center justify-center gap-1 min-w-[112px] text-xs font-medium text-emerald-700 bg-emerald-50 rounded-full px-2.5 py-1 hover:bg-emerald-100 disabled:opacity-50">
+        <Check size={13} /> Đã liên hệ <ChevronDown size={11} className="opacity-60" />
       </button>
     ) : (
       <button ref={btnRef} disabled={pending} onClick={toggle}
-        className="inline-flex items-center gap-1 text-xs font-medium text-[#004B9B] border border-blue-200 rounded-full px-2.5 py-1 hover:bg-blue-50 disabled:opacity-50">
+        className="inline-flex items-center justify-center gap-1 min-w-[112px] text-xs font-medium text-[#004B9B] border border-blue-200 rounded-full px-2.5 py-1 hover:bg-blue-50 disabled:opacity-50">
         <PhoneCall size={12} /> Chưa liên hệ
       </button>
     );
   } else {
     trigger = opt ? (
       <button ref={btnRef} disabled={pending} onClick={toggle}
-        className="inline-flex items-center gap-1 text-xs font-medium rounded-full px-2.5 py-1 disabled:opacity-50"
+        className="inline-flex items-center justify-center gap-1 min-w-[96px] text-xs font-medium rounded-full px-2.5 py-1 disabled:opacity-50"
         style={{ color: opt.color, background: opt.bg }}>
         {opt.code} <ChevronDown size={11} className="opacity-60" />
       </button>
     ) : (
       <button ref={btnRef} disabled={pending} onClick={toggle}
-        className="inline-flex items-center gap-1 text-xs text-slate-400 border border-dashed border-slate-300 rounded-full px-2.5 py-1 hover:border-slate-400 hover:text-slate-500 disabled:opacity-50">
+        className="inline-flex items-center justify-center gap-1 min-w-[96px] text-xs text-slate-400 border border-dashed border-slate-300 rounded-full px-2.5 py-1 hover:border-slate-400 hover:text-slate-500 disabled:opacity-50">
         Phân loại <ChevronDown size={11} className="opacity-60" />
       </button>
     );
@@ -236,31 +241,47 @@ function StatusPicker({ lead, variant, pending, start }: {
               boxShadow: '0 8px 24px rgba(0,0,0,0.12)', padding: 6,
             }}
           >
-            <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide px-2 py-1">Phân loại khách</div>
-            {STATUS_OPTIONS.map((s) => (
-              <button
-                key={s.code}
-                onClick={() => pickStatus(s.code)}
-                className="flex items-center gap-2 w-full text-left rounded-md px-2 py-1.5 hover:bg-slate-50"
-                style={{ background: status === s.code ? s.bg : undefined }}
-              >
-                <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ background: s.color }} />
-                <span className="text-sm font-medium" style={{ color: s.color }}>{s.code}</span>
-                <span className="text-xs text-slate-400 truncate">{s.label}</span>
-              </button>
-            ))}
-            {(!contacted || status) && <div className="h-px bg-slate-100 my-1" />}
-            {!contacted && (
-              <button onClick={markOnly}
-                className="flex items-center gap-2 w-full text-left text-sm rounded-md px-2 py-1.5 hover:bg-slate-50 text-[#004B9B]">
-                <PhoneCall size={13} /> Chỉ đánh dấu đã liên hệ
-              </button>
-            )}
-            {status && (
-              <button onClick={() => pickStatus(null)}
-                className="flex items-center gap-2 w-full text-left text-sm rounded-md px-2 py-1.5 hover:bg-slate-50 text-slate-500">
-                Bỏ phân loại
-              </button>
+            {mode === 'toggle' ? (
+              <>
+                <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide px-2 py-1">Trạng thái liên hệ</div>
+                <button onClick={() => setOpen(false)}
+                  className="flex items-center gap-2 w-full text-left text-sm rounded-md px-2 py-1.5 hover:bg-slate-50 text-emerald-700">
+                  <Check size={14} /> Đã liên hệ
+                </button>
+                <button onClick={unmark}
+                  className="flex items-center gap-2 w-full text-left text-sm rounded-md px-2 py-1.5 hover:bg-slate-50 text-slate-600">
+                  <PhoneCall size={13} /> Chưa liên hệ
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide px-2 py-1">Phân loại khách</div>
+                {STATUS_OPTIONS.map((s) => (
+                  <button
+                    key={s.code}
+                    onClick={() => pickStatus(s.code)}
+                    className="flex items-center gap-2 w-full text-left rounded-md px-2 py-1.5 hover:bg-slate-50"
+                    style={{ background: status === s.code ? s.bg : undefined }}
+                  >
+                    <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ background: s.color }} />
+                    <span className="text-sm font-medium" style={{ color: s.color }}>{s.code}</span>
+                    <span className="text-xs text-slate-400 truncate">{s.label}</span>
+                  </button>
+                ))}
+                {(!contacted || status) && <div className="h-px bg-slate-100 my-1" />}
+                {!contacted && (
+                  <button onClick={markOnly}
+                    className="flex items-center gap-2 w-full text-left text-sm rounded-md px-2 py-1.5 hover:bg-slate-50 text-[#004B9B]">
+                    <PhoneCall size={13} /> Chỉ đánh dấu đã liên hệ
+                  </button>
+                )}
+                {status && (
+                  <button onClick={() => pickStatus(null)}
+                    className="flex items-center gap-2 w-full text-left text-sm rounded-md px-2 py-1.5 hover:bg-slate-50 text-slate-500">
+                    Bỏ phân loại
+                  </button>
+                )}
+              </>
             )}
           </div>
         </>
