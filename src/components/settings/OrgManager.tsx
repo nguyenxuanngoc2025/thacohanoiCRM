@@ -19,7 +19,7 @@ export default function OrgManager({
   const [brandEdit, setBrandEdit] = useState<BrandRow | 'new' | null>(null);
   const [modelEdit, setModelEdit] = useState<ModelRow | 'new' | null>(null);
 
-  const brandName = (id: string | null) => brands.find((b) => b.id === id)?.name ?? '—';
+  const brandName = (id: string | null) => brands.find((b) => b.id === id)?.name ?? 'Đa thương hiệu';
 
   const delModel = async (m: ModelRow) => {
     if (!window.confirm(`Xoá dòng xe "${m.name}"?`)) return;
@@ -49,7 +49,7 @@ export default function OrgManager({
       <Panel>
         <PanelHeader
           title="Showroom"
-          desc="Mỗi showroom thuộc 1 thương hiệu. Dùng để gán nhân sự, đăng ký kênh và phân giao lead."
+          desc="Showroom là địa điểm (Giải Phóng, Chương Mỹ…), có thể bán nhiều thương hiệu. Dùng để gán nhân sự, đăng ký kênh và phân giao lead."
           action={<PrimaryBtn onClick={() => setSrEdit('new')}><Plus size={15} /> Thêm showroom</PrimaryBtn>}
         />
         <div className="overflow-hidden rounded-lg border border-slate-100">
@@ -190,12 +190,11 @@ function ShowroomModal({
   const submit = async () => {
     setError(null);
     if (!name.trim()) { setError('Nhập tên showroom.'); return; }
-    if (!brandId) { setError('Chọn thương hiệu.'); return; }
     setBusy(true);
     const r = await postAdmin('/api/admin/showrooms', {
       op: isNew ? 'create' : 'update',
       id: isNew ? undefined : (target as ShowroomRow).id,
-      name: name.trim(), code: code.trim() || null, brand_id: brandId,
+      name: name.trim(), code: code.trim() || null, brand_id: brandId || null,
     });
     setBusy(false);
     if (!r.ok) { setError(r.error ?? null); return; }
@@ -204,11 +203,11 @@ function ShowroomModal({
 
   return (
     <ModalShell title={isNew ? 'Thêm showroom' : 'Sửa showroom'} onClose={onClose} onSubmit={submit} busy={busy} error={error}>
-      <Field label="Tên showroom"><TextInput value={name} onChange={(e) => setName(e.target.value)} placeholder="KIA Hà Nội" /></Field>
-      <Field label="Mã (tuỳ chọn)"><TextInput value={code} onChange={(e) => setCode(e.target.value)} placeholder="KIA-HN-01" /></Field>
-      <Field label="Thương hiệu">
+      <Field label="Tên showroom"><TextInput value={name} onChange={(e) => setName(e.target.value)} placeholder="Giải Phóng" /></Field>
+      <Field label="Mã (tuỳ chọn)"><TextInput value={code} onChange={(e) => setCode(e.target.value)} placeholder="GP" /></Field>
+      <Field label="Thương hiệu (tuỳ chọn)" hint="Để trống nếu showroom bán nhiều thương hiệu.">
         <Select value={brandId} onChange={(e) => setBrandId(e.target.value)}>
-          <option value="">— Chọn thương hiệu —</option>
+          <option value="">— Đa thương hiệu —</option>
           {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
         </Select>
       </Field>

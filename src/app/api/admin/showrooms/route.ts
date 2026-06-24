@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { requireAdmin } from '@/lib/admin-guard';
 
-// CRUD showrooms (mỗi showroom thuộc 1 công ty + 1 thương hiệu)
+// CRUD showrooms (showroom là địa điểm thuộc 1 công ty; brand_id tuỳ chọn — đa thương hiệu)
 export async function POST(request: NextRequest) {
   const guard = await requireAdmin();
   if (guard.error) return guard.error;
@@ -20,7 +20,6 @@ export async function POST(request: NextRequest) {
     const name = String(body.name ?? '').trim();
     if (!name) return NextResponse.json({ error: 'Thiếu tên showroom' }, { status: 400 });
     const brand_id = body.brand_id || null;
-    if (!brand_id) return NextResponse.json({ error: 'Chọn thương hiệu' }, { status: 400 });
     const row = {
       name,
       code: body.code ? String(body.code).trim() : null,
