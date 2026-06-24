@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
-import LeadsTable, { type LeadRow } from './LeadsTable';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import LeadsTable, { type LeadRow, type Filters, EMPTY_FILTERS, applyScope } from './LeadsTable';
+import { isContacted } from '@/lib/lead-status';
 
 export interface StatCard {
   label: string;
@@ -23,18 +24,37 @@ export interface AssigneeOption { id: string; full_name: string }
 const THRESHOLD = 140; // px cuộn trong bảng để thu hết card
 
 export default function LeadsView({
-  cards, leads, models, brands, showrooms, assignees, canCreate,
+  leads, models, brands, showrooms, assignees, canCreate, canAssign,
 }: {
-  cards: StatCard[];
   leads: LeadRow[];
   models: ModelOption[];
   brands: BrandOption[];
   showrooms: ShowroomOption[];
   assignees: AssigneeOption[];
   canCreate: boolean;
+  canAssign: boolean;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const cardsRef = useRef<HTMLDivElement>(null);
+  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
+
+  // Tập lead theo bộ lọc phạm vi → KPI cards tính từ đây để "nhảy" theo filter.
+  const scoped = useMemo(() => applyScope(leads, filters), [leads, filters]);
+
+  const cards = useMemo<StatCard[]>(() => {
+    const total = scoped.length;
+    const contacted = scoped.filter((l) => isContacted(l.last_contact_at)).length;
+    const pending = total - contacted;
+    const rate = total ? Math.round((contacted / total) * 100) : 0;
+    const gdtd = scoped.filter((l) => l.status === 'GDTD').length;
+    return [
+      { label: 'Tổng lead', value: total, color: '#004B9B', bg: '#e6f0fa' },
+      { label: 'Chưa liên hệ', value: pending, color: '#b45309', bg: '#fffbeb' },
+      { label: 'Đã liên hệ', value: contacted, color: '#047857', bg: '#ecfdf5' },
+      { label: 'Tỷ lệ liên hệ', value: `${rate}%`, color: '#0468BF', bg: '#e6f0fa' },
+      { label: 'GDTD', value: gdtd, color: '#7c3aed', bg: '#f5f3ff' },
+    ];
+  }, [scoped]);
 
   useEffect(() => {
     const scroller = rootRef.current?.querySelector<HTMLElement>('[data-table-scroll]');
@@ -85,7 +105,18 @@ export default function LeadsView({
       </div>
 
       <div className="flex-1 min-h-0">
-        <LeadsTable leads={leads} models={models} brands={brands} showrooms={showrooms} assignees={assignees} canCreate={canCreate} />
+        <LeadsTable
+          leads={scoped}
+          allLeads={leads}
+          filters={filters}
+          setFilters={setFilters}
+          models={models}
+          brands={brands}
+          showrooms={showrooms}
+          assignees={assignees}
+          canCreate={canCreate}
+          canAssign={canAssign}
+        />
       </div>
     </div>
   );

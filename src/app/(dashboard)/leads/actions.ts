@@ -35,20 +35,30 @@ export async function setLeadStatus(leadId: string, status: LeadStatus | null) {
 /**
  * Phân loại lead. Gán phân loại đồng thời TỰ đánh dấu đã liên hệ (vì đã phân loại
  * tức là đã làm việc với lead). status=null = bỏ phân loại (KHÔNG đụng last_contact_at).
+ * Quy tắc bổ sung:
+ *  - Fail: kèm lý do (fail_reason); status khác → xoá fail_reason.
+ *  - 'Chưa LH được': mỗi lần chọn = 1 lần gọi hụt → tăng no_answer_count.
  * Ghi log liên hệ (nếu lần đầu) + log đổi phân loại.
  */
-export async function classifyLead(leadId: string, status: LeadStatus | null) {
+export async function classifyLead(leadId: string, status: LeadStatus | null, failReason?: string | null) {
   if (status !== null && !VALID.has(status)) return;
   const db = await createClient();
   const { data: { user } } = await db.auth.getUser();
   if (!user) return;
 
-  const { data: prev } = await db.from('leads').select('status, last_contact_at').eq('id', leadId).maybeSingle();
+  const { data: prev } = await db.from('leads').select('status, last_contact_at, no_answer_count').eq('id', leadId).maybeSingle();
   const now = new Date().toISOString();
   const willMarkContacted = status !== null && !prev?.last_contact_at;
 
-  const patch: { status: LeadStatus | null; last_contact_at?: string } = { status };
+  const patch: {
+    status: LeadStatus | null;
+    last_contact_at?: string;
+    fail_reason?: string | null;
+    no_answer_count?: number;
+  } = { status };
   if (willMarkContacted) patch.last_contact_at = now;
+  patch.fail_reason = status === 'Fail' ? (failReason?.trim() || 'Khác') : null;
+  if (status === 'Chưa LH được') patch.no_answer_count = (prev?.no_answer_count ?? 0) + 1;
 
   const { error } = await db.from('leads').update(patch).eq('id', leadId);
   if (error) return;
@@ -57,10 +67,16 @@ export async function classifyLead(leadId: string, status: LeadStatus | null) {
     await db.from('lead_logs').insert({ lead_id: leadId, user_id: user.id, type: 'contact', content: 'Đánh dấu đã liên hệ.' });
   }
   if ((prev?.status ?? null) !== status) {
+    const suffix = status === 'Fail' && patch.fail_reason ? ` (lý do: ${patch.fail_reason})` : '';
     await db.from('lead_logs').insert({
       lead_id: leadId, user_id: user.id, type: 'status_change',
       old_status: prev?.status ?? null, new_status: status,
-      content: status ? `Đổi phân loại sang ${status}.` : 'Bỏ phân loại.',
+      content: status ? `Đổi phân loại sang ${status}${suffix}.` : 'Bỏ phân loại.',
+    });
+  } else if (status === 'Chưa LH được') {
+    await db.from('lead_logs').insert({
+      lead_id: leadId, user_id: user.id, type: 'contact',
+      content: `Gọi lần ${patch.no_answer_count} — chưa liên hệ được.`,
     });
   }
   revalidatePath('/leads');
@@ -94,7 +110,7 @@ export async function unmarkContacted(leadId: string) {
   if (!user) return;
 
   const { data: prev } = await db.from('leads').select('status').eq('id', leadId).maybeSingle();
-  const { error } = await db.from('leads').update({ last_contact_at: null, status: null }).eq('id', leadId);
+  const { error } = await db.from('leads').update({ last_contact_at: null, status: null, fail_reason: null, no_answer_count: 0 }).eq('id', leadId);
   if (error) return;
 
   await db.from('lead_logs').insert({
@@ -231,6 +247,40 @@ export async function reassignLead(leadId: string, newAssigneeId: string | null)
   revalidatePath('/leads');
   revalidatePath('/assign');
   return { ok: true as const };
+}
+
+/**
+ * Gán hàng loạt nhiều lead cho 1 TVBH (chỉ admin/manager). Bỏ qua lead đã đúng người.
+ * Ghi log 'system' cho từng lead.
+ */
+export async function bulkReassign(leadIds: string[], newAssigneeId: string | null) {
+  const db = await createClient();
+  const { data: { user } } = await db.auth.getUser();
+  if (!user) return { ok: false as const, error: 'Chưa đăng nhập.' };
+
+  const { data: me } = await db.from('users').select('role').eq('id', user.id).maybeSingle();
+  if (!me || !CAN_ASSIGN.has(me.role as UserRole)) return { ok: false as const, error: 'Bạn không có quyền phân giao.' };
+  if (leadIds.length === 0) return { ok: true as const, updated: 0 };
+
+  let newN = 'Chưa giao';
+  if (newAssigneeId) {
+    const { data: u } = await db.from('users').select('full_name').eq('id', newAssigneeId).maybeSingle();
+    newN = u?.full_name ?? '—';
+  }
+
+  const { error } = await db.from('leads').update({ assigned_to: newAssigneeId }).in('id', leadIds);
+  if (error) return { ok: false as const, error: error.message };
+
+  await db.from('lead_logs').insert(
+    leadIds.map((id) => ({
+      lead_id: id, user_id: user.id, type: 'system',
+      content: `Gán hàng loạt → ${newN}.`,
+    }))
+  );
+
+  revalidatePath('/leads');
+  revalidatePath('/assign');
+  return { ok: true as const, updated: leadIds.length };
 }
 
 export interface NewLeadInput {

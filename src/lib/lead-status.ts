@@ -16,6 +16,17 @@ export const STATUS_OPTIONS: { code: LeadStatus; label: string; color: string; b
   { code: 'Fail', label: STATUS_LABEL.Fail, color: '#be123c', bg: '#fff1f2' },
 ];
 
+/** Lý do khi phân loại Fail (bắt buộc chọn). 'Khác' cho nhập tay. */
+export const FAIL_REASONS = [
+  'Sai số / không liên lạc được',
+  'Không có nhu cầu',
+  'Đã mua xe nơi khác',
+  'Chỉ khảo giá, không mua',
+  'Ngoài khả năng tài chính',
+  'Trùng / spam',
+  'Khác',
+] as const;
+
 /** Cờ đã/chưa liên hệ suy từ cột last_contact_at (không thêm cột DB). */
 export function isContacted(lastContactAt: string | null): boolean {
   return lastContactAt != null;

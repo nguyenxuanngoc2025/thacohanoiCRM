@@ -180,6 +180,8 @@ export default function LeadDrawer({
             )}
             <InfoRow label="Tạo lúc" value={fmtDate(lead.created_at)} />
             <InfoRow label="Số lần liên hệ" value={String(lead.contact_count)} />
+            {lead.no_answer_count > 0 && <InfoRow label="Số lần gọi hụt" value={String(lead.no_answer_count)} />}
+            {lead.status === 'Fail' && lead.fail_reason && <InfoRow label="Lý do loại" value={lead.fail_reason} />}
           </section>
 
           {/* Form cập nhật */}
