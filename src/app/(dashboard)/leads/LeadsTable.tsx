@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useTransition } from 'react';
-import { PhoneCall, Check } from 'lucide-react';
+import React, { useState, useMemo, useTransition } from 'react';
+import { PhoneCall, Check, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 import { formatPhoneDisplay } from '@/lib/phone';
 import { STATUS_OPTIONS, isContacted, type LeadStatus } from '@/lib/lead-status';
 import { setLeadStatus, markContacted } from './actions';
@@ -17,9 +17,39 @@ export interface LeadRow {
 }
 
 type Tab = 'all' | 'pending' | 'contacted';
+type SortKey = 'name' | 'phone' | 'source' | 'contact' | 'status' | 'time';
+
+const STATUS_ORDER: Record<string, number> = Object.fromEntries(
+  STATUS_OPTIONS.map((s, i) => [s.code, i]),
+);
+
+// Thời điểm liên hệ; chưa liên hệ = -1 để cuộn lên đầu khi sort tăng dần
+const contactTime = (l: LeadRow) => (l.last_contact_at ? Date.parse(l.last_contact_at) : -1);
+
+function compare(key: SortKey, a: LeadRow, b: LeadRow): number {
+  switch (key) {
+    case 'name': return (a.full_name ?? '').localeCompare(b.full_name ?? '', 'vi');
+    case 'phone': return a.phone.localeCompare(b.phone);
+    case 'source': return (a.source ?? '').localeCompare(b.source ?? '', 'vi');
+    case 'contact': return contactTime(a) - contactTime(b);
+    case 'status': return (STATUS_ORDER[a.status] ?? 99) - (STATUS_ORDER[b.status] ?? 99);
+    case 'time': return Date.parse(a.created_at) - Date.parse(b.created_at);
+  }
+}
+
+const COLS: { key: SortKey; label: string; pad: string }[] = [
+  { key: 'name', label: 'Khách hàng', pad: 'px-6' },
+  { key: 'phone', label: 'SĐT', pad: 'px-4' },
+  { key: 'source', label: 'Nguồn', pad: 'px-4' },
+  { key: 'contact', label: 'Liên hệ', pad: 'px-4' },
+  { key: 'status', label: 'Phân loại', pad: 'px-4' },
+  { key: 'time', label: 'Thời gian', pad: 'px-4' },
+];
 
 export default function LeadsTable({ leads }: { leads: LeadRow[] }) {
   const [tab, setTab] = useState<Tab>('all');
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [pending, start] = useTransition();
 
   const counts = {
@@ -28,9 +58,23 @@ export default function LeadsTable({ leads }: { leads: LeadRow[] }) {
     contacted: leads.filter((l) => isContacted(l.last_contact_at)).length,
   };
 
-  const shown = leads.filter((l) =>
-    tab === 'all' ? true : tab === 'contacted' ? isContacted(l.last_contact_at) : !isContacted(l.last_contact_at),
-  );
+  const rows = useMemo(() => {
+    const filtered = leads.filter((l) =>
+      tab === 'all' ? true : tab === 'contacted' ? isContacted(l.last_contact_at) : !isContacted(l.last_contact_at),
+    );
+    if (!sortKey) return filtered;
+    const sorted = [...filtered].sort((a, b) => compare(sortKey, a, b));
+    return sortDir === 'asc' ? sorted : sorted.reverse();
+  }, [leads, tab, sortKey, sortDir]);
+
+  const onSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  };
 
   const TABS: { key: Tab; label: string }[] = [
     { key: 'all', label: 'Tất cả' },
@@ -39,8 +83,8 @@ export default function LeadsTable({ leads }: { leads: LeadRow[] }) {
   ];
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-      <div className="flex items-center gap-2 px-6 py-3 border-b border-slate-100">
+    <div className="bg-white rounded-xl shadow-sm border border-slate-200">
+      <div className="flex items-center gap-2 px-6 py-3 border-b border-slate-100 rounded-t-xl">
         {TABS.map((t) => (
           <button
             key={t.key}
@@ -57,18 +101,29 @@ export default function LeadsTable({ leads }: { leads: LeadRow[] }) {
         ))}
       </div>
       <table className="w-full text-sm">
-        <thead className="bg-slate-50 text-slate-500 text-left text-xs uppercase tracking-wide">
+        <thead className="sticky top-0 z-10 bg-slate-50 text-slate-500 text-left text-xs uppercase tracking-wide shadow-sm">
           <tr>
-            <th className="px-6 py-3 font-semibold">Khách hàng</th>
-            <th className="px-4 py-3 font-semibold">SĐT</th>
-            <th className="px-4 py-3 font-semibold">Nguồn</th>
-            <th className="px-4 py-3 font-semibold">Liên hệ</th>
-            <th className="px-4 py-3 font-semibold">Phân loại</th>
-            <th className="px-4 py-3 font-semibold">Thời gian</th>
+            {COLS.map((c) => {
+              const active = sortKey === c.key;
+              return (
+                <th key={c.key} className={`${c.pad} py-3 font-semibold`}>
+                  <button
+                    onClick={() => onSort(c.key)}
+                    className="inline-flex items-center gap-1 hover:text-[#004B9B] transition-colors uppercase"
+                    style={{ color: active ? '#004B9B' : undefined }}
+                  >
+                    {c.label}
+                    {active
+                      ? (sortDir === 'asc' ? <ChevronUp size={13} /> : <ChevronDown size={13} />)
+                      : <ChevronsUpDown size={12} className="opacity-30" />}
+                  </button>
+                </th>
+              );
+            })}
           </tr>
         </thead>
         <tbody>
-          {shown.map((l) => {
+          {rows.map((l) => {
             const contacted = isContacted(l.last_contact_at);
             return (
               <tr key={l.id} className="border-t border-slate-100 hover:bg-slate-50/60">
@@ -106,7 +161,7 @@ export default function LeadsTable({ leads }: { leads: LeadRow[] }) {
               </tr>
             );
           })}
-          {shown.length === 0 && (
+          {rows.length === 0 && (
             <tr><td colSpan={6} className="px-4 py-12 text-center text-slate-400">Không có lead nào.</td></tr>
           )}
         </tbody>

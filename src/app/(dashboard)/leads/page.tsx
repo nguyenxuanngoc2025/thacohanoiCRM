@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
-import LeadsTable, { type LeadRow } from './LeadsTable';
+import { type LeadRow } from './LeadsTable';
+import LeadsView, { type StatCard } from './LeadsView';
 import { isContacted } from '@/lib/lead-status';
 
 export const dynamic = 'force-dynamic';
@@ -19,7 +20,7 @@ export default async function LeadsPage() {
   const contactRate = total ? Math.round((contacted / total) * 100) : 0;
   const gdtd = leads.filter((l) => l.status === 'GDTD').length;
 
-  const CARDS: { label: string; value: string | number; color: string; bg: string }[] = [
+  const cards: StatCard[] = [
     { label: 'Tổng lead', value: total, color: '#004B9B', bg: '#e6f0fa' },
     { label: 'Chưa liên hệ', value: pending, color: '#b45309', bg: '#fffbeb' },
     { label: 'Đã liên hệ', value: contacted, color: '#047857', bg: '#ecfdf5' },
@@ -27,24 +28,5 @@ export default async function LeadsPage() {
     { label: 'GDTD', value: gdtd, color: '#7c3aed', bg: '#f5f3ff' },
   ];
 
-  return (
-    <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-xl font-bold text-slate-900">Lead khách hàng</h1>
-        <p className="text-sm text-slate-400 mt-0.5">Theo dõi lead đã liên hệ chưa và phân loại</p>
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-        {CARDS.map((c) => (
-          <div key={c.label} className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-            <div className="text-xs font-medium uppercase tracking-wide" style={{ color: c.color }}>{c.label}</div>
-            <div className="text-3xl font-bold text-slate-900 mt-2">{c.value}</div>
-            <div className="mt-3 h-1 rounded-full" style={{ background: c.bg }} />
-          </div>
-        ))}
-      </div>
-
-      <LeadsTable leads={leads} />
-    </div>
-  );
+  return <LeadsView cards={cards} leads={leads} />;
 }
