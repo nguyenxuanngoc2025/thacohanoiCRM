@@ -51,11 +51,29 @@ export interface DailySrStats {
   Fail: number;
 }
 
-export function renderDailySr(showroom: string, dateLabel: string, s: DailySrStats): string {
+export const pct = (part: number, total: number): number =>
+  total > 0 ? Math.round((part / total) * 100) : 0;
+
+export interface NonCompliant {
+  name: string;       // tên TVBH, hoặc 'Chưa phân'
+  overdue: number;    // số lead quá hạn của người này
+}
+
+// Dòng "Chưa tuân thủ": top 3 TVBH có lead quá hạn nhiều nhất, dư thì "…+N nữa".
+function renderNonCompliant(list: NonCompliant[]): string {
+  if (list.length === 0) return 'Chưa tuân thủ: không có';
+  const top = list.slice(0, 3).map((x, idx) =>
+    idx === 0 ? `${x.name} (${x.overdue} lead quá hạn)` : `${x.name} (${x.overdue})`);
+  const extra = list.length > 3 ? `…+${list.length - 3} nữa` : '';
+  return `Chưa tuân thủ: ${[...top, extra].filter(Boolean).join(', ')}`;
+}
+
+export function renderDailySr(showroom: string, dateLabel: string, s: DailySrStats, nonCompliant: NonCompliant[]): string {
   return [
     `BÁO CÁO NGÀY ${dateLabel} — ${showroom}`,
-    `Lead mới: ${s.total} · Đã LH: ${s.contacted} · Chưa: ${s.pending} · Quá hạn: ${s.overdue}`,
+    `Tổng lead: ${s.total} · Đã LH: ${s.contacted} (${pct(s.contacted, s.total)}%) · Chưa LH: ${s.pending} · Quá hạn: ${s.overdue}`,
     `Phân loại: KHQT ${s.KHQT} · GDTD ${s.GDTD} · Ký HĐ ${s.KyHD} · Loại ${s.Fail}`,
+    renderNonCompliant(nonCompliant),
   ].join('\n');
 }
 
@@ -68,12 +86,19 @@ export interface MgmtRow {
   contactRate: number; // %
 }
 
-export function renderDailyMgmt(dateLabel: string, rows: MgmtRow[]): string {
+export interface MgmtTotals {
+  total: number;
+  contacted: number;
+  overdue: number;
+}
+
+export function renderDailyMgmt(dateLabel: string, rows: MgmtRow[], totals: MgmtTotals): string {
   const head = `BÁO CÁO NGÀY ${dateLabel} — TỔNG HỢP BLĐ`;
+  const totalLine = `TỔNG: ${totals.total} lead · Đã LH ${totals.contacted} (${pct(totals.contacted, totals.total)}%) · Quá hạn ${totals.overdue}`;
   const sorted = [...rows].sort((a, b) => b.contactRate - a.contactRate);
   const body = sorted.map((r) => {
     const flag = r.overdue >= 3 || r.contactRate < 50 ? ' [cần chú ý]' : '';
     return `${r.showroom}: mới ${r.total} · LH ${r.contactRate}% · quá hạn ${r.overdue}${flag}`;
   });
-  return [head, ...body].join('\n');
+  return [head, totalLine, '———', ...body].join('\n');
 }

@@ -40,26 +40,36 @@ describe('notify-templates', () => {
     expect(t).toContain('Khách lẻ');
   });
 
-  it('renderDailySr: có số liệu cơ bản và phân loại', () => {
+  it('renderDailySr: tổng lead, tỷ lệ LH, phân loại, dòng chưa tuân thủ', () => {
     const t = renderDailySr('KIA Hà Nội', '24/06', {
       total: 10, contacted: 6, pending: 4, overdue: 2,
       KHQT: 3, GDTD: 2, KyHD: 1, Fail: 1,
-    });
+    }, [{ name: 'Trần B', overdue: 2 }]);
     expect(t).toContain('BÁO CÁO NGÀY 24/06');
-    expect(t).toContain('Lead mới: 10');
-    expect(t).toContain('Đã LH: 6');
+    expect(t).toContain('Tổng lead: 10');
+    expect(t).toContain('Đã LH: 6 (60%)');
     expect(t).toContain('Quá hạn: 2');
     expect(t).toContain('KHQT 3');
+    expect(t).toContain('Chưa tuân thủ: Trần B (2 lead quá hạn)');
   });
 
-  it('renderDailyMgmt: 1 dòng mỗi SR + đánh dấu SR cần chú ý (quá hạn cao)', () => {
+  it('renderDailySr: không ai quá hạn → "Chưa tuân thủ: không có"', () => {
+    const t = renderDailySr('KIA HN', '24/06', {
+      total: 5, contacted: 5, pending: 0, overdue: 0, KHQT: 0, GDTD: 0, KyHD: 0, Fail: 0,
+    }, []);
+    expect(t).toContain('Chưa tuân thủ: không có');
+  });
+
+  it('renderDailyMgmt: dòng TỔNG + tỷ lệ LH + đánh dấu SR cần chú ý', () => {
     const t = renderDailyMgmt('24/06', [
       { showroom: 'KIA HN', total: 10, contacted: 9, pending: 1, overdue: 0, contactRate: 90 },
       { showroom: 'Mazda HN', total: 8, contacted: 2, pending: 6, overdue: 4, contactRate: 25 },
-    ]);
+    ], { total: 18, contacted: 11, overdue: 4 });
     expect(t).toContain('BÁO CÁO NGÀY 24/06');
+    expect(t).toContain('TỔNG: 18 lead · Đã LH 11 (61%) · Quá hạn 4');
     expect(t).toContain('KIA HN');
     expect(t).toContain('Mazda HN');
     expect(t).toContain('25%');
+    expect(t).toContain('[cần chú ý]');
   });
 });

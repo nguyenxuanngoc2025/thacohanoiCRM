@@ -21,19 +21,20 @@ export async function POST(request: NextRequest) {
   // Lead TẠO trong ngày
   const { data: leads, error } = await db
     .from('leads')
-    .select('showroom_id, status, last_contact_at, next_contact_at, showrooms(name)')
+    .select('showroom_id, status, last_contact_at, next_contact_at, showrooms(name), users!assigned_to(full_name)')
     .gte('created_at', startUtc)
     .not('showroom_id', 'is', null);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const mapped: ReportLead[] = (leads ?? []).map((l) => {
-    const sr = l as unknown as { showrooms: { name: string } | null };
+    const sr = l as unknown as { showrooms: { name: string } | null; users: { full_name: string } | null };
     return {
       showroom_id: l.showroom_id as string,
       showroom_name: sr.showrooms?.name ?? 'Showroom',
       last_contact_at: l.last_contact_at ?? null,
       next_contact_at: l.next_contact_at ?? null,
       status: l.status ?? null,
+      assignee_name: sr.users?.full_name ?? null,
     };
   });
 
