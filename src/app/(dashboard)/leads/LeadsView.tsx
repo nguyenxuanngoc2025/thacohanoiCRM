@@ -85,11 +85,6 @@ export default function LeadsView({
 
   return (
     <div ref={rootRef} className="h-full flex flex-col p-6">
-      <div className="shrink-0 mb-6">
-        <h1 className="text-xl font-bold text-slate-900">Lead khách hàng</h1>
-        <p className="text-sm text-slate-400 mt-0.5">Theo dõi lead đã liên hệ chưa và phân loại</p>
-      </div>
-
       <div
         ref={cardsRef}
         className="shrink-0 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 overflow-hidden"

@@ -4,7 +4,7 @@ import React, { useState, useMemo, useTransition, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
   PhoneCall, Check, ChevronUp, ChevronDown, ChevronsUpDown, ChevronLeft,
-  SlidersHorizontal, UserPlus, Search, Download, AlertTriangle,
+  SlidersHorizontal, UserPlus, Search, Download, AlertTriangle, ListFilter,
 } from 'lucide-react';
 import { formatPhoneDisplay } from '@/lib/phone';
 import { STATUS_OPTIONS, FAIL_REASONS, isContacted, type LeadStatus } from '@/lib/lead-status';
@@ -150,18 +150,6 @@ const fmtDate = (v: string) => new Date(v).toLocaleString('vi-VN', {
 const fmtDay = (v: string) => new Date(v).toLocaleDateString('vi-VN', {
   day: '2-digit', month: '2-digit', year: 'numeric',
 });
-
-// Thời gian tương đối ngắn gọn ("2 giờ trước"); quá 30 ngày → ngày cụ thể.
-const relTime = (iso: string) => {
-  const m = Math.floor((Date.now() - Date.parse(iso)) / 60000);
-  if (m < 1) return 'vừa xong';
-  if (m < 60) return `${m} phút trước`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h} giờ trước`;
-  const d = Math.floor(h / 24);
-  if (d < 30) return `${d} ngày trước`;
-  return fmtDay(iso);
-};
 
 const uniqSorted = (arr: (string | null)[]) =>
   [...new Set(arr.filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b, 'vi'));
@@ -453,6 +441,7 @@ export default function LeadsTable({
   const [openLead, setOpenLead] = useState<LeadRow | null>(null);
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [bulkAssignee, setBulkAssignee] = useState('');
+  const [filterMenu, setFilterMenu] = useState(false);
 
   // Khôi phục cấu hình cột hiển thị
   useEffect(() => {
@@ -476,6 +465,10 @@ export default function LeadsTable({
 
   const setF = (k: keyof Filters, v: string) =>
     setFilters((prev) => ({ ...prev, [k]: v, ...(k === 'brand' ? { model: '' } : {}) }));
+
+  // Số bộ lọc đang bật (không tính ô tìm kiếm — nó có ô riêng).
+  const activeFilters = [filters.month, filters.showroom, filters.brand, filters.model, filters.source, filters.assignee, filters.status].filter(Boolean).length;
+  const clearFilters = () => setFilters((prev) => ({ ...EMPTY_FILTERS, q: prev.q }));
 
   const visibleCols = COLS.filter((c) => !hidden.has(c.key));
 
@@ -612,7 +605,7 @@ export default function LeadsTable({
         return <StatusPicker lead={l} variant="contacted" pending={pending} start={start} />;
       case 'class':
         return <StatusPicker lead={l} variant="class" pending={pending} start={start} />;
-      case 'time': return <span className="text-slate-500" title={fmtDate(l.created_at)}>{relTime(l.created_at)}</span>;
+      case 'time': return <span className="text-slate-500">{fmtDate(l.created_at)}</span>;
       case 'name': return <span className="font-medium text-slate-800">{l.full_name ?? '—'}</span>;
       case 'phone': return <span className="text-slate-600">{formatPhoneDisplay(l.phone)}</span>;
       case 'showroom': return <span className="text-slate-600">{l.showroom_name ?? '—'}</span>;
@@ -666,13 +659,53 @@ export default function LeadsTable({
             className="text-sm border border-slate-200 rounded-lg pl-8 pr-2.5 py-1.5 outline-none focus:border-[#004B9B] w-44"
           />
         </div>
-        <Filter value={filters.month} onChange={(v) => setF('month', v)} placeholder="Tất cả tháng" options={monthOpts} />
-        <Filter value={filters.showroom} onChange={(v) => setF('showroom', v)} placeholder="Tất cả showroom" options={showroomOpts} />
-        <Filter value={filters.brand} onChange={(v) => setF('brand', v)} placeholder="Tất cả thương hiệu" options={brandOpts} />
-        <Filter value={filters.model} onChange={(v) => setF('model', v)} placeholder="Tất cả dòng xe" options={modelOpts} />
-        <Filter value={filters.source} onChange={(v) => setF('source', v)} placeholder="Tất cả nguồn" options={sourceOpts} />
-        <Filter value={filters.assignee} onChange={(v) => setF('assignee', v)} placeholder="Tất cả phụ trách" options={assigneeOpts} />
-        <Filter value={filters.status} onChange={(v) => setF('status', v)} placeholder="Tất cả phân loại" options={statusOpts} />
+
+        <div className="relative">
+          <button
+            onClick={() => setFilterMenu((v) => !v)}
+            className="inline-flex items-center gap-1.5 text-sm border rounded-lg px-2.5 py-1.5 transition-colors"
+            style={{
+              borderColor: activeFilters ? '#004B9B' : '#e2e8f0',
+              background: activeFilters ? '#e6f0fa' : '#fff',
+              color: activeFilters ? '#004B9B' : '#64748b',
+              fontWeight: activeFilters ? 600 : 400,
+            }}
+          >
+            <ListFilter size={14} /> Bộ lọc
+            {activeFilters > 0 && (
+              <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] text-[11px] font-semibold text-white rounded-full px-1" style={{ background: '#004B9B' }}>
+                {activeFilters}
+              </span>
+            )}
+          </button>
+          {filterMenu && (
+            <>
+              <div className="fixed inset-0 z-20" onClick={() => setFilterMenu(false)} />
+              <div className="absolute left-0 mt-1 z-30 w-64 bg-white rounded-xl shadow-lg border border-slate-200 p-3 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Bộ lọc</span>
+                  {activeFilters > 0 && (
+                    <button onClick={clearFilters} className="text-xs text-rose-600 hover:underline">Xoá lọc</button>
+                  )}
+                </div>
+                {[
+                  { label: 'Tháng', value: filters.month, key: 'month' as const, ph: 'Tất cả tháng', opts: monthOpts },
+                  { label: 'Showroom', value: filters.showroom, key: 'showroom' as const, ph: 'Tất cả showroom', opts: showroomOpts },
+                  { label: 'Thương hiệu', value: filters.brand, key: 'brand' as const, ph: 'Tất cả thương hiệu', opts: brandOpts },
+                  { label: 'Dòng xe', value: filters.model, key: 'model' as const, ph: 'Tất cả dòng xe', opts: modelOpts },
+                  { label: 'Nguồn', value: filters.source, key: 'source' as const, ph: 'Tất cả nguồn', opts: sourceOpts },
+                  { label: 'Phụ trách', value: filters.assignee, key: 'assignee' as const, ph: 'Tất cả phụ trách', opts: assigneeOpts },
+                  { label: 'Phân loại', value: filters.status, key: 'status' as const, ph: 'Tất cả phân loại', opts: statusOpts },
+                ].map((f) => (
+                  <div key={f.key} className="flex flex-col gap-1">
+                    <span className="text-[11px] font-medium text-slate-500">{f.label}</span>
+                    <Filter value={f.value} onChange={(v) => setF(f.key, v)} placeholder={f.ph} options={f.opts} />
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
 
         <div className="ml-auto flex items-center gap-2">
           <button
