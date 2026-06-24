@@ -16,11 +16,15 @@ export default async function LeadsPage() {
   const total = leads.length;
   const pending = leads.filter((l) => !isContacted(l.last_contact_at)).length;
   const contacted = total - pending;
+  const contactRate = total ? Math.round((contacted / total) * 100) : 0;
+  const gdtd = leads.filter((l) => l.status === 'GDTD').length;
 
-  const CARDS = [
+  const CARDS: { label: string; value: string | number; color: string; bg: string }[] = [
     { label: 'Tổng lead', value: total, color: '#004B9B', bg: '#e6f0fa' },
     { label: 'Chưa liên hệ', value: pending, color: '#b45309', bg: '#fffbeb' },
     { label: 'Đã liên hệ', value: contacted, color: '#047857', bg: '#ecfdf5' },
+    { label: 'Tỷ lệ liên hệ', value: `${contactRate}%`, color: '#0468BF', bg: '#e6f0fa' },
+    { label: 'GDTD', value: gdtd, color: '#7c3aed', bg: '#f5f3ff' },
   ];
 
   return (
@@ -30,7 +34,7 @@ export default async function LeadsPage() {
         <p className="text-sm text-slate-400 mt-0.5">Theo dõi lead đã liên hệ chưa và phân loại</p>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         {CARDS.map((c) => (
           <div key={c.label} className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
             <div className="text-xs font-medium uppercase tracking-wide" style={{ color: c.color }}>{c.label}</div>
