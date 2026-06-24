@@ -6,7 +6,6 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, Users, UserCheck, HeartHandshake, BarChart3,
   Settings, ChevronRight, ChevronLeft, LogOut, Key, User,
-  Sun, Moon,
 } from 'lucide-react';
 import { NAV_ITEMS } from '@/lib/nav';
 import { logout } from '@/app/login/actions';
@@ -244,7 +243,6 @@ function UserPanel({ userName, userCode, userRole, isOpen }: {
   userName: string; userCode: string; userRole: UserRole; isOpen: boolean;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const initials = userName.split(' ').map(w => w[0]).join('').slice(-2).toUpperCase();
   const router = useRouter();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -257,21 +255,6 @@ function UserPanel({ userName, userCode, userRole, isOpen }: {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [menuOpen]);
-
-  useEffect(() => {
-    const saved = localStorage.getItem('crm_theme');
-    if (saved === 'dark') {
-      setTheme('dark');
-      document.documentElement.classList.add('dark');
-    }
-  }, []);
-
-  const toggleTheme = () => {
-    const next = theme === 'light' ? 'dark' : 'light';
-    setTheme(next);
-    localStorage.setItem('crm_theme', next);
-    document.documentElement.classList.toggle('dark', next === 'dark');
-  };
 
   const navigate = (href: string) => {
     setMenuOpen(false);
@@ -300,11 +283,6 @@ function UserPanel({ userName, userCode, userRole, isOpen }: {
           {userRole === 'admin' && (
             <MenuButton icon={<Settings size={13} />} label="Cài đặt hệ thống" onClick={() => navigate('/settings')} />
           )}
-          <MenuButton
-            icon={theme === 'light' ? <Moon size={13} /> : <Sun size={13} />}
-            label={theme === 'light' ? 'Chế độ tối' : 'Chế độ sáng'}
-            onClick={toggleTheme}
-          />
           <div style={{ height: 1, background: 'var(--color-border-light)', margin: '2px 0' }} />
           <MenuButton icon={<LogOut size={13} />} label="Đăng xuất" danger onClick={handleSignOut} />
         </div>
