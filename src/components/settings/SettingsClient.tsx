@@ -111,7 +111,7 @@ export default function SettingsClient({
       {/* Nội dung */}
       <div className="flex-1 min-w-0">
         {active === 'accounts' && (
-          <AccountsManager staff={staff} showrooms={showroomOpts} companyId={companyId} currentUserId={currentUserId} />
+          <AccountsManager staff={staff} showrooms={showroomOpts} brands={brands} companyId={companyId} currentUserId={currentUserId} />
         )}
         {active === 'roles' && <RoleReference />}
         {active === 'org' && <OrgManager showrooms={showrooms} brands={brands} models={models} />}

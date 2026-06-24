@@ -18,7 +18,8 @@ export default async function SettingsPage() {
 
   const [
     { data: staff },
-    { data: showrooms },
+    { data: showroomRows },
+    { data: showroomBrandRows },
     { data: brands },
     { data: models },
     { data: channels },
@@ -28,8 +29,9 @@ export default async function SettingsPage() {
     { data: recentLogs },
     { data: leadStatusRows },
   ] = await Promise.all([
-    service.from('users').select('id, full_name, email, role, showroom_id, is_active').order('role'),
-    service.from('showrooms').select('id, name, code, brand_id').order('name'),
+    service.from('users').select('id, full_name, email, role, showroom_id, brand_id, is_active').order('role'),
+    service.from('showrooms').select('id, name, code').order('name'),
+    service.from('showroom_brands').select('showroom_id, brand_id'),
     service.from('brands').select('id, name, slug').order('name'),
     service.from('models').select('id, brand_id, name, sort_order, is_active').order('sort_order'),
     service.from('channel_accounts').select('id, page_name, platform, page_id, showroom_id, brand_id, campaign, is_active').order('created_at', { ascending: false }),
@@ -46,6 +48,14 @@ export default async function SettingsPage() {
     const s = (r as { status: string }).status;
     statusCounts[s] = (statusCounts[s] ?? 0) + 1;
   }
+
+  // Gom danh sách thương hiệu cho mỗi showroom (bảng junction showroom_brands)
+  const brandIdsBySr: Record<string, string[]> = {};
+  for (const r of (showroomBrandRows ?? []) as { showroom_id: string; brand_id: string }[]) {
+    (brandIdsBySr[r.showroom_id] ??= []).push(r.brand_id);
+  }
+  const showrooms = ((showroomRows ?? []) as { id: string; name: string; code: string | null }[])
+    .map((s) => ({ ...s, brand_ids: brandIdsBySr[s.id] ?? [] }));
 
   return (
     <div className="p-6 space-y-6">

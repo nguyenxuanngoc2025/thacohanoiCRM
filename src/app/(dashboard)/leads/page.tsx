@@ -2,6 +2,8 @@ import { createClient } from '@/lib/supabase/server';
 import { type LeadRow } from './LeadsTable';
 import LeadsView, { type StatCard, type ModelOption, type BrandOption, type ShowroomOption, type AssigneeOption } from './LeadsView';
 import { isContacted } from '@/lib/lead-status';
+import { CAN_CREATE_LEAD } from '@/lib/nav';
+import { type UserRole } from '@/types/database';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,6 +30,12 @@ interface RawLead {
 export default async function LeadsPage() {
   const supabase = await createClient();
 
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data: me } = user
+    ? await supabase.from('users').select('role').eq('id', user.id).maybeSingle()
+    : { data: null };
+  const canCreate = me?.role ? CAN_CREATE_LEAD.has(me.role as UserRole) : false;
+
   const [
     { data: rawLeads },
     { data: rawModels },
@@ -47,7 +55,7 @@ export default async function LeadsPage() {
     supabase.from('lead_logs').select('lead_id').eq('type', 'contact'),
     supabase.from('brands').select('id, name').order('name'),
     supabase.from('showrooms').select('id, name').order('name'),
-    supabase.from('users').select('id, full_name').eq('is_active', true).order('full_name'),
+    supabase.from('users').select('id, full_name').eq('role', 'tvbh').eq('is_active', true).order('full_name'),
   ]);
 
   // Đếm số lần liên hệ theo lead
@@ -72,6 +80,7 @@ export default async function LeadsPage() {
     model_name: l.model?.name ?? null,
     showroom_id: l.showroom_id,
     showroom_name: l.showroom?.name ?? null,
+    assigned_to: l.assigned_to,
     assignee_name: l.assignee?.full_name ?? null,
     contact_count: contactCount[l.id] ?? 0,
   }));
@@ -103,6 +112,7 @@ export default async function LeadsPage() {
       brands={brands}
       showrooms={showrooms}
       assignees={assignees}
+      canCreate={canCreate}
     />
   );
 }

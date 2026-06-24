@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState, useTransition } from 'react';
+import React, { useState, useTransition, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { X, UserPlus } from 'lucide-react';
-import { createLead } from './actions';
-import { LEAD_SOURCES, DEFAULT_LEAD_SOURCE } from '@/lib/lead-source';
+import { X, UserPlus, Sparkles } from 'lucide-react';
+import { createLead, recommendAssignment } from './actions';
+import { DIGITAL_SOURCES, DEFAULT_SOURCE } from '@/lib/platforms';
 import type { ModelOption, BrandOption, ShowroomOption, AssigneeOption } from './LeadsView';
 
 export default function NewLeadModal({
@@ -25,11 +25,38 @@ export default function NewLeadModal({
   const [brandId, setBrandId] = useState('');
   const [showroomId, setShowroomId] = useState('');
   const [modelId, setModelId] = useState('');
-  const [source, setSource] = useState<string>(DEFAULT_LEAD_SOURCE);
+  const [source, setSource] = useState<string>(DEFAULT_SOURCE);
   const [assignedTo, setAssignedTo] = useState('');
   const [note, setNote] = useState('');
 
+  // Gợi ý phân giao (xoay vòng đều) — tên hiển thị cạnh field, vẫn cho chọn lại
+  const [recShowroom, setRecShowroom] = useState<string | null>(null);
+  const [recAssignee, setRecAssignee] = useState<string | null>(null);
+
   const brandModels = models.filter((m) => m.brand_id === brandId);
+
+  // Lần mở modal: gợi ý showroom ít lead nhất + TVBH ít lead nhất, tự điền nếu còn trống
+  useEffect(() => {
+    let alive = true;
+    recommendAssignment(null).then((r) => {
+      if (!alive) return;
+      setRecShowroom(r.showroomName);
+      setRecAssignee(r.assigneeName);
+      setShowroomId((cur) => cur || r.showroomId || '');
+      setAssignedTo((cur) => cur || r.assigneeId || '');
+    });
+    return () => { alive = false; };
+  }, []);
+
+  // Đổi showroom thủ công → tính lại TVBH gợi ý cho showroom đó
+  const onShowroomChange = (id: string) => {
+    setShowroomId(id);
+    if (!id) { setRecAssignee(null); return; }
+    recommendAssignment(id).then((r) => {
+      setRecAssignee(r.assigneeName);
+      setAssignedTo(r.assigneeId || '');
+    });
+  };
 
   const submit = () => {
     setError(null);
@@ -80,6 +107,19 @@ export default function NewLeadModal({
           </div>
 
           <div>
+            <label className={lblCls}>Showroom</label>
+            <select value={showroomId} onChange={(e) => onShowroomChange(e.target.value)} className={inputCls}>
+              <option value="">— Chưa rõ —</option>
+              {showrooms.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+            {recShowroom && (
+              <p className="mt-1 inline-flex items-center gap-1 text-xs text-[#004B9B]">
+                <Sparkles size={12} /> Gợi ý xoay vòng: {recShowroom}
+              </p>
+            )}
+          </div>
+
+          <div>
             <label className={lblCls}>Thương hiệu <span className="text-rose-500">*</span></label>
             <select value={brandId} onChange={(e) => { setBrandId(e.target.value); setModelId(''); }} className={inputCls}>
               <option value="">— Chọn thương hiệu —</option>
@@ -88,17 +128,9 @@ export default function NewLeadModal({
           </div>
 
           <div>
-            <label className={lblCls}>Showroom</label>
-            <select value={showroomId} onChange={(e) => setShowroomId(e.target.value)} className={inputCls}>
-              <option value="">— Chưa rõ —</option>
-              {showrooms.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-          </div>
-
-          <div>
             <label className={lblCls}>Dòng xe quan tâm</label>
             <select value={modelId} onChange={(e) => setModelId(e.target.value)} disabled={!brandId} className={`${inputCls} disabled:opacity-50`}>
-              <option value="">— Chưa rõ —</option>
+              <option value="">{brandId ? '— Chưa rõ —' : '— Chọn thương hiệu trước —'}</option>
               {brandModels.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
             </select>
           </div>
@@ -106,7 +138,7 @@ export default function NewLeadModal({
           <div>
             <label className={lblCls}>Nguồn</label>
             <select value={source} onChange={(e) => setSource(e.target.value)} className={inputCls}>
-              {LEAD_SOURCES.map((s) => <option key={s} value={s}>{s}</option>)}
+              {DIGITAL_SOURCES.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
 
@@ -116,6 +148,11 @@ export default function NewLeadModal({
               <option value="">— Chưa giao —</option>
               {assignees.map((a) => <option key={a.id} value={a.id}>{a.full_name}</option>)}
             </select>
+            {recAssignee && (
+              <p className="mt-1 inline-flex items-center gap-1 text-xs text-[#004B9B]">
+                <Sparkles size={12} /> Gợi ý xoay vòng: {recAssignee}
+              </p>
+            )}
           </div>
 
           <div>

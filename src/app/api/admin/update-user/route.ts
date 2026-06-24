@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient, createClient } from '@/lib/supabase/server';
 import type { UserRole } from '@/types/database';
-import { roleNeedsShowroom } from '@/lib/nav';
+import { roleNeedsShowroom, roleNeedsBrand } from '@/lib/nav';
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,11 +10,12 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await request.json();
-    const { userId, full_name, role, showroom_id, is_active } = body as {
+    const { userId, full_name, role, showroom_id, brand_id, is_active } = body as {
       userId: string;
       full_name?: string;
       role?: UserRole;
       showroom_id?: string | null;
+      brand_id?: string | null;
       is_active?: boolean;
     };
     if (!userId) return NextResponse.json({ error: 'Thiếu userId' }, { status: 400 });
@@ -29,13 +30,18 @@ export async function POST(request: NextRequest) {
     if (typeof full_name === 'string' && full_name.trim()) updates.full_name = full_name.trim();
     if (role) {
       updates.role = role;
-      // Admin toàn công ty → bỏ showroom; TVBH/manager bắt buộc có showroom
-      updates.showroom_id = roleNeedsShowroom(role) ? (showroom_id ?? null) : null;
+      // Vai trò cấp công ty → không gán; cấp showroom → bắt buộc showroom; cấp thương hiệu → bắt buộc thương hiệu
       if (roleNeedsShowroom(role) && !showroom_id) {
         return NextResponse.json({ error: 'Vai trò này bắt buộc gán showroom.' }, { status: 400 });
       }
-    } else if (showroom_id !== undefined) {
-      updates.showroom_id = showroom_id;
+      if (roleNeedsBrand(role) && !brand_id) {
+        return NextResponse.json({ error: 'Vai trò này bắt buộc gán thương hiệu.' }, { status: 400 });
+      }
+      updates.showroom_id = roleNeedsShowroom(role) ? (showroom_id ?? null) : null;
+      updates.brand_id = roleNeedsBrand(role) ? (brand_id ?? null) : null;
+    } else {
+      if (showroom_id !== undefined) updates.showroom_id = showroom_id;
+      if (brand_id !== undefined) updates.brand_id = brand_id;
     }
     if (typeof is_active === 'boolean') updates.is_active = is_active;
 

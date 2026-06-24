@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient, createClient } from '@/lib/supabase/server';
 import type { UserRole } from '@/types/database';
+import { roleNeedsShowroom, roleNeedsBrand } from '@/lib/nav';
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,12 +10,18 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await request.json();
-    const { email, full_name, role, company_id, showroom_id } = body as {
+    const { email, full_name, role, company_id, showroom_id, brand_id } = body as {
       email: string; full_name: string; role: UserRole;
-      company_id: string; showroom_id?: string | null;
+      company_id: string; showroom_id?: string | null; brand_id?: string | null;
     };
     if (!email || !full_name || !role || !company_id) {
       return NextResponse.json({ error: 'Thiếu thông tin bắt buộc' }, { status: 400 });
+    }
+    if (roleNeedsShowroom(role) && !showroom_id) {
+      return NextResponse.json({ error: 'Vai trò này bắt buộc gán showroom.' }, { status: 400 });
+    }
+    if (roleNeedsBrand(role) && !brand_id) {
+      return NextResponse.json({ error: 'Vai trò này bắt buộc gán thương hiệu.' }, { status: 400 });
     }
 
     const service = createServiceClient();
@@ -38,7 +45,8 @@ export async function POST(request: NextRequest) {
       full_name,
       role,
       company_id,
-      showroom_id: showroom_id ?? null,
+      showroom_id: roleNeedsShowroom(role) ? (showroom_id ?? null) : null,
+      brand_id: roleNeedsBrand(role) ? (brand_id ?? null) : null,
       is_active: true,
     });
     if (profileError) {

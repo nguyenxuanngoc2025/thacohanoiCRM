@@ -23,7 +23,7 @@ export interface AssigneeOption { id: string; full_name: string }
 const THRESHOLD = 140; // px cuộn trong bảng để thu hết card
 
 export default function LeadsView({
-  cards, leads, models, brands, showrooms, assignees,
+  cards, leads, models, brands, showrooms, assignees, canCreate,
 }: {
   cards: StatCard[];
   leads: LeadRow[];
@@ -31,6 +31,7 @@ export default function LeadsView({
   brands: BrandOption[];
   showrooms: ShowroomOption[];
   assignees: AssigneeOption[];
+  canCreate: boolean;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const cardsRef = useRef<HTMLDivElement>(null);
@@ -84,7 +85,7 @@ export default function LeadsView({
       </div>
 
       <div className="flex-1 min-h-0">
-        <LeadsTable leads={leads} models={models} brands={brands} showrooms={showrooms} assignees={assignees} />
+        <LeadsTable leads={leads} models={models} brands={brands} showrooms={showrooms} assignees={assignees} canCreate={canCreate} />
       </div>
     </div>
   );

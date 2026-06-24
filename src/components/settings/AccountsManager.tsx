@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Shield, Plus, Search, Edit2, Trash2, X, Check, AlertTriangle, KeyRound, Loader2 } from 'lucide-react';
 import {
   ROLE_LABELS, ROLE_DESCRIPTIONS, ROLE_SCOPE, ROLE_CAN, ROLE_CANNOT, ROLE_NEEDS,
-  ROLE_COLOR, roleNeedsShowroom,
+  ROLE_COLOR, roleNeedsShowroom, roleNeedsBrand, ALL_ROLES,
 } from '@/lib/nav';
 import { type UserRole } from '@/types/database';
 
@@ -15,6 +15,7 @@ export interface StaffRow {
   email: string | null;
   role: string;
   showroom_id: string | null;
+  brand_id: string | null;
   is_active: boolean;
 }
 
@@ -24,12 +25,15 @@ export interface ShowroomOption {
   code?: string | null;
 }
 
-const ALL_ROLES: UserRole[] = ['admin', 'manager', 'tvbh'];
+export interface BrandOption {
+  id: string;
+  name: string;
+}
 
 export default function AccountsManager({
-  staff, showrooms, companyId, currentUserId,
+  staff, showrooms, brands, companyId, currentUserId,
 }: {
-  staff: StaffRow[]; showrooms: ShowroomOption[]; companyId: string; currentUserId: string;
+  staff: StaffRow[]; showrooms: ShowroomOption[]; brands: BrandOption[]; companyId: string; currentUserId: string;
 }) {
   const router = useRouter();
   const [search, setSearch] = useState('');
@@ -44,6 +48,12 @@ export default function AccountsManager({
     if (!id) return null;
     const sr = showrooms.find((s) => s.id === id);
     return sr ? sr.name : null;
+  };
+
+  const brandName = (id: string | null) => {
+    if (!id) return null;
+    const b = brands.find((x) => x.id === id);
+    return b ? b.name : null;
   };
 
   const filtered = useMemo(() => {
@@ -113,7 +123,7 @@ export default function AccountsManager({
               <tr>
                 <th className="px-5 py-2.5 font-semibold">Họ tên &amp; Email</th>
                 <th className="px-4 py-2.5 font-semibold">Vai trò</th>
-                <th className="px-4 py-2.5 font-semibold">Showroom</th>
+                <th className="px-4 py-2.5 font-semibold">Phạm vi</th>
                 <th className="px-4 py-2.5 font-semibold text-center">Trạng thái</th>
                 <th className="px-4 py-2.5 font-semibold text-center">Thao tác</th>
               </tr>
@@ -152,6 +162,8 @@ export default function AccountsManager({
                     <td className="px-4 py-2.5 text-slate-600">
                       {roleNeedsShowroom(u.role as UserRole)
                         ? (showroomName(u.showroom_id) ?? <span className="text-rose-500 italic text-xs">Chưa gán SR</span>)
+                        : roleNeedsBrand(u.role as UserRole)
+                        ? (brandName(u.brand_id) ?? <span className="text-rose-500 italic text-xs">Chưa gán TH</span>)
                         : <span className="text-slate-400 italic text-xs">Toàn công ty</span>}
                     </td>
                     <td className="px-4 py-2.5 text-center">
@@ -187,6 +199,7 @@ export default function AccountsManager({
         <EditModal
           target={editTarget}
           showrooms={showrooms}
+          brands={brands}
           companyId={companyId}
           onClose={() => setEditTarget(null)}
           onDone={(msg) => { setEditTarget(null); flash(msg); router.refresh(); }}
@@ -298,10 +311,11 @@ function Bullets({ label, labelColor, dot, items }: { label: string; labelColor:
 // ─── Modal thêm/sửa ─────────────────────────────────────────────────────────────
 
 function EditModal({
-  target, showrooms, companyId, onClose, onDone,
+  target, showrooms, brands, companyId, onClose, onDone,
 }: {
   target: StaffRow | 'new';
   showrooms: ShowroomOption[];
+  brands: BrandOption[];
   companyId: string;
   onClose: () => void;
   onDone: (msg: string) => void;
@@ -313,17 +327,20 @@ function EditModal({
   const [email, setEmail] = useState(init?.email ?? '');
   const [role, setRole] = useState<UserRole>((init?.role as UserRole) ?? 'tvbh');
   const [showroomId, setShowroomId] = useState(init?.showroom_id ?? '');
+  const [brandId, setBrandId] = useState(init?.brand_id ?? '');
   const [isActive, setIsActive] = useState(init?.is_active ?? true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const needsShowroom = roleNeedsShowroom(role);
+  const needsBrand = roleNeedsBrand(role);
 
   const submit = async () => {
     setError(null);
     if (isNew && (!fullName.trim() || !email.trim())) { setError('Vui lòng nhập họ tên và email.'); return; }
     if (!isNew && !fullName.trim()) { setError('Vui lòng nhập họ tên.'); return; }
     if (needsShowroom && !showroomId) { setError('Vai trò này bắt buộc gán showroom.'); return; }
+    if (needsBrand && !brandId) { setError('Vai trò này bắt buộc gán thương hiệu.'); return; }
     setSubmitting(true);
     try {
       if (isNew) {
@@ -331,7 +348,9 @@ function EditModal({
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             email: email.trim(), full_name: fullName.trim(), role,
-            company_id: companyId, showroom_id: needsShowroom ? showroomId : null,
+            company_id: companyId,
+            showroom_id: needsShowroom ? showroomId : null,
+            brand_id: needsBrand ? brandId : null,
           }),
         });
         const data = await res.json();
@@ -342,7 +361,9 @@ function EditModal({
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             userId: (target as StaffRow).id, full_name: fullName.trim(), role,
-            showroom_id: needsShowroom ? showroomId : null, is_active: isActive,
+            showroom_id: needsShowroom ? showroomId : null,
+            brand_id: needsBrand ? brandId : null,
+            is_active: isActive,
           }),
         });
         const data = await res.json();
@@ -381,12 +402,19 @@ function EditModal({
           <Field label="Vai trò">
             <select value={role} onChange={(e) => setRole(e.target.value as UserRole)}
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#004B9B] bg-white">
-              <option value="tvbh">Tư vấn bán hàng (TVBH)</option>
-              <option value="manager">Quản lý showroom</option>
-              <option value="admin">Quản trị (toàn công ty)</option>
+              {ALL_ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
             </select>
             <p className="text-[11px] text-slate-400 mt-1">{ROLE_SCOPE[role]}</p>
           </Field>
+          {needsBrand && (
+            <Field label="Thương hiệu">
+              <select value={brandId} onChange={(e) => setBrandId(e.target.value)}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#004B9B] bg-white">
+                <option value="">— Chọn thương hiệu —</option>
+                {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            </Field>
+          )}
           {needsShowroom && (
             <Field label="Showroom">
               <select value={showroomId} onChange={(e) => setShowroomId(e.target.value)}

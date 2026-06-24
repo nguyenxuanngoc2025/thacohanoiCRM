@@ -3,31 +3,18 @@
 import React, { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Megaphone, Globe, MessageCircle, Search, Music2, Phone, Mail, MessagesSquare, Store,
   ChevronDown, Plus, Edit2, Trash2, X,
 } from 'lucide-react';
 import type { ChannelRow, ShowroomRow, BrandRow } from './types';
+import { PLATFORMS, type ConnectorState } from '@/lib/platforms';
 import {
   PrimaryBtn, GhostBtn, Field, TextInput, Select, Toggle, StatusPill, FlashBar, postAdmin,
 } from './ui';
 
 export type { ChannelRow };
 
-type ConnectorState = 'active' | 'soon';
-interface Connector { key: string; name: string; desc: string; icon: React.ElementType; color: string; state: ConnectorState; unit: string; }
-
-// Danh mục kênh — thêm kênh = thêm 1 dòng. 'unit' = đơn vị đăng ký (trang/biểu mẫu).
-const CONNECTORS: Connector[] = [
-  { key: 'facebook', name: 'Facebook',          desc: 'Lead Ads · Messenger · bình luận',     icon: Megaphone,      color: '#1877F2', state: 'active', unit: 'fanpage' },
-  { key: 'website',  name: 'Website form',       desc: 'Form trên web · landing page',         icon: Globe,          color: '#004B9B', state: 'active', unit: 'biểu mẫu' },
-  { key: 'zalo',     name: 'Zalo OA',            desc: 'Official Account · ZNS',               icon: MessageCircle,  color: '#0068FF', state: 'soon',   unit: 'OA' },
-  { key: 'google',   name: 'Google form / Ads',  desc: 'Lead form Google Ads · Google Form',   icon: Search,         color: '#EA4335', state: 'soon',   unit: 'form' },
-  { key: 'tiktok',   name: 'TikTok Lead',        desc: 'TikTok Lead Generation',               icon: Music2,         color: '#010101', state: 'soon',   unit: 'form' },
-  { key: 'hotline',  name: 'Hotline / Tổng đài', desc: 'Cuộc gọi đến · ghi nhận lead',         icon: Phone,          color: '#16a34a', state: 'soon',   unit: 'số' },
-  { key: 'email',    name: 'Email',              desc: 'Hộp thư thu lead',                     icon: Mail,           color: '#0EA5E9', state: 'soon',   unit: 'hộp thư' },
-  { key: 'livechat', name: 'Live chat',          desc: 'Chat trực tuyến trên web',             icon: MessagesSquare, color: '#8B5CF6', state: 'soon',   unit: 'widget' },
-  { key: 'walkin',   name: 'Khách tới showroom', desc: 'Khách vãng lai · ghi nhận tại quầy',   icon: Store,          color: '#F59E0B', state: 'soon',   unit: 'điểm' },
-];
+// Danh mục kênh dùng chung (xem src/lib/platforms.ts) — sửa nguồn tại một chỗ duy nhất.
+const CONNECTORS = PLATFORMS;
 
 export default function IntegrationsCatalog({
   channels, showrooms, brands,

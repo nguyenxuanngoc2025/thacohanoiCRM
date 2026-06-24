@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Building2, Tag, Car, Plus, Edit2, Trash2, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, X } from 'lucide-react';
 import type { ShowroomRow, BrandRow, ModelRow } from './types';
 import {
   PanelHeader, PrimaryBtn, GhostBtn, Field, TextInput, Select, FlashBar, Panel, postAdmin,
@@ -18,8 +18,19 @@ export default function OrgManager({
   const [srEdit, setSrEdit] = useState<ShowroomRow | 'new' | null>(null);
   const [brandEdit, setBrandEdit] = useState<BrandRow | 'new' | null>(null);
   const [modelEdit, setModelEdit] = useState<ModelRow | 'new' | null>(null);
+  const [newModelBrand, setNewModelBrand] = useState<string>('');
 
-  const brandName = (id: string | null) => brands.find((b) => b.id === id)?.name ?? 'Đa thương hiệu';
+  // Thương hiệu nào đang mở (xổ danh sách dòng xe)
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const toggle = (id: string) => setExpanded((prev) => {
+    const s = new Set(prev);
+    if (s.has(id)) s.delete(id); else s.add(id);
+    return s;
+  });
+
+  // Tên các thương hiệu của 1 showroom (ghi rõ, không gộp "Đa thương hiệu")
+  const brandNamesOf = (ids: string[]) =>
+    ids.map((id) => brands.find((b) => b.id === id)?.name).filter(Boolean) as string[];
 
   const delModel = async (m: ModelRow) => {
     if (!window.confirm(`Xoá dòng xe "${m.name}"?`)) return;
@@ -42,38 +53,47 @@ export default function OrgManager({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <FlashBar msg={flash} />
 
-      {/* Showrooms */}
+      {/* Showroom (địa điểm) */}
       <Panel>
         <PanelHeader
-          title="Showroom"
-          desc="Showroom là địa điểm (Giải Phóng, Chương Mỹ…), có thể bán nhiều thương hiệu. Dùng để gán nhân sự, đăng ký kênh và phân giao lead."
-          action={<PrimaryBtn onClick={() => setSrEdit('new')}><Plus size={15} /> Thêm showroom</PrimaryBtn>}
+          title="Showroom (địa điểm)"
+          desc="Mỗi showroom là một địa điểm (Giải Phóng, Chương Mỹ…) và có thể bán nhiều thương hiệu. Dùng để gán nhân sự, đăng ký kênh và phân giao lead."
+          action={<PrimaryBtn onClick={() => setSrEdit('new')}>Thêm showroom</PrimaryBtn>}
         />
-        <div className="overflow-hidden rounded-lg border border-slate-100">
+        <div className="overflow-hidden rounded-lg border border-slate-200">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-slate-500 text-left text-xs uppercase tracking-wide">
               <tr>
                 <th className="px-4 py-2.5 font-semibold">Tên showroom</th>
                 <th className="px-4 py-2.5 font-semibold">Mã</th>
                 <th className="px-4 py-2.5 font-semibold">Thương hiệu</th>
-                <th className="px-4 py-2.5 font-semibold text-center">Thao tác</th>
+                <th className="px-4 py-2.5 font-semibold text-right">Thao tác</th>
               </tr>
             </thead>
             <tbody>
               {showrooms.map((s) => (
                 <tr key={s.id} className="border-t border-slate-100">
-                  <td className="px-4 py-2.5 font-medium text-slate-800 flex items-center gap-2">
-                    <Building2 size={14} style={{ color: '#004B9B' }} /> {s.name}
-                  </td>
+                  <td className="px-4 py-2.5 font-medium text-slate-800">{s.name}</td>
                   <td className="px-4 py-2.5 font-mono text-xs text-slate-500">{s.code ?? '—'}</td>
-                  <td className="px-4 py-2.5 text-slate-600">{brandName(s.brand_id)}</td>
                   <td className="px-4 py-2.5">
-                    <div className="flex items-center justify-center gap-1.5">
-                      <IconBtn title="Sửa" onClick={() => setSrEdit(s)}><Edit2 size={14} style={{ color: '#004B9B' }} /></IconBtn>
-                      <IconBtn title="Xoá" onClick={() => delShowroom(s)}><Trash2 size={14} className="text-rose-600" /></IconBtn>
+                    {brandNamesOf(s.brand_ids).length === 0 ? (
+                      <span className="text-slate-400">—</span>
+                    ) : (
+                      <div className="flex flex-wrap gap-1">
+                        {brandNamesOf(s.brand_ids).map((n) => (
+                          <span key={n} className="inline-block text-xs font-medium rounded-md px-2 py-0.5"
+                            style={{ background: '#e6f0fa', color: '#004B9B' }}>{n}</span>
+                        ))}
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <div className="flex items-center justify-end gap-1.5">
+                      <TextBtn onClick={() => setSrEdit(s)}>Sửa</TextBtn>
+                      <TextBtn danger onClick={() => delShowroom(s)}>Xoá</TextBtn>
                     </div>
                   </td>
                 </tr>
@@ -86,66 +106,59 @@ export default function OrgManager({
         </div>
       </Panel>
 
-      {/* Brands */}
+      {/* Thương hiệu & dòng xe — accordion: mở thương hiệu để xem/sửa dòng xe của nó */}
       <Panel>
         <PanelHeader
-          title="Thương hiệu"
-          desc="Danh mục thương hiệu (KIA, Mazda…). Lead chống trùng theo từng thương hiệu."
-          action={<PrimaryBtn onClick={() => setBrandEdit('new')}><Plus size={15} /> Thêm thương hiệu</PrimaryBtn>}
+          title="Thương hiệu & dòng xe"
+          desc="Mỗi thương hiệu (KIA, Mazda…) gom các dòng xe của nó. Nhấn tên thương hiệu để mở danh sách dòng xe. Lead chống trùng theo từng thương hiệu."
+          action={<PrimaryBtn onClick={() => setBrandEdit('new')}>Thêm thương hiệu</PrimaryBtn>}
         />
-        <div className="grid gap-2.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
-          {brands.map((b) => (
-            <div key={b.id} className="flex items-center justify-between border border-slate-200 rounded-lg px-3 py-2.5">
-              <div className="flex items-center gap-2 min-w-0">
-                <Tag size={14} style={{ color: '#004B9B' }} />
-                <div className="min-w-0">
-                  <div className="font-medium text-slate-800 truncate">{b.name}</div>
-                  <div className="font-mono text-[10px] text-slate-400">{b.slug}</div>
+        <div className="space-y-2">
+          {brands.map((b) => {
+            const list = models.filter((m) => m.brand_id === b.id).sort((x, y) => x.sort_order - y.sort_order);
+            const isOpen = expanded.has(b.id);
+            return (
+              <div key={b.id} className="border border-slate-200 rounded-lg overflow-hidden">
+                {/* Hàng thương hiệu */}
+                <div
+                  className="flex items-center gap-2.5 px-3.5 py-2.5 bg-slate-50 cursor-pointer select-none"
+                  onClick={() => toggle(b.id)}
+                >
+                  {isOpen
+                    ? <ChevronDown size={16} className="text-slate-400 shrink-0" />
+                    : <ChevronRight size={16} className="text-slate-400 shrink-0" />}
+                  <span className="font-semibold text-slate-800">{b.name}</span>
+                  <span className="text-xs text-slate-400">{list.length} dòng xe</span>
+                  <div className="ml-auto flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                    <TextBtn onClick={() => { setNewModelBrand(b.id); setModelEdit('new'); }}>Thêm dòng xe</TextBtn>
+                    <TextBtn onClick={() => setBrandEdit(b)}>Sửa</TextBtn>
+                    <TextBtn danger onClick={() => delBrand(b)}>Xoá</TextBtn>
+                  </div>
                 </div>
+
+                {/* Danh sách dòng xe */}
+                {isOpen && (
+                  <div className="divide-y divide-slate-100">
+                    {list.length === 0 ? (
+                      <div className="px-3.5 py-3 pl-10 text-sm text-slate-400">Chưa có dòng xe.</div>
+                    ) : list.map((m) => (
+                      <div key={m.id} className="flex items-center gap-2.5 px-3.5 py-2 pl-10"
+                        style={{ opacity: m.is_active ? 1 : 0.5 }}>
+                        <span className="text-sm font-medium text-slate-700">{m.name}</span>
+                        {!m.is_active && <span className="text-[10px] text-slate-400">(ẩn)</span>}
+                        <div className="ml-auto flex items-center gap-1.5">
+                          <TextBtn onClick={() => setModelEdit(m)}>Sửa</TextBtn>
+                          <TextBtn danger onClick={() => delModel(m)}>Xoá</TextBtn>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-              <div className="flex items-center gap-1 shrink-0">
-                <IconBtn title="Sửa" onClick={() => setBrandEdit(b)}><Edit2 size={13} style={{ color: '#004B9B' }} /></IconBtn>
-                <IconBtn title="Xoá" onClick={() => delBrand(b)}><Trash2 size={13} className="text-rose-600" /></IconBtn>
-              </div>
-            </div>
-          ))}
+            );
+          })}
           {brands.length === 0 && <p className="text-sm text-slate-400">Chưa có thương hiệu.</p>}
         </div>
-      </Panel>
-
-      {/* Models (dòng xe) */}
-      <Panel>
-        <PanelHeader
-          title="Dòng xe"
-          desc="Danh mục dòng xe theo thương hiệu (Carnival, CX-5…). Dùng cho cột “Dòng xe quan tâm” khi cập nhật lead."
-          action={<PrimaryBtn onClick={() => setModelEdit('new')}><Plus size={15} /> Thêm dòng xe</PrimaryBtn>}
-        />
-        {brands.map((b) => {
-          const list = models.filter((m) => m.brand_id === b.id).sort((x, y) => x.sort_order - y.sort_order);
-          if (list.length === 0) return null;
-          return (
-            <div key={b.id} className="mb-3 last:mb-0">
-              <div className="text-xs font-semibold text-slate-500 mb-1.5">{b.name}</div>
-              <div className="grid gap-2.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}>
-                {list.map((m) => (
-                  <div key={m.id} className="flex items-center justify-between border border-slate-200 rounded-lg px-3 py-2"
-                    style={{ opacity: m.is_active ? 1 : 0.5 }}>
-                    <div className="flex items-center gap-2 min-w-0">
-                      <Car size={14} style={{ color: '#004B9B' }} />
-                      <span className="font-medium text-slate-800 truncate">{m.name}</span>
-                      {!m.is_active && <span className="text-[10px] text-slate-400">(ẩn)</span>}
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <IconBtn title="Sửa" onClick={() => setModelEdit(m)}><Edit2 size={13} style={{ color: '#004B9B' }} /></IconBtn>
-                      <IconBtn title="Xoá" onClick={() => delModel(m)}><Trash2 size={13} className="text-rose-600" /></IconBtn>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        })}
-        {models.length === 0 && <p className="text-sm text-slate-400">Chưa có dòng xe.</p>}
       </Panel>
 
       {srEdit && (
@@ -159,18 +172,21 @@ export default function OrgManager({
           onDone={(m) => { setBrandEdit(null); flashMsg(m); router.refresh(); }} />
       )}
       {modelEdit && (
-        <ModelModal target={modelEdit} brands={brands}
-          onClose={() => setModelEdit(null)}
-          onDone={(m) => { setModelEdit(null); flashMsg(m); router.refresh(); }} />
+        <ModelModal target={modelEdit} brands={brands} initialBrandId={newModelBrand}
+          onClose={() => { setModelEdit(null); setNewModelBrand(''); }}
+          onDone={(m) => { setModelEdit(null); setNewModelBrand(''); flashMsg(m); router.refresh(); }} />
       )}
     </div>
   );
 }
 
-function IconBtn({ title, onClick, children }: { title: string; onClick: () => void; children: React.ReactNode }) {
+function TextBtn({ children, onClick, danger }: { children: React.ReactNode; onClick: () => void; danger?: boolean }) {
   return (
-    <button title={title} onClick={onClick}
-      className="w-7 h-7 inline-flex items-center justify-center rounded-md border border-slate-200 hover:bg-slate-50 transition-colors">
+    <button
+      onClick={onClick}
+      className="text-xs font-medium px-2.5 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-50 transition-colors"
+      style={{ color: danger ? '#e11d48' : '#004B9B' }}
+    >
       {children}
     </button>
   );
@@ -183,9 +199,12 @@ function ShowroomModal({
   const init = isNew ? null : target;
   const [name, setName] = useState(init?.name ?? '');
   const [code, setCode] = useState(init?.code ?? '');
-  const [brandId, setBrandId] = useState(init?.brand_id ?? '');
+  const [brandIds, setBrandIds] = useState<string[]>(init?.brand_ids ?? []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const toggleBrand = (id: string) =>
+    setBrandIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
   const submit = async () => {
     setError(null);
@@ -194,7 +213,7 @@ function ShowroomModal({
     const r = await postAdmin('/api/admin/showrooms', {
       op: isNew ? 'create' : 'update',
       id: isNew ? undefined : (target as ShowroomRow).id,
-      name: name.trim(), code: code.trim() || null, brand_id: brandId || null,
+      name: name.trim(), code: code.trim() || null, brand_ids: brandIds,
     });
     setBusy(false);
     if (!r.ok) { setError(r.error ?? null); return; }
@@ -205,11 +224,24 @@ function ShowroomModal({
     <ModalShell title={isNew ? 'Thêm showroom' : 'Sửa showroom'} onClose={onClose} onSubmit={submit} busy={busy} error={error}>
       <Field label="Tên showroom"><TextInput value={name} onChange={(e) => setName(e.target.value)} placeholder="Giải Phóng" /></Field>
       <Field label="Mã (tuỳ chọn)"><TextInput value={code} onChange={(e) => setCode(e.target.value)} placeholder="GP" /></Field>
-      <Field label="Thương hiệu (tuỳ chọn)" hint="Để trống nếu showroom bán nhiều thương hiệu.">
-        <Select value={brandId} onChange={(e) => setBrandId(e.target.value)}>
-          <option value="">— Đa thương hiệu —</option>
-          {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-        </Select>
+      <Field label="Thương hiệu kinh doanh" hint="Tick các thương hiệu showroom này bán. Có thể chọn nhiều.">
+        <div className="space-y-1.5">
+          {brands.map((b) => {
+            const checked = brandIds.includes(b.id);
+            return (
+              <label key={b.id}
+                className="flex items-center gap-2.5 px-3 py-2 rounded-lg border cursor-pointer transition-colors"
+                style={{
+                  borderColor: checked ? '#004B9B' : '#e2e8f0',
+                  background: checked ? '#e6f0fa' : '#fff',
+                }}>
+                <input type="checkbox" checked={checked} onChange={() => toggleBrand(b.id)} className="accent-[#004B9B]" />
+                <span className="text-sm font-medium text-slate-700">{b.name}</span>
+              </label>
+            );
+          })}
+          {brands.length === 0 && <p className="text-sm text-slate-400">Chưa có thương hiệu nào.</p>}
+        </div>
       </Field>
     </ModalShell>
   );
@@ -248,12 +280,12 @@ function BrandModal({ target, onClose, onDone }: { target: BrandRow | 'new'; onC
 }
 
 function ModelModal({
-  target, brands, onClose, onDone,
-}: { target: ModelRow | 'new'; brands: BrandRow[]; onClose: () => void; onDone: (m: string) => void }) {
+  target, brands, initialBrandId, onClose, onDone,
+}: { target: ModelRow | 'new'; brands: BrandRow[]; initialBrandId?: string; onClose: () => void; onDone: (m: string) => void }) {
   const isNew = target === 'new';
   const init = isNew ? null : target;
   const [name, setName] = useState(init?.name ?? '');
-  const [brandId, setBrandId] = useState(init?.brand_id ?? '');
+  const [brandId, setBrandId] = useState(init?.brand_id ?? initialBrandId ?? '');
   const [sortOrder, setSortOrder] = useState(String(init?.sort_order ?? 0));
   const [isActive, setIsActive] = useState(init?.is_active ?? true);
   const [busy, setBusy] = useState(false);

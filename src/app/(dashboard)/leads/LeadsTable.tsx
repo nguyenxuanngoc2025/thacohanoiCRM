@@ -25,6 +25,7 @@ export interface LeadRow {
   model_name: string | null;
   showroom_id: string | null;
   showroom_name: string | null;
+  assigned_to: string | null;
   assignee_name: string | null;
   contact_count: number;
 }
@@ -165,13 +166,14 @@ function Filter({ value, onChange, placeholder, options }: {
 }
 
 export default function LeadsTable({
-  leads, models, brands, showrooms, assignees,
+  leads, models, brands, showrooms, assignees, canCreate,
 }: {
   leads: LeadRow[];
   models: ModelOption[];
   brands: BrandOption[];
   showrooms: ShowroomOption[];
   assignees: AssigneeOption[];
+  canCreate: boolean;
 }) {
   const [tab, setTab] = useState<Tab>('all');
   const [showNew, setShowNew] = useState(false);
@@ -340,15 +342,7 @@ export default function LeadsTable({
         <Filter value={fBrand} onChange={(v) => { setFBrand(v); setFModel(''); }} placeholder="Tất cả thương hiệu" options={brandOpts} />
         <Filter value={fModel} onChange={setFModel} placeholder="Tất cả dòng xe" options={modelOpts} />
 
-        <button
-          onClick={() => setShowNew(true)}
-          className="ml-auto inline-flex items-center gap-1.5 text-sm font-semibold text-white rounded-lg px-3 py-1.5 hover:opacity-90"
-          style={{ background: '#004B9B' }}
-        >
-          <UserPlus size={15} /> Thêm lead
-        </button>
-
-        <div className="relative">
+        <div className="relative ml-auto">
           <button
             onClick={() => setColMenu((v) => !v)}
             className="inline-flex items-center gap-1.5 text-sm text-slate-600 border border-slate-200 rounded-lg px-3 py-1.5 hover:bg-slate-50"
@@ -375,6 +369,16 @@ export default function LeadsTable({
             </>
           )}
         </div>
+
+        {canCreate && (
+          <button
+            onClick={() => setShowNew(true)}
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-white rounded-lg px-3 py-1.5 hover:opacity-90"
+            style={{ background: '#004B9B' }}
+          >
+            <UserPlus size={15} /> Thêm lead
+          </button>
+        )}
       </div>
 
       <div data-table-scroll className="flex-1 min-h-0 overflow-auto">
@@ -422,7 +426,13 @@ export default function LeadsTable({
       </div>
 
       {openLead && (
-        <LeadDrawer lead={openLead} models={models} onClose={() => setOpenLead(null)} />
+        <LeadDrawer
+          lead={openLead}
+          models={models}
+          assignees={assignees}
+          canManage={canCreate}
+          onClose={() => setOpenLead(null)}
+        />
       )}
 
       {showNew && (

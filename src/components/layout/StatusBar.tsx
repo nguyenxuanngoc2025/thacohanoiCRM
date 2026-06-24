@@ -2,14 +2,8 @@
 
 import React from 'react';
 import { Building2, CheckCircle2 } from 'lucide-react';
-import { ROLE_LABELS } from '@/lib/nav';
+import { ROLE_LABELS, ROLE_COLOR } from '@/lib/nav';
 import { type UserRole } from '@/types/database';
-
-const ROLE_BADGE: Record<UserRole, { bg: string; text: string; border: string }> = {
-  admin:   { bg: '#fef3c7', text: '#92400e', border: '#fde68a' },
-  manager: { bg: '#eff6ff', text: '#1d4ed8', border: '#bfdbfe' },
-  tvbh:    { bg: '#f0fdf4', text: '#166534', border: '#86efac' },
-};
 
 export interface StatusBarProps {
   role: UserRole;
@@ -18,7 +12,7 @@ export interface StatusBarProps {
 }
 
 export default function StatusBar({ role, companyName, metrics }: StatusBarProps) {
-  const c = ROLE_BADGE[role];
+  const c = ROLE_COLOR[role] ?? { bg: '#f1f5f9', text: '#475569', border: '#e2e8f0' };
   const roleLabel = ROLE_LABELS[role] ?? role;
 
   return (

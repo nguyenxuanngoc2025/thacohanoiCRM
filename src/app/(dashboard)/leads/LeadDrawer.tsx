@@ -4,9 +4,9 @@ import React, { useState, useEffect, useTransition } from 'react';
 import { X, PhoneCall, RefreshCw, Clock, Save } from 'lucide-react';
 import { formatPhoneDisplay } from '@/lib/phone';
 import { STATUS_OPTIONS, type LeadStatus } from '@/lib/lead-status';
-import { updateLead, getLeadLogs, type LeadLogItem } from './actions';
+import { updateLead, reassignLead, getLeadLogs, type LeadLogItem } from './actions';
 import type { LeadRow } from './LeadsTable';
-import type { ModelOption } from './LeadsView';
+import type { ModelOption, AssigneeOption } from './LeadsView';
 
 const fmtDate = (v: string) => new Date(v).toLocaleString('vi-VN', {
   day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
@@ -30,17 +30,40 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 }
 
 export default function LeadDrawer({
-  lead, models, onClose,
-}: { lead: LeadRow; models: ModelOption[]; onClose: () => void }) {
+  lead, models, assignees, canManage, onClose,
+}: {
+  lead: LeadRow;
+  models: ModelOption[];
+  assignees: AssigneeOption[];
+  canManage: boolean;
+  onClose: () => void;
+}) {
   const [status, setStatus] = useState<LeadStatus | ''>(lead.status ?? '');
   const [modelId, setModelId] = useState<string>(lead.model_id ?? '');
   const [note, setNote] = useState('');
   const [nextDate, setNextDate] = useState(toDateInput(lead.next_contact_at));
+  const [assignedTo, setAssignedTo] = useState<string>(lead.assigned_to ?? '');
   const [pending, start] = useTransition();
   const [logs, setLogs] = useState<LeadLogItem[] | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
 
   const brandModels = models.filter((m) => m.brand_id === lead.brand_id);
+
+  const onReassign = (next: string) => {
+    const prev = assignedTo;
+    setAssignedTo(next);
+    start(async () => {
+      const res = await reassignLead(lead.id, next || null);
+      if (res.ok) {
+        setFlash('Đã đổi người phụ trách.');
+        getLeadLogs(lead.id).then(setLogs);
+        setTimeout(() => setFlash(null), 2500);
+      } else {
+        setAssignedTo(prev);
+        setFlash(res.error ?? 'Đổi phụ trách thất bại.');
+      }
+    });
+  };
 
   useEffect(() => {
     getLeadLogs(lead.id).then(setLogs);
@@ -96,7 +119,22 @@ export default function LeadDrawer({
             <InfoRow label="Showroom" value={lead.showroom_name ?? '—'} />
             <InfoRow label="Thương hiệu" value={lead.brand_name} />
             <InfoRow label="Nguồn" value={lead.source ?? '—'} />
-            <InfoRow label="Phụ trách" value={lead.assignee_name ?? '—'} />
+            {canManage ? (
+              <div className="flex justify-between items-center gap-3 py-1.5 text-sm">
+                <span className="text-slate-400">Phụ trách</span>
+                <select
+                  value={assignedTo}
+                  disabled={pending}
+                  onChange={(e) => onReassign(e.target.value)}
+                  className="text-sm border border-slate-200 rounded-lg px-2 py-1 bg-white focus:border-[#004B9B] outline-none disabled:opacity-50 max-w-[60%]"
+                >
+                  <option value="">— Chưa giao —</option>
+                  {assignees.map((a) => <option key={a.id} value={a.id}>{a.full_name}</option>)}
+                </select>
+              </div>
+            ) : (
+              <InfoRow label="Phụ trách" value={lead.assignee_name ?? '—'} />
+            )}
             <InfoRow label="Tạo lúc" value={fmtDate(lead.created_at)} />
             <InfoRow label="Số lần liên hệ" value={String(lead.contact_count)} />
           </section>

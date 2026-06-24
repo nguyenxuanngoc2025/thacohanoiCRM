@@ -4,6 +4,9 @@ import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { STATUS_OPTIONS, type LeadStatus } from '@/lib/lead-status';
 import { normalizePhone } from '@/lib/phone';
+import { pickNextAssignee, type AssigneeLoad } from '@/lib/assign';
+import { CAN_CREATE_LEAD, CAN_ASSIGN } from '@/lib/nav';
+import { type UserRole } from '@/types/database';
 
 const VALID = new Set<LeadStatus>(STATUS_OPTIONS.map((s) => s.code));
 
@@ -107,6 +110,46 @@ export async function updateLead(input: LeadUpdateInput) {
   return { ok: true as const };
 }
 
+/**
+ * Đổi người phụ trách (chỉ admin/manager). TVBH không có quyền.
+ * Ghi log 'system' để truy vết ai đổi, từ ai sang ai.
+ */
+export async function reassignLead(leadId: string, newAssigneeId: string | null) {
+  const db = await createClient();
+  const { data: { user } } = await db.auth.getUser();
+  if (!user) return { ok: false as const, error: 'Chưa đăng nhập.' };
+
+  const { data: me } = await db.from('users').select('role').eq('id', user.id).maybeSingle();
+  if (!me || !CAN_ASSIGN.has(me.role as UserRole)) return { ok: false as const, error: 'Bạn không có quyền đổi người phụ trách.' };
+
+  const { data: prev } = await db.from('leads').select('assigned_to').eq('id', leadId).maybeSingle();
+  if (prev?.assigned_to === newAssigneeId) return { ok: true as const };
+
+  const { error } = await db.from('leads').update({ assigned_to: newAssigneeId }).eq('id', leadId);
+  if (error) return { ok: false as const, error: error.message };
+
+  // Lấy tên cũ + mới để ghi log
+  const ids = [prev?.assigned_to, newAssigneeId].filter((x): x is string => !!x);
+  let names: Record<string, string> = {};
+  if (ids.length > 0) {
+    const { data: us } = await db.from('users').select('id, full_name').in('id', ids);
+    names = Object.fromEntries((us ?? []).map((u) => [u.id, u.full_name]));
+  }
+  const oldN = prev?.assigned_to ? (names[prev.assigned_to] ?? '—') : 'Chưa giao';
+  const newN = newAssigneeId ? (names[newAssigneeId] ?? '—') : 'Chưa giao';
+
+  await db.from('lead_logs').insert({
+    lead_id: leadId,
+    user_id: user.id,
+    type: 'system',
+    content: `Đổi người phụ trách: ${oldN} → ${newN}.`,
+  });
+
+  revalidatePath('/leads');
+  revalidatePath('/assign');
+  return { ok: true as const };
+}
+
 export interface NewLeadInput {
   fullName: string;
   phone: string;
@@ -128,8 +171,9 @@ export async function createLead(input: NewLeadInput) {
   const phone = normalizePhone(input.phone);
   if (!phone) return { ok: false as const, error: 'Số điện thoại không hợp lệ.' };
 
-  const { data: me } = await db.from('users').select('company_id').eq('id', user.id).maybeSingle();
+  const { data: me } = await db.from('users').select('company_id, role').eq('id', user.id).maybeSingle();
   if (!me?.company_id) return { ok: false as const, error: 'Tài khoản chưa gắn công ty.' };
+  if (!CAN_CREATE_LEAD.has(me.role as UserRole)) return { ok: false as const, error: 'Bạn không có quyền thêm lead.' };
 
   const note = input.note.trim();
   const { data: inserted, error } = await db
@@ -165,6 +209,158 @@ export async function createLead(input: NewLeadInput) {
 
   revalidatePath('/leads');
   return { ok: true as const, id: inserted.id };
+}
+
+export interface AssignmentRecommendation {
+  showroomId: string | null;
+  showroomName: string | null;
+  assigneeId: string | null;
+  assigneeName: string | null;
+}
+
+/** Số lead đang mở (chưa Fail, kể cả chưa phân loại = NULL). */
+const OPEN_LEADS = 'status.is.null,status.neq.Fail';
+
+/**
+ * Gợi ý phân giao cho lead mới (thuật toán xoay vòng đều / least-loaded):
+ * - Showroom: showroom ít lead đang mở nhất trong công ty (dùng khi chưa chọn showroom).
+ * - Phụ trách: TVBH ít lead đang mở nhất trong showroom đó.
+ * Chỉ là GỢI Ý — người dùng vẫn chọn lại được.
+ */
+export async function recommendAssignment(showroomId: string | null): Promise<AssignmentRecommendation> {
+  const empty: AssignmentRecommendation = { showroomId: null, showroomName: null, assigneeId: null, assigneeName: null };
+  const db = await createClient();
+  const { data: { user } } = await db.auth.getUser();
+  if (!user) return empty;
+
+  const { data: me } = await db.from('users').select('company_id').eq('id', user.id).maybeSingle();
+  if (!me?.company_id) return empty;
+
+  // Mọi TVBH đang hoạt động + có gắn showroom (chỉ TVBH mới nhận lead)
+  const { data: tvbhs } = await db
+    .from('users')
+    .select('id, full_name, showroom_id')
+    .eq('company_id', me.company_id)
+    .eq('role', 'tvbh')
+    .eq('is_active', true)
+    .not('showroom_id', 'is', null);
+
+  if (!tvbhs || tvbhs.length === 0) return empty;
+
+  // Showroom mục tiêu: do người dùng chọn, hoặc showroom (có TVBH) ít lead đang mở nhất
+  let recShowroomId = showroomId;
+  if (!recShowroomId) {
+    const showroomIds = [...new Set(tvbhs.map((t) => t.showroom_id as string))];
+    const counts: { id: string; n: number }[] = [];
+    for (const sid of showroomIds) {
+      const { count } = await db
+        .from('leads')
+        .select('id', { count: 'exact', head: true })
+        .eq('showroom_id', sid)
+        .or(OPEN_LEADS);
+      counts.push({ id: sid, n: count ?? 0 });
+    }
+    counts.sort((a, b) => (a.n !== b.n ? a.n - b.n : a.id.localeCompare(b.id)));
+    recShowroomId = counts[0]?.id ?? null;
+  }
+
+  let recShowroomName: string | null = null;
+  if (recShowroomId) {
+    const { data: sr } = await db.from('showrooms').select('name').eq('id', recShowroomId).maybeSingle();
+    recShowroomName = sr?.name ?? null;
+  }
+
+  // Gợi ý phụ trách: TVBH ít lead đang mở nhất trong showroom mục tiêu (xoay vòng đều)
+  const inShowroom = tvbhs.filter((t) => t.showroom_id === recShowroomId);
+  let assigneeId: string | null = null;
+  let assigneeName: string | null = null;
+  if (inShowroom.length > 0) {
+    const loads: AssigneeLoad[] = [];
+    for (const t of inShowroom) {
+      const { count } = await db
+        .from('leads')
+        .select('id', { count: 'exact', head: true })
+        .eq('assigned_to', t.id)
+        .or(OPEN_LEADS);
+      loads.push({ id: t.id, activeLeadCount: count ?? 0 });
+    }
+    assigneeId = pickNextAssignee(loads);
+    assigneeName = inShowroom.find((t) => t.id === assigneeId)?.full_name ?? null;
+  }
+
+  return { showroomId: recShowroomId, showroomName: recShowroomName, assigneeId, assigneeName };
+}
+
+export interface AutoDistributeResult {
+  ok: boolean;
+  assigned: number;
+  skipped: number;
+  error?: string;
+}
+
+/**
+ * Tự động phân giao đều TẤT CẢ lead chưa có người phụ trách (assigned_to IS NULL):
+ * mỗi lead → TVBH ít lead đang mở nhất TRONG CÙNG showroom của lead (xoay vòng đều).
+ * Lead không khớp showroom nào có TVBH thì bỏ qua (skipped). Chỉ admin/manager.
+ */
+export async function autoDistributeLeads(): Promise<AutoDistributeResult> {
+  const db = await createClient();
+  const { data: { user } } = await db.auth.getUser();
+  if (!user) return { ok: false, assigned: 0, skipped: 0, error: 'Chưa đăng nhập.' };
+
+  const { data: me } = await db.from('users').select('role').eq('id', user.id).maybeSingle();
+  if (!me || !CAN_ASSIGN.has(me.role as UserRole)) return { ok: false, assigned: 0, skipped: 0, error: 'Bạn không có quyền phân giao.' };
+
+  // TVBH đang hoạt động + có gắn showroom (chỉ TVBH mới nhận lead)
+  const { data: tvbhs } = await db
+    .from('users')
+    .select('id, showroom_id')
+    .eq('role', 'tvbh')
+    .eq('is_active', true)
+    .not('showroom_id', 'is', null);
+  if (!tvbhs || tvbhs.length === 0) return { ok: false, assigned: 0, skipped: 0, error: 'Chưa có tư vấn bán hàng nào.' };
+
+  // Tải hiện tại: số lead đang mở của mỗi TVBH
+  const { data: openLeads } = await db
+    .from('leads')
+    .select('assigned_to')
+    .not('assigned_to', 'is', null)
+    .or(OPEN_LEADS);
+  const load: Record<string, number> = {};
+  for (const t of tvbhs) load[t.id] = 0;
+  for (const r of (openLeads ?? []) as { assigned_to: string }[]) {
+    if (r.assigned_to in load) load[r.assigned_to] += 1;
+  }
+
+  // Lead chưa giao (cũ trước → giao trước)
+  const { data: unassigned } = await db
+    .from('leads')
+    .select('id, showroom_id')
+    .is('assigned_to', null)
+    .order('created_at', { ascending: true });
+  if (!unassigned || unassigned.length === 0) return { ok: true, assigned: 0, skipped: 0 };
+
+  let assigned = 0;
+  let skipped = 0;
+  for (const lead of unassigned as { id: string; showroom_id: string | null }[]) {
+    const candidates = tvbhs.filter((t) => (lead.showroom_id ? t.showroom_id === lead.showroom_id : true));
+    const pick = pickNextAssignee(candidates.map((c) => ({ id: c.id, activeLeadCount: load[c.id] ?? 0 })));
+    if (!pick) { skipped += 1; continue; }
+    const { error } = await db.from('leads').update({ assigned_to: pick }).eq('id', lead.id);
+    if (error) { skipped += 1; continue; }
+    load[pick] = (load[pick] ?? 0) + 1;
+    assigned += 1;
+    await db.from('lead_logs').insert({
+      lead_id: lead.id,
+      user_id: user.id,
+      type: 'system',
+      content: 'Tự động phân giao (chia đều).',
+    });
+  }
+
+  revalidatePath('/leads');
+  revalidatePath('/assign');
+  return { ok: true, assigned, skipped };
 }
 
 export interface LeadLogItem {

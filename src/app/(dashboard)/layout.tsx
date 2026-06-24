@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import DashboardShell from '@/components/layout/DashboardShell';
 import { type UserRole } from '@/types/database';
+import { ROLE_LABELS } from '@/lib/nav';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,7 +43,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <DashboardShell
       userName={userName}
       userRole={role}
-      userCode={role === 'admin' ? 'Quản trị hệ thống' : role === 'manager' ? 'Quản lý' : 'Tư vấn bán hàng'}
+      userCode={ROLE_LABELS[role] ?? 'Tư vấn bán hàng'}
       companyName={companyName}
       metrics={metrics}
     >

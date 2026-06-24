@@ -19,16 +19,31 @@ export async function POST(request: NextRequest) {
 
     const name = String(body.name ?? '').trim();
     if (!name) return NextResponse.json({ error: 'Thiếu tên showroom' }, { status: 400 });
-    const brand_id = body.brand_id || null;
+    const brandIds: string[] = Array.isArray(body.brand_ids)
+      ? (body.brand_ids as unknown[]).map((x) => String(x)).filter(Boolean)
+      : [];
     const row = {
       name,
       code: body.code ? String(body.code).trim() : null,
-      brand_id,
+    };
+
+    // Đồng bộ bảng junction showroom_brands cho 1 showroom: xoá hết rồi insert lại theo brandIds.
+    const syncBrands = async (showroomId: string) => {
+      await service.from('showroom_brands').delete().eq('showroom_id', showroomId);
+      if (brandIds.length) {
+        const { error } = await service
+          .from('showroom_brands')
+          .insert(brandIds.map((brand_id) => ({ showroom_id: showroomId, brand_id })));
+        if (error) return error.message;
+      }
+      return null;
     };
 
     if (op === 'update') {
       const { error } = await service.from('showrooms').update(row).eq('id', body.id);
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+      const e = await syncBrands(String(body.id));
+      if (e) return NextResponse.json({ error: e }, { status: 400 });
       return NextResponse.json({ success: true });
     }
 
@@ -38,6 +53,8 @@ export async function POST(request: NextRequest) {
       .select('id')
       .single();
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    const e = await syncBrands(data.id);
+    if (e) return NextResponse.json({ error: e }, { status: 400 });
     return NextResponse.json({ success: true, id: data.id });
   } catch {
     return NextResponse.json({ error: 'Server error' }, { status: 500 });

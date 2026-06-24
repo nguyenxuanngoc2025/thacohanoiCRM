@@ -4,7 +4,8 @@ export interface ShowroomRow {
   id: string;
   name: string;
   code: string | null;
-  brand_id: string | null;
+  // Showroom là địa điểm bán nhiều thương hiệu → danh sách brand_id qua bảng junction showroom_brands.
+  brand_ids: string[];
 }
 
 export interface BrandRow {
