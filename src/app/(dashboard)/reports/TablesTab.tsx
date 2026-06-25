@@ -57,42 +57,38 @@ export default function TablesTab({ leads }: { leads: ReportLead[] }) {
 
   return (
     <div className="space-y-4">
-      <Panel
-        action={
-          <button onClick={handleExport}
-            className="inline-flex items-center gap-1.5 text-sm font-semibold rounded-lg px-3 py-2 text-white shadow-sm"
-            style={{ background: BRAND }}>
-            <Download size={15} /> Xuất Excel
-          </button>
-        }
-      >
-        <div className="flex flex-wrap items-center gap-3">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-4 py-2.5">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <Field label="Nhóm theo">
             <Dropdown value={rowDim} onChange={onRowDim} placeholder="Chọn" options={DIM_OPTS} allowClear={false} />
           </Field>
-          <Field label="Tách cột theo">
-            <Dropdown value={colDim} onChange={setColDim} placeholder="Không tách (bảng chỉ số)" options={colOpts} />
+          <Field label="Tách cột">
+            <Dropdown value={colDim} onChange={setColDim} placeholder="Không tách" options={colOpts} />
           </Field>
-          {!colDim && (
-            <Field label="Hiện cột">
-              <div className="flex flex-wrap gap-1.5">
-                {METRICS.map((m) => {
-                  const on = !hidden.has(m.key);
-                  return (
-                    <button key={m.key} onClick={() => toggle(m.key)}
-                      className="inline-flex items-center gap-1 text-xs rounded-full border px-2 py-1 transition-colors"
-                      style={on
-                        ? { borderColor: BRAND, background: '#e6f0fa', color: BRAND, fontWeight: 600 }
-                        : { borderColor: '#e2e8f0', background: '#fff', color: '#94a3b8' }}>
-                      {on && <Check size={11} />} {m.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </Field>
-          )}
+          <button onClick={handleExport}
+            className="ml-auto inline-flex items-center gap-1.5 text-sm font-semibold rounded-lg px-3 py-1.5 text-white shadow-sm"
+            style={{ background: BRAND }}>
+            <Download size={15} /> Xuất Excel
+          </button>
         </div>
-      </Panel>
+        {!colDim && (
+          <div className="flex flex-wrap items-center gap-1.5 mt-2.5 pt-2.5 border-t border-slate-100">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mr-1">Hiện cột</span>
+            {METRICS.map((m) => {
+              const on = !hidden.has(m.key);
+              return (
+                <button key={m.key} onClick={() => toggle(m.key)}
+                  className="inline-flex items-center gap-1 text-xs rounded-full border px-2 py-0.5 transition-colors"
+                  style={on
+                    ? { borderColor: BRAND, background: '#e6f0fa', color: BRAND, fontWeight: 600 }
+                    : { borderColor: '#e2e8f0', background: '#fff', color: '#94a3b8' }}>
+                  {on && <Check size={11} />} {m.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       <Panel
         title={colDim
