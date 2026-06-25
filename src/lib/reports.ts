@@ -156,6 +156,40 @@ export function groupByAssignee(leads: ReportLead[], nowMs: number): GroupRow[] 
   return rows;
 }
 
+/** Gom theo trạng thái (đủ chỉ số), giữ thứ tự pipeline; '__none__' = chưa phân loại. */
+export function groupByStatus(leads: ReportLead[], nowMs: number): GroupRow[] {
+  const rows = groupBy(
+    leads,
+    (l) => l.status ?? '__none__',
+    (l) => (l.status ? STATUS_LABEL[l.status] : 'Chưa phân loại'),
+    nowMs,
+  );
+  const order = ['__none__', ...(Object.keys(STATUS_LABEL) as LeadStatus[])];
+  rows.sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
+  return rows;
+}
+
+/** Các chiều phân tích dùng cho tab Bảng dữ liệu. */
+export type Dimension = 'showroom' | 'brand' | 'source' | 'assignee' | 'status';
+
+export const DIMENSION_LABEL: Record<Dimension, string> = {
+  showroom: 'Showroom',
+  brand: 'Thương hiệu',
+  source: 'Nguồn',
+  assignee: 'Tư vấn bán hàng',
+  status: 'Trạng thái',
+};
+
+export function groupByDimension(leads: ReportLead[], dim: Dimension, nowMs: number): GroupRow[] {
+  switch (dim) {
+    case 'showroom': return groupByShowroom(leads, nowMs);
+    case 'brand': return groupByBrand(leads, nowMs);
+    case 'source': return groupBySource(leads, nowMs);
+    case 'assignee': return groupByAssignee(leads, nowMs);
+    case 'status': return groupByStatus(leads, nowMs);
+  }
+}
+
 // ─── Ma trận chéo Showroom × Thương hiệu ─────────────────────────────────────
 
 export interface PivotCell {
@@ -179,28 +213,39 @@ export interface Pivot {
 
 const emptyCell = (): PivotCell => ({ leads: 0, won: 0 });
 
-/** Bảng chéo: hàng = showroom, cột = thương hiệu; mỗi ô có số lead + ký HĐ. */
-export function crossShowroomBrand(leads: ReportLead[]): Pivot {
+/** Khoá + nhãn của 1 lead theo chiều phân tích. */
+function dimKey(l: ReportLead, dim: Dimension): [string, string] {
+  switch (dim) {
+    case 'showroom': return [l.showroom_id ?? '__none__', l.showroom_name ?? 'Chưa gán showroom'];
+    case 'brand': return [l.brand_id, l.brand_name];
+    case 'source': return [l.source ?? '__none__', l.source ?? 'Không rõ nguồn'];
+    case 'assignee': return [l.assigned_to ?? '__none__', l.assignee_name ?? 'Chưa giao'];
+    case 'status': return [l.status ?? '__none__', l.status ? STATUS_LABEL[l.status] : 'Chưa phân loại'];
+  }
+}
+
+/** Bảng chéo tổng quát: hàng theo rowDim, cột theo colDim; mỗi ô có số lead + ký HĐ. */
+export function crossDimension(leads: ReportLead[], rowDim: Dimension, colDim: Dimension): Pivot {
   const colMap = new Map<string, string>();
   const rowMap = new Map<string, PivotRow>();
   const colTotals: Record<string, PivotCell> = {};
   const grandTotal = emptyCell();
 
   for (const l of leads) {
-    const bId = l.brand_id;
-    if (!colMap.has(bId)) colMap.set(bId, l.brand_name);
-    const sId = l.showroom_id ?? '__none__';
-    let row = rowMap.get(sId);
+    const [cId, cLabel] = dimKey(l, colDim);
+    if (!colMap.has(cId)) colMap.set(cId, cLabel);
+    const [rId, rLabel] = dimKey(l, rowDim);
+    let row = rowMap.get(rId);
     if (!row) {
-      row = { key: sId, label: l.showroom_name ?? 'Chưa gán showroom', cells: {}, total: emptyCell() };
-      rowMap.set(sId, row);
+      row = { key: rId, label: rLabel, cells: {}, total: emptyCell() };
+      rowMap.set(rId, row);
     }
-    if (!row.cells[bId]) row.cells[bId] = emptyCell();
-    if (!colTotals[bId]) colTotals[bId] = emptyCell();
+    if (!row.cells[cId]) row.cells[cId] = emptyCell();
+    if (!colTotals[cId]) colTotals[cId] = emptyCell();
     const won = isWon(l) ? 1 : 0;
-    row.cells[bId].leads += 1; row.cells[bId].won += won;
+    row.cells[cId].leads += 1; row.cells[cId].won += won;
     row.total.leads += 1; row.total.won += won;
-    colTotals[bId].leads += 1; colTotals[bId].won += won;
+    colTotals[cId].leads += 1; colTotals[cId].won += won;
     grandTotal.leads += 1; grandTotal.won += won;
   }
 
@@ -209,6 +254,11 @@ export function crossShowroomBrand(leads: ReportLead[]): Pivot {
     .sort((a, b) => (colTotals[b.key]?.leads ?? 0) - (colTotals[a.key]?.leads ?? 0));
   const rows = [...rowMap.values()].sort((a, b) => b.total.leads - a.total.leads);
   return { cols, rows, colTotals, grandTotal };
+}
+
+/** Bảng chéo: hàng = showroom, cột = thương hiệu (dùng ở tab Tổng quan). */
+export function crossShowroomBrand(leads: ReportLead[]): Pivot {
+  return crossDimension(leads, 'showroom', 'brand');
 }
 
 export interface DayCount {

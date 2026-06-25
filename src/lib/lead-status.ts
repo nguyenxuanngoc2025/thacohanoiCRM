@@ -16,6 +16,11 @@ export const STATUS_OPTIONS: { code: LeadStatus; label: string; color: string; b
   { code: 'Fail', label: STATUS_LABEL.Fail, color: '#be123c', bg: '#fff1f2' },
 ];
 
+/** Màu theo mã trạng thái (dùng cho biểu đồ/báo cáo). */
+export const STATUS_COLOR: Record<LeadStatus, string> = Object.fromEntries(
+  STATUS_OPTIONS.map((o) => [o.code, o.color]),
+) as Record<LeadStatus, string>;
+
 /** Lý do khi phân loại Fail (bắt buộc chọn). 'Khác' cho nhập tay. */
 export const FAIL_REASONS = [
   'Sai số / không liên lạc được',
