@@ -161,7 +161,7 @@ function Filter({ value, onChange, placeholder, options }: {
   value: string; onChange: (v: string) => void; placeholder: string; options: Opt[];
 }) {
   const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [pos, setPos] = useState<{ top?: number; bottom?: number; left: number; width: number } | null>(null);
   const btnRef = React.useRef<HTMLButtonElement>(null);
   const active = value !== '';
   const current = options.find((o) => o.value === value);
@@ -169,7 +169,13 @@ function Filter({ value, onChange, placeholder, options }: {
   const toggle = () => {
     if (open) { setOpen(false); return; }
     const r = btnRef.current?.getBoundingClientRect();
-    if (r) setPos({ top: r.bottom + 4, left: r.left, width: Math.max(r.width, 180) });
+    if (r) {
+      const width = Math.max(r.width, 180);
+      const below = window.innerHeight - r.bottom;
+      // Gần đáy màn hình → lật lên trên để danh sách không bị tràn/khuất.
+      if (below < 280 && r.top > below) setPos({ bottom: window.innerHeight - r.top + 4, left: r.left, width });
+      else setPos({ top: r.bottom + 4, left: r.left, width });
+    }
     setOpen(true);
   };
 
@@ -180,7 +186,7 @@ function Filter({ value, onChange, placeholder, options }: {
       <button
         ref={btnRef}
         onClick={toggle}
-        className="inline-flex items-center gap-1.5 text-sm border rounded-lg px-2.5 py-1.5 outline-none transition-colors"
+        className="inline-flex w-full items-center justify-between gap-1.5 text-sm border rounded-lg px-2.5 py-1.5 outline-none transition-colors"
         style={{
           borderColor: active ? '#004B9B' : '#e2e8f0',
           background: active ? '#e6f0fa' : '#fff',
@@ -188,15 +194,15 @@ function Filter({ value, onChange, placeholder, options }: {
           fontWeight: active ? 600 : 400,
         }}
       >
-        {active ? (current?.label ?? value) : placeholder}
-        <ChevronDown size={13} className="opacity-60" />
+        <span className="truncate">{active ? (current?.label ?? value) : placeholder}</span>
+        <ChevronDown size={13} className="opacity-60 shrink-0" />
       </button>
       {open && pos && (
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 9998 }} onClick={() => setOpen(false)} />
           <div
             style={{
-              position: 'fixed', top: pos.top, left: pos.left, minWidth: pos.width, zIndex: 9999,
+              position: 'fixed', top: pos.top, bottom: pos.bottom, left: pos.left, minWidth: pos.width, zIndex: 9999,
               background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8,
               boxShadow: '0 8px 24px rgba(0,0,0,0.12)', padding: 6, maxHeight: 280, overflowY: 'auto',
             }}
@@ -442,6 +448,27 @@ export default function LeadsTable({
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [bulkAssignee, setBulkAssignee] = useState('');
   const [filterMenu, setFilterMenu] = useState(false);
+  // Dropdown trong header render qua portal (card có overflow-hidden sẽ cắt mất nếu dùng absolute)
+  const filterBtnRef = React.useRef<HTMLButtonElement>(null);
+  const colBtnRef = React.useRef<HTMLButtonElement>(null);
+  const [filterPos, setFilterPos] = useState<{ left: number; top: number } | null>(null);
+  const [colPos, setColPos] = useState<{ left: number; top: number } | null>(null);
+  const openFilterMenu = () => {
+    if (filterMenu) { setFilterMenu(false); return; }
+    const r = filterBtnRef.current?.getBoundingClientRect();
+    if (r) {
+      const W = 460;
+      const left = Math.max(8, Math.min(r.left, window.innerWidth - W - 8));
+      setFilterPos({ left, top: r.bottom + 4 });
+    }
+    setFilterMenu(true);
+  };
+  const openColMenu = () => {
+    if (colMenu) { setColMenu(false); return; }
+    const r = colBtnRef.current?.getBoundingClientRect();
+    if (r) setColPos({ left: r.right - 224, top: r.bottom + 4 });
+    setColMenu(true);
+  };
 
   // Khôi phục cấu hình cột hiển thị
   useEffect(() => {
@@ -650,19 +677,20 @@ export default function LeadsTable({
 
         <div className="w-px h-5 bg-slate-200 mx-1" />
 
-        <div className="relative">
+        <div className="relative flex-1 min-w-[120px] max-w-[200px]">
           <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
           <input
             value={filters.q}
             onChange={(e) => setF('q', e.target.value)}
             placeholder="Tìm tên / SĐT"
-            className="text-sm border border-slate-200 rounded-lg pl-8 pr-2.5 py-1.5 outline-none focus:border-[#004B9B] w-44"
+            className="text-sm border border-slate-200 rounded-lg pl-8 pr-2.5 py-1.5 outline-none focus:border-[#004B9B] w-full"
           />
         </div>
 
         <div className="relative">
           <button
-            onClick={() => setFilterMenu((v) => !v)}
+            ref={filterBtnRef}
+            onClick={openFilterMenu}
             className="inline-flex items-center gap-1.5 text-sm border rounded-lg px-2.5 py-1.5 transition-colors"
             style={{
               borderColor: activeFilters ? '#004B9B' : '#e2e8f0',
@@ -678,32 +706,42 @@ export default function LeadsTable({
               </span>
             )}
           </button>
-          {filterMenu && (
+          {filterMenu && filterPos && createPortal(
             <>
-              <div className="fixed inset-0 z-20" onClick={() => setFilterMenu(false)} />
-              <div className="absolute left-0 mt-1 z-30 w-64 bg-white rounded-xl shadow-lg border border-slate-200 p-3 space-y-2.5">
-                <div className="flex items-center justify-between">
+              <div style={{ position: 'fixed', inset: 0, zIndex: 9998 }} onClick={() => setFilterMenu(false)} />
+              <div
+                style={{
+                  position: 'fixed', top: filterPos.top, left: filterPos.left, width: 460, zIndex: 9999,
+                  maxHeight: '80vh', overflowY: 'auto',
+                  background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12,
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.12)', padding: 14,
+                }}
+              >
+                <div className="flex items-center justify-between mb-2.5">
                   <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Bộ lọc</span>
                   {activeFilters > 0 && (
                     <button onClick={clearFilters} className="text-xs text-rose-600 hover:underline">Xoá lọc</button>
                   )}
                 </div>
-                {[
-                  { label: 'Tháng', value: filters.month, key: 'month' as const, ph: 'Tất cả tháng', opts: monthOpts },
-                  { label: 'Showroom', value: filters.showroom, key: 'showroom' as const, ph: 'Tất cả showroom', opts: showroomOpts },
-                  { label: 'Thương hiệu', value: filters.brand, key: 'brand' as const, ph: 'Tất cả thương hiệu', opts: brandOpts },
-                  { label: 'Dòng xe', value: filters.model, key: 'model' as const, ph: 'Tất cả dòng xe', opts: modelOpts },
-                  { label: 'Nguồn', value: filters.source, key: 'source' as const, ph: 'Tất cả nguồn', opts: sourceOpts },
-                  { label: 'Phụ trách', value: filters.assignee, key: 'assignee' as const, ph: 'Tất cả phụ trách', opts: assigneeOpts },
-                  { label: 'Phân loại', value: filters.status, key: 'status' as const, ph: 'Tất cả phân loại', opts: statusOpts },
-                ].map((f) => (
-                  <div key={f.key} className="flex flex-col gap-1">
-                    <span className="text-[11px] font-medium text-slate-500">{f.label}</span>
-                    <Filter value={f.value} onChange={(v) => setF(f.key, v)} placeholder={f.ph} options={f.opts} />
-                  </div>
-                ))}
+                <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
+                  {[
+                    { label: 'Tháng', value: filters.month, key: 'month' as const, ph: 'Tất cả tháng', opts: monthOpts },
+                    { label: 'Showroom', value: filters.showroom, key: 'showroom' as const, ph: 'Tất cả showroom', opts: showroomOpts },
+                    { label: 'Thương hiệu', value: filters.brand, key: 'brand' as const, ph: 'Tất cả thương hiệu', opts: brandOpts },
+                    { label: 'Dòng xe', value: filters.model, key: 'model' as const, ph: 'Tất cả dòng xe', opts: modelOpts },
+                    { label: 'Nguồn', value: filters.source, key: 'source' as const, ph: 'Tất cả nguồn', opts: sourceOpts },
+                    { label: 'Phụ trách', value: filters.assignee, key: 'assignee' as const, ph: 'Tất cả phụ trách', opts: assigneeOpts },
+                    { label: 'Phân loại', value: filters.status, key: 'status' as const, ph: 'Tất cả phân loại', opts: statusOpts },
+                  ].map((f) => (
+                    <div key={f.key} className="flex flex-col gap-1 min-w-0">
+                      <span className="text-[11px] font-medium text-slate-500">{f.label}</span>
+                      <Filter value={f.value} onChange={(v) => setF(f.key, v)} placeholder={f.ph} options={f.opts} />
+                    </div>
+                  ))}
+                </div>
               </div>
-            </>
+            </>,
+            document.body
           )}
         </div>
 
@@ -716,15 +754,23 @@ export default function LeadsTable({
           </button>
           <div className="relative">
             <button
-              onClick={() => setColMenu((v) => !v)}
+              ref={colBtnRef}
+              onClick={openColMenu}
               className="inline-flex items-center gap-1.5 text-sm text-slate-600 border border-slate-200 rounded-lg px-3 py-1.5 hover:bg-slate-50"
             >
               <SlidersHorizontal size={14} /> Cột hiển thị
             </button>
-            {colMenu && (
+            {colMenu && colPos && createPortal(
               <>
-                <div className="fixed inset-0 z-20" onClick={() => setColMenu(false)} />
-                <div className="absolute right-0 mt-1 z-30 w-56 bg-white rounded-xl shadow-lg border border-slate-200 p-2 max-h-[70vh] overflow-y-auto">
+                <div style={{ position: 'fixed', inset: 0, zIndex: 9998 }} onClick={() => setColMenu(false)} />
+                <div
+                  style={{
+                    position: 'fixed', top: colPos.top, left: colPos.left, width: 224, zIndex: 9999,
+                    maxHeight: '70vh', overflowY: 'auto',
+                    background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12,
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.12)', padding: 8,
+                  }}
+                >
                   <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide px-2 py-1.5">Tùy chỉnh cột</div>
                   {COLS.map((c) => (
                     <label key={c.key} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer text-sm text-slate-700">
@@ -738,7 +784,8 @@ export default function LeadsTable({
                     </label>
                   ))}
                 </div>
-              </>
+              </>,
+              document.body
             )}
           </div>
 
