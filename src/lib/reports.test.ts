@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   computeKpis, computeFunnel, groupBySource, groupByAssignee,
-  dailyTrend, failReasons, statusDistribution, isOverdue,
+  dailyTrend, failReasons, statusDistribution, isOverdue, crossShowroomBrand,
   type ReportLead,
 } from './reports';
 
@@ -79,13 +79,31 @@ describe('groupBySource', () => {
       L({ source: 'google', status: 'KHĐ' }),
       L({ source: null }),
     ];
-    const rows = groupBySource(leads);
+    const rows = groupBySource(leads, NOW);
     expect(rows[0].key).toBe('facebook');
     expect(rows[0].leads).toBe(2);
     expect(rows[0].won).toBe(1);
     expect(rows[0].winRate).toBe(50);
     const none = rows.find((r) => r.key === '__none__');
     expect(none?.label).toBe('Không rõ nguồn');
+  });
+
+  it('tính đủ chỉ số phân tích: tỉ trọng, đã LH %, theo dõi, loại %, quá hạn', () => {
+    const leads = [
+      L({ source: 'facebook', status: 'GDTD', last_contact_at: '2026-06-11T00:00:00Z' }),
+      L({ source: 'facebook', status: 'KHQT', next_contact_at: '2026-06-20T00:00:00Z' }), // quá hạn
+      L({ source: 'facebook', status: 'Fail' }),
+      L({ source: 'google', status: 'KHĐ', last_contact_at: '2026-06-11T00:00:00Z' }),
+    ];
+    const fb = groupBySource(leads, NOW).find((r) => r.key === 'facebook')!;
+    expect(fb.leads).toBe(3);
+    expect(fb.share).toBe(75); // 3/4
+    expect(fb.contacted).toBe(1);
+    expect(fb.contactRate).toBe(33.3);
+    expect(fb.following).toBe(1);
+    expect(fb.fail).toBe(1);
+    expect(fb.failRate).toBe(33.3);
+    expect(fb.overdue).toBe(1);
   });
 });
 
@@ -96,10 +114,29 @@ describe('groupByAssignee', () => {
       L({ assigned_to: 'u2', assignee_name: 'Bình', status: 'KHĐ' }),
       L({ assigned_to: null, assignee_name: null, status: 'KHĐ' }), // chưa giao → bỏ
     ];
-    const rows = groupByAssignee(leads);
+    const rows = groupByAssignee(leads, NOW);
     expect(rows).toHaveLength(2);
     expect(rows[0].label).toBe('Bình');
     expect(rows[0].won).toBe(1);
+  });
+});
+
+describe('crossShowroomBrand', () => {
+  it('hàng=showroom, cột=brand; ô + tổng hàng/cột + tổng chung khớp', () => {
+    const leads = [
+      L({ showroom_id: 's1', showroom_name: 'HN', brand_id: 'kia', brand_name: 'KIA', status: 'KHĐ' }),
+      L({ showroom_id: 's1', showroom_name: 'HN', brand_id: 'kia', brand_name: 'KIA', status: 'KHQT' }),
+      L({ showroom_id: 's1', showroom_name: 'HN', brand_id: 'mz', brand_name: 'Mazda', status: 'KHĐ' }),
+      L({ showroom_id: 's2', showroom_name: 'SG', brand_id: 'kia', brand_name: 'KIA', status: 'Fail' }),
+    ];
+    const p = crossShowroomBrand(leads);
+    expect(p.cols.map((c) => c.key)).toEqual(['kia', 'mz']); // kia nhiều lead hơn → trước
+    const hn = p.rows.find((r) => r.key === 's1')!;
+    expect(hn.cells['kia']).toEqual({ leads: 2, won: 1 });
+    expect(hn.cells['mz']).toEqual({ leads: 1, won: 1 });
+    expect(hn.total).toEqual({ leads: 3, won: 2 });
+    expect(p.colTotals['kia']).toEqual({ leads: 3, won: 1 });
+    expect(p.grandTotal).toEqual({ leads: 4, won: 2 });
   });
 });
 

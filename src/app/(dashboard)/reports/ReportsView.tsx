@@ -2,11 +2,11 @@
 
 import React, { useMemo, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronDown, Users, PhoneCall, TrendingUp, FileSignature, Clock, XCircle } from 'lucide-react';
+import { ChevronDown, Users, PhoneCall, TrendingUp, FileSignature, Clock, XCircle, ArrowUp, ArrowDown } from 'lucide-react';
 import {
   computeKpis, computeFunnel, groupBySource, groupByShowroom, groupByBrand,
-  groupByAssignee, dailyTrend, failReasons, statusDistribution,
-  type ReportLead, type GroupRow,
+  groupByAssignee, dailyTrend, failReasons, statusDistribution, crossShowroomBrand,
+  type ReportLead, type GroupRow, type Pivot,
 } from '@/lib/reports';
 
 export type RangeKey = 'this_month' | 'last_month' | '30d' | 'custom';
@@ -50,10 +50,11 @@ export default function ReportsView({
 
   const kpis = useMemo(() => computeKpis(filtered, nowMs), [filtered, nowMs]);
   const funnel = useMemo(() => computeFunnel(filtered), [filtered]);
-  const bySource = useMemo(() => groupBySource(filtered), [filtered]);
-  const byShowroom = useMemo(() => groupByShowroom(filtered), [filtered]);
-  const byBrand = useMemo(() => groupByBrand(filtered), [filtered]);
-  const byAssignee = useMemo(() => groupByAssignee(filtered), [filtered]);
+  const bySource = useMemo(() => groupBySource(filtered, nowMs), [filtered, nowMs]);
+  const byShowroom = useMemo(() => groupByShowroom(filtered, nowMs), [filtered, nowMs]);
+  const byBrand = useMemo(() => groupByBrand(filtered, nowMs), [filtered, nowMs]);
+  const byAssignee = useMemo(() => groupByAssignee(filtered, nowMs), [filtered, nowMs]);
+  const pivot = useMemo(() => crossShowroomBrand(filtered), [filtered]);
   const trend = useMemo(() => dailyTrend(filtered, fromMs, toMs), [filtered, fromMs, toMs]);
   const reasons = useMemo(() => failReasons(filtered), [filtered]);
   const statusDist = useMemo(() => statusDistribution(filtered), [filtered]);
@@ -150,20 +151,33 @@ export default function ReportsView({
             </Panel>
           </div>
 
-          {/* Hiệu quả theo nguồn */}
-          <Panel title="Hiệu quả theo nguồn" desc="Kênh nào mang lại nhiều lead & tỉ lệ chốt cao nhất">
-            <GroupTable rows={bySource} firstCol="Nguồn" />
+          {/* So sánh showroom */}
+          <Panel title="So sánh showroom" desc="Bấm tiêu đề cột để sắp xếp">
+            <CompareTable rows={byShowroom} firstCol="Showroom" totals={kpis} />
           </Panel>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            <Panel title="Theo showroom"><GroupTable rows={byShowroom} firstCol="Showroom" /></Panel>
-            <Panel title="Theo thương hiệu"><GroupTable rows={byBrand} firstCol="Thương hiệu" /></Panel>
-          </div>
+          {/* So sánh thương hiệu */}
+          <Panel title="So sánh thương hiệu" desc="Bấm tiêu đề cột để sắp xếp">
+            <CompareTable rows={byBrand} firstCol="Thương hiệu" totals={kpis} />
+          </Panel>
+
+          {/* Ma trận chéo Showroom × Thương hiệu */}
+          {pivot.cols.length > 1 && (
+            <Panel title="Ma trận Showroom × Thương hiệu" desc="Mỗi ô: số lead · số ký HĐ — showroom nào mạnh thương hiệu nào">
+              <PivotTable pivot={pivot} />
+            </Panel>
+          )}
+
+          {/* Hiệu quả theo nguồn */}
+          <Panel title="Hiệu quả theo nguồn" desc="Kênh nào mang lại nhiều lead & tỉ lệ chốt cao nhất">
+            <CompareTable rows={bySource} firstCol="Nguồn" totals={kpis} />
+          </Panel>
 
           {/* Hiệu suất TVBH */}
           {byAssignee.length > 0 && (
-            <Panel title="Hiệu suất tư vấn bán hàng" desc="Xếp theo số hợp đồng đã ký">
-              <GroupTable rows={byAssignee} firstCol="Tư vấn bán hàng" rank />
+            <Panel title="Hiệu suất tư vấn bán hàng"
+              desc={showroom ? 'Trong showroom đang lọc — bấm tiêu đề để sắp xếp' : 'Toàn bộ TVBH — lọc theo showroom để so sánh trong từng showroom'}>
+              <CompareTable rows={byAssignee} firstCol="Tư vấn bán hàng" totals={kpis} rank />
             </Panel>
           )}
 
@@ -246,41 +260,155 @@ function BarList({ rows, unit, tone = BRAND }: { rows: { key: string; label: str
   );
 }
 
-function GroupTable({ rows, firstCol, rank }: { rows: GroupRow[]; firstCol: string; rank?: boolean }) {
+type SortKey = 'leads' | 'share' | 'contactRate' | 'following' | 'won' | 'winRate' | 'failRate' | 'overdue';
+
+const COMPARE_COLS: { key: SortKey; label: string; pct?: boolean; tone?: string }[] = [
+  { key: 'leads', label: 'Lead' },
+  { key: 'share', label: 'Tỉ trọng', pct: true },
+  { key: 'contactRate', label: 'Đã LH', pct: true },
+  { key: 'following', label: 'Theo dõi' },
+  { key: 'won', label: 'Ký HĐ', tone: '#047857' },
+  { key: 'winRate', label: 'Tỉ lệ chốt', pct: true, tone: '#047857' },
+  { key: 'failRate', label: 'Loại', pct: true, tone: '#be123c' },
+  { key: 'overdue', label: 'Quá hạn', tone: '#be123c' },
+];
+
+function CompareTable({ rows, firstCol, totals, rank }: {
+  rows: GroupRow[]; firstCol: string; totals: ReturnType<typeof computeKpis>; rank?: boolean;
+}) {
+  const [sortKey, setSortKey] = useState<SortKey>('leads');
+  const [asc, setAsc] = useState(false);
+  const sorted = useMemo(() => {
+    const arr = [...rows];
+    arr.sort((a, b) => (asc ? a[sortKey] - b[sortKey] : b[sortKey] - a[sortKey]));
+    return arr;
+  }, [rows, sortKey, asc]);
   const maxLeads = Math.max(1, ...rows.map((r) => r.leads));
+  const onSort = (k: SortKey) => {
+    if (k === sortKey) setAsc((v) => !v);
+    else { setSortKey(k); setAsc(false); }
+  };
+  const cell = (v: number, pct?: boolean) => (pct ? `${v}%` : fmt(v));
+
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-sm">
+      <table className="w-full text-sm whitespace-nowrap">
         <thead>
           <tr className="text-left text-[11px] uppercase tracking-wide text-slate-400 border-b border-slate-100">
             {rank && <th className="py-2 pr-2 w-8">#</th>}
             <th className="py-2 pr-3">{firstCol}</th>
-            <th className="py-2 px-3 text-right">Lead</th>
-            <th className="py-2 px-3 text-right">Đã LH</th>
-            <th className="py-2 px-3 text-right">Ký HĐ</th>
-            <th className="py-2 pl-3 text-right">Tỉ lệ chốt</th>
+            {COMPARE_COLS.map((c) => (
+              <th key={c.key} className="py-2 px-3 text-right">
+                <button onClick={() => onSort(c.key)}
+                  className="inline-flex items-center gap-0.5 hover:text-slate-700 uppercase"
+                  style={sortKey === c.key ? { color: BRAND, fontWeight: 700 } : undefined}>
+                  {c.label}
+                  {sortKey === c.key && (asc ? <ArrowUp size={11} /> : <ArrowDown size={11} />)}
+                </button>
+              </th>
+            ))}
           </tr>
         </thead>
         <tbody>
-          {rows.map((r, i) => (
-            <tr key={r.key} className="border-b border-slate-50 last:border-0">
+          {sorted.map((r, i) => (
+            <tr key={r.key} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60">
               {rank && <td className="py-2 pr-2 text-slate-400 font-medium">{i + 1}</td>}
               <td className="py-2 pr-3">
-                <div className="text-slate-700 font-medium truncate max-w-[200px]">{r.label}</div>
-                <div className="h-1.5 mt-1 rounded-full bg-slate-100 overflow-hidden" style={{ maxWidth: 160 }}>
+                <div className="text-slate-700 font-medium truncate max-w-[180px]">{r.label}</div>
+                <div className="h-1.5 mt-1 rounded-full bg-slate-100 overflow-hidden" style={{ maxWidth: 150 }}>
                   <div className="h-full rounded-full" style={{ width: `${(r.leads / maxLeads) * 100}%`, background: BRAND }} />
                 </div>
               </td>
-              <td className="py-2 px-3 text-right font-semibold text-slate-800">{fmt(r.leads)}</td>
-              <td className="py-2 px-3 text-right text-slate-600">{fmt(r.contacted)}</td>
-              <td className="py-2 px-3 text-right font-semibold" style={{ color: '#047857' }}>{fmt(r.won)}</td>
-              <td className="py-2 pl-3 text-right">
-                <span className="font-semibold" style={{ color: r.winRate >= 10 ? '#047857' : '#64748b' }}>{r.winRate}%</span>
+              {COMPARE_COLS.map((c) => {
+                const v = r[c.key];
+                const dim = v === 0;
+                const isFirst = c.key === 'leads';
+                return (
+                  <td key={c.key} className="py-2 px-3 text-right"
+                    style={{
+                      fontWeight: isFirst || c.key === 'won' || c.key === 'winRate' ? 600 : 400,
+                      color: dim ? '#cbd5e1' : (c.tone ?? '#334155'),
+                    }}>
+                    {cell(v, c.pct)}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr className="border-t-2 border-slate-200 text-slate-800 font-semibold">
+            {rank && <td className="py-2 pr-2" />}
+            <td className="py-2 pr-3">Tổng</td>
+            <td className="py-2 px-3 text-right">{fmt(totals.total)}</td>
+            <td className="py-2 px-3 text-right text-slate-400">100%</td>
+            <td className="py-2 px-3 text-right">{totals.contactRate}%</td>
+            <td className="py-2 px-3 text-right">{fmt(totals.following)}</td>
+            <td className="py-2 px-3 text-right" style={{ color: '#047857' }}>{fmt(totals.won)}</td>
+            <td className="py-2 px-3 text-right" style={{ color: '#047857' }}>{totals.winRate}%</td>
+            <td className="py-2 px-3 text-right" style={{ color: '#be123c' }}>{totals.failRate}%</td>
+            <td className="py-2 px-3 text-right" style={{ color: '#be123c' }}>{fmt(totals.overdue)}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  );
+}
+
+function PivotTable({ pivot }: { pivot: Pivot }) {
+  const maxLeads = Math.max(1, ...pivot.rows.flatMap((r) => pivot.cols.map((c) => r.cells[c.key]?.leads ?? 0)));
+  const Cell = ({ leads, won }: { leads: number; won: number }) => {
+    if (leads === 0) return <span className="text-slate-300">–</span>;
+    const intensity = 0.08 + (leads / maxLeads) * 0.32;
+    return (
+      <span className="inline-flex items-baseline gap-1 rounded px-1.5 py-0.5"
+        style={{ background: `rgba(0,75,155,${intensity})` }}>
+        <b className="text-slate-800">{fmt(leads)}</b>
+        {won > 0 && <span className="text-[11px]" style={{ color: '#047857' }}>·{won}</span>}
+      </span>
+    );
+  };
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm whitespace-nowrap">
+        <thead>
+          <tr className="text-[11px] uppercase tracking-wide text-slate-400 border-b border-slate-100">
+            <th className="py-2 pr-3 text-left">Showroom</th>
+            {pivot.cols.map((c) => <th key={c.key} className="py-2 px-3 text-center">{c.label}</th>)}
+            <th className="py-2 pl-3 text-right" style={{ color: BRAND }}>Tổng</th>
+          </tr>
+        </thead>
+        <tbody>
+          {pivot.rows.map((r) => (
+            <tr key={r.key} className="border-b border-slate-50 last:border-0">
+              <td className="py-2 pr-3 text-slate-700 font-medium truncate max-w-[180px]">{r.label}</td>
+              {pivot.cols.map((c) => (
+                <td key={c.key} className="py-2 px-3 text-center"><Cell {...(r.cells[c.key] ?? { leads: 0, won: 0 })} /></td>
+              ))}
+              <td className="py-2 pl-3 text-right font-semibold text-slate-800">
+                {fmt(r.total.leads)}{r.total.won > 0 && <span className="text-[11px] font-normal" style={{ color: '#047857' }}> ·{r.total.won}</span>}
               </td>
             </tr>
           ))}
         </tbody>
+        <tfoot>
+          <tr className="border-t-2 border-slate-200 font-semibold text-slate-800">
+            <td className="py-2 pr-3">Tổng</td>
+            {pivot.cols.map((c) => {
+              const t = pivot.colTotals[c.key] ?? { leads: 0, won: 0 };
+              return (
+                <td key={c.key} className="py-2 px-3 text-center">
+                  {fmt(t.leads)}{t.won > 0 && <span className="text-[11px] font-normal" style={{ color: '#047857' }}> ·{t.won}</span>}
+                </td>
+              );
+            })}
+            <td className="py-2 pl-3 text-right" style={{ color: BRAND }}>
+              {fmt(pivot.grandTotal.leads)}{pivot.grandTotal.won > 0 && <span className="text-[11px] font-normal" style={{ color: '#047857' }}> ·{pivot.grandTotal.won}</span>}
+            </td>
+          </tr>
+        </tfoot>
       </table>
+      <p className="text-[11px] text-slate-400 mt-2">Số lớn = lead · số xanh = ký HĐ. Ô đậm màu = nhiều lead hơn.</p>
     </div>
   );
 }

@@ -88,53 +88,127 @@ export interface GroupRow {
   key: string;
   label: string;
   leads: number;
+  share: number; // % tổng lead của tập (tỉ trọng)
   contacted: number;
+  contactRate: number;
+  following: number; // GDTD — đang theo dõi
   won: number;
   winRate: number;
+  fail: number;
+  failRate: number;
+  overdue: number;
 }
 
 function groupBy(
   leads: ReportLead[],
   keyOf: (l: ReportLead) => string,
   labelOf: (l: ReportLead) => string,
+  nowMs: number,
 ): GroupRow[] {
+  const total = leads.length;
   const map = new Map<string, GroupRow>();
   for (const l of leads) {
     const key = keyOf(l);
     let row = map.get(key);
     if (!row) {
-      row = { key, label: labelOf(l), leads: 0, contacted: 0, won: 0, winRate: 0 };
+      row = {
+        key, label: labelOf(l), leads: 0, share: 0, contacted: 0, contactRate: 0,
+        following: 0, won: 0, winRate: 0, fail: 0, failRate: 0, overdue: 0,
+      };
       map.set(key, row);
     }
     row.leads += 1;
     if (isContacted(l)) row.contacted += 1;
+    if (l.status === 'GDTD') row.following += 1;
     if (isWon(l)) row.won += 1;
+    if (isFail(l)) row.fail += 1;
+    if (isOverdue(l, nowMs)) row.overdue += 1;
   }
   const rows = [...map.values()];
-  for (const r of rows) r.winRate = rate(r.won, r.leads);
+  for (const r of rows) {
+    r.share = rate(r.leads, total);
+    r.contactRate = rate(r.contacted, r.leads);
+    r.winRate = rate(r.won, r.leads);
+    r.failRate = rate(r.fail, r.leads);
+  }
   // Nhiều lead trước; cùng số lead thì tỉ lệ chốt cao trước.
   rows.sort((a, b) => b.leads - a.leads || b.winRate - a.winRate);
   return rows;
 }
 
-export function groupBySource(leads: ReportLead[]): GroupRow[] {
-  return groupBy(leads, (l) => l.source ?? '__none__', (l) => l.source ?? 'Không rõ nguồn');
+export function groupBySource(leads: ReportLead[], nowMs: number): GroupRow[] {
+  return groupBy(leads, (l) => l.source ?? '__none__', (l) => l.source ?? 'Không rõ nguồn', nowMs);
 }
 
-export function groupByShowroom(leads: ReportLead[]): GroupRow[] {
-  return groupBy(leads, (l) => l.showroom_id ?? '__none__', (l) => l.showroom_name ?? 'Chưa gán showroom');
+export function groupByShowroom(leads: ReportLead[], nowMs: number): GroupRow[] {
+  return groupBy(leads, (l) => l.showroom_id ?? '__none__', (l) => l.showroom_name ?? 'Chưa gán showroom', nowMs);
 }
 
-export function groupByBrand(leads: ReportLead[]): GroupRow[] {
-  return groupBy(leads, (l) => l.brand_id, (l) => l.brand_name);
+export function groupByBrand(leads: ReportLead[], nowMs: number): GroupRow[] {
+  return groupBy(leads, (l) => l.brand_id, (l) => l.brand_name, nowMs);
 }
 
 /** Hiệu suất TVBH — chỉ lead đã có người phụ trách. Xếp theo ký HĐ rồi tổng lead. */
-export function groupByAssignee(leads: ReportLead[]): GroupRow[] {
+export function groupByAssignee(leads: ReportLead[], nowMs: number): GroupRow[] {
   const assigned = leads.filter((l) => l.assigned_to != null);
-  const rows = groupBy(assigned, (l) => l.assigned_to as string, (l) => l.assignee_name ?? 'Không rõ');
+  const rows = groupBy(assigned, (l) => l.assigned_to as string, (l) => l.assignee_name ?? 'Không rõ', nowMs);
   rows.sort((a, b) => b.won - a.won || b.leads - a.leads);
   return rows;
+}
+
+// ─── Ma trận chéo Showroom × Thương hiệu ─────────────────────────────────────
+
+export interface PivotCell {
+  leads: number;
+  won: number;
+}
+
+export interface PivotRow {
+  key: string;
+  label: string;
+  cells: Record<string, PivotCell>; // theo brand_id
+  total: PivotCell;
+}
+
+export interface Pivot {
+  cols: { key: string; label: string }[]; // các thương hiệu
+  rows: PivotRow[]; // các showroom
+  colTotals: Record<string, PivotCell>;
+  grandTotal: PivotCell;
+}
+
+const emptyCell = (): PivotCell => ({ leads: 0, won: 0 });
+
+/** Bảng chéo: hàng = showroom, cột = thương hiệu; mỗi ô có số lead + ký HĐ. */
+export function crossShowroomBrand(leads: ReportLead[]): Pivot {
+  const colMap = new Map<string, string>();
+  const rowMap = new Map<string, PivotRow>();
+  const colTotals: Record<string, PivotCell> = {};
+  const grandTotal = emptyCell();
+
+  for (const l of leads) {
+    const bId = l.brand_id;
+    if (!colMap.has(bId)) colMap.set(bId, l.brand_name);
+    const sId = l.showroom_id ?? '__none__';
+    let row = rowMap.get(sId);
+    if (!row) {
+      row = { key: sId, label: l.showroom_name ?? 'Chưa gán showroom', cells: {}, total: emptyCell() };
+      rowMap.set(sId, row);
+    }
+    if (!row.cells[bId]) row.cells[bId] = emptyCell();
+    if (!colTotals[bId]) colTotals[bId] = emptyCell();
+    const won = isWon(l) ? 1 : 0;
+    row.cells[bId].leads += 1; row.cells[bId].won += won;
+    row.total.leads += 1; row.total.won += won;
+    colTotals[bId].leads += 1; colTotals[bId].won += won;
+    grandTotal.leads += 1; grandTotal.won += won;
+  }
+
+  const cols = [...colMap.entries()]
+    .map(([key, label]) => ({ key, label }))
+    .sort((a, b) => (colTotals[b.key]?.leads ?? 0) - (colTotals[a.key]?.leads ?? 0));
+  const rows = [...rowMap.values()].sort((a, b) => b.total.leads - a.total.leads);
+  return { cols, rows, colTotals, grandTotal };
 }
 
 export interface DayCount {
