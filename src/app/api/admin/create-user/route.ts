@@ -3,6 +3,21 @@ import { createServiceClient, createClient } from '@/lib/supabase/server';
 import type { UserRole } from '@/types/database';
 import { roleNeedsShowroom, roleNeedsBrand } from '@/lib/nav';
 
+// auth.users không truy vấn theo email trực tiếp qua admin SDK → phân trang listUsers.
+async function findAuthUserIdByEmail(
+  service: ReturnType<typeof createServiceClient>,
+  email: string,
+): Promise<string | null> {
+  for (let page = 1; page <= 50; page++) {
+    const { data, error } = await service.auth.admin.listUsers({ page, perPage: 200 });
+    if (error || !data?.users?.length) return null;
+    const hit = data.users.find((u) => u.email?.toLowerCase() === email);
+    if (hit) return hit.id;
+    if (data.users.length < 200) return null;
+  }
+  return null;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -30,18 +45,40 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Tạo auth user với metadata app='crm' → trigger Budget bỏ qua
+    const cleanEmail = email.toLowerCase().trim();
+
+    // auth.users dùng CHUNG mọi app trên Supabase này. Tạo mới; nếu email đã có
+    // (tài khoản app khác) thì gắn profile CRM vào auth id sẵn có → đăng nhập chung 2 app.
     const { data: authData, error: authError } = await service.auth.admin.createUser({
-      email: email.toLowerCase().trim(),
+      email: cleanEmail,
       password: 'thaco123',
       email_confirm: true,
       user_metadata: { app: 'crm', full_name },
     });
-    if (authError) return NextResponse.json({ error: authError.message }, { status: 400 });
+
+    let authId: string | null = authData?.user?.id ?? null;
+    let createdNewAuth = !authError;
+    if (authError) {
+      const existingId = await findAuthUserIdByEmail(service, cleanEmail);
+      if (!existingId) {
+        return NextResponse.json({ error: authError.message }, { status: 400 });
+      }
+      authId = existingId;
+      createdNewAuth = false;
+    }
+    if (!authId) {
+      return NextResponse.json({ error: 'Không lấy được auth id' }, { status: 500 });
+    }
+
+    // Đã có profile CRM cho id này → không tạo trùng.
+    const { data: existingProfile } = await service.from('users').select('id').eq('id', authId).maybeSingle();
+    if (existingProfile) {
+      return NextResponse.json({ error: 'Tài khoản này đã có hồ sơ trong CRM.' }, { status: 400 });
+    }
 
     const { error: profileError } = await service.from('users').insert({
-      id: authData.user.id,
-      email: email.toLowerCase().trim(),
+      id: authId,
+      email: cleanEmail,
       full_name,
       role,
       company_id,
@@ -50,11 +87,11 @@ export async function POST(request: NextRequest) {
       is_active: true,
     });
     if (profileError) {
-      await service.auth.admin.deleteUser(authData.user.id);
+      if (createdNewAuth) await service.auth.admin.deleteUser(authId);
       return NextResponse.json({ error: profileError.message }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, userId: authData.user.id });
+    return NextResponse.json({ success: true, userId: authId, reusedAuth: !createdNewAuth });
   } catch {
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
