@@ -7,6 +7,7 @@ import {
   SlidersHorizontal, UserPlus, Search, Download, AlertTriangle, ListFilter, Trash2,
 } from 'lucide-react';
 import { formatPhoneDisplay } from '@/lib/phone';
+import { matchesQuery } from '@/lib/search';
 import { STATUS_OPTIONS, FAIL_REASONS, isContacted, type LeadStatus } from '@/lib/lead-status';
 import { sourceLabel, sourcePlatform } from '@/lib/source';
 import { classifyLead, markContacted, unmarkContacted, bulkReassign, deleteLeads } from './actions';
@@ -64,9 +65,8 @@ export function isOverdue(l: LeadRow): boolean {
 
 /** Áp các bộ lọc phạm vi (KHÔNG gồm tab/sort — phần đó nằm trong bảng). */
 export function applyScope(leads: LeadRow[], f: Filters): LeadRow[] {
-  const q = f.q.trim().toLowerCase();
   return leads.filter((l) => {
-    if (q && !`${l.full_name ?? ''} ${l.phone}`.toLowerCase().includes(q)) return false;
+    if (!matchesQuery(l.full_name, formatPhoneDisplay(l.phone), f.q)) return false;
     if (f.showroom && l.showroom_name !== f.showroom) return false;
     if (f.brand && l.brand_name !== f.brand) return false;
     if (f.model && l.model_name !== f.model) return false;
