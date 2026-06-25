@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { type LeadRow } from './LeadsTable';
 import LeadsView, { type ModelOption, type BrandOption, type ShowroomOption, type AssigneeOption } from './LeadsView';
-import { CAN_CREATE_LEAD, CAN_ASSIGN } from '@/lib/nav';
+import { CAN_CREATE_LEAD, CAN_ASSIGN, CAN_MANAGE_STAFF } from '@/lib/nav';
 import { type UserRole } from '@/types/database';
 
 export const dynamic = 'force-dynamic';
@@ -37,6 +37,7 @@ export default async function LeadsPage() {
     : { data: null };
   const canCreate = me?.role ? CAN_CREATE_LEAD.has(me.role as UserRole) : false;
   const canAssign = me?.role ? CAN_ASSIGN.has(me.role as UserRole) : false;
+  const canDelete = me?.role ? CAN_MANAGE_STAFF.has(me.role as UserRole) : false;
 
   const [
     { data: rawLeads },
@@ -103,6 +104,7 @@ export default async function LeadsPage() {
       assignees={assignees}
       canCreate={canCreate}
       canAssign={canAssign}
+      canDelete={canDelete}
     />
   );
 }

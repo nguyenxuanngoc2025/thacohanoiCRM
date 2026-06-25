@@ -4,12 +4,12 @@ import React, { useState, useMemo, useTransition, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
   PhoneCall, Check, ChevronUp, ChevronDown, ChevronsUpDown, ChevronLeft,
-  SlidersHorizontal, UserPlus, Search, Download, AlertTriangle, ListFilter,
+  SlidersHorizontal, UserPlus, Search, Download, AlertTriangle, ListFilter, Trash2,
 } from 'lucide-react';
 import { formatPhoneDisplay } from '@/lib/phone';
 import { STATUS_OPTIONS, FAIL_REASONS, isContacted, type LeadStatus } from '@/lib/lead-status';
 import { sourceLabel, sourcePlatform } from '@/lib/source';
-import { classifyLead, markContacted, unmarkContacted, bulkReassign } from './actions';
+import { classifyLead, markContacted, unmarkContacted, bulkReassign, deleteLeads } from './actions';
 import type { ModelOption, BrandOption, ShowroomOption, AssigneeOption } from './LeadsView';
 import LeadDrawer from './LeadDrawer';
 import NewLeadModal from './NewLeadModal';
@@ -424,7 +424,7 @@ function StatusPicker({ lead, variant, pending, start }: {
 }
 
 export default function LeadsTable({
-  leads, allLeads, filters, setFilters, models, brands, showrooms, assignees, canCreate, canAssign,
+  leads, allLeads, filters, setFilters, models, brands, showrooms, assignees, canCreate, canAssign, canDelete,
 }: {
   leads: LeadRow[];
   allLeads: LeadRow[];
@@ -436,6 +436,7 @@ export default function LeadsTable({
   assignees: AssigneeOption[];
   canCreate: boolean;
   canAssign: boolean;
+  canDelete: boolean;
 }) {
   const [tab, setTab] = useState<Tab>('all');
   const [showNew, setShowNew] = useState(false);
@@ -447,6 +448,7 @@ export default function LeadsTable({
   const [openLead, setOpenLead] = useState<LeadRow | null>(null);
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [bulkAssignee, setBulkAssignee] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [filterMenu, setFilterMenu] = useState(false);
   // Dropdown trong header render qua portal (card có overflow-hidden sẽ cắt mất nếu dùng absolute)
   const filterBtnRef = React.useRef<HTMLButtonElement>(null);
@@ -591,6 +593,15 @@ export default function LeadsTable({
     start(async () => {
       const r = await bulkReassign(ids, val);
       if (r.ok) { setSel(new Set()); setBulkAssignee(''); }
+    });
+  };
+
+  const doDelete = () => {
+    const ids = [...sel];
+    start(async () => {
+      const r = await deleteLeads(ids);
+      if (r.ok) { setSel(new Set()); setConfirmDelete(false); }
+      else alert(r.error);
     });
   };
 
@@ -821,6 +832,15 @@ export default function LeadsTable({
           >
             <UserPlus size={14} /> Gán hàng loạt
           </button>
+          {canDelete && (
+            <button
+              onClick={() => setConfirmDelete(true)}
+              disabled={pending}
+              className="inline-flex items-center gap-1.5 text-sm font-semibold text-rose-600 border border-rose-200 bg-white hover:bg-rose-50 rounded-lg px-3 py-1.5 disabled:opacity-50"
+            >
+              <Trash2 size={14} /> Xoá
+            </button>
+          )}
           <button
             onClick={() => setSel(new Set())}
             className="text-sm text-slate-500 hover:text-slate-700 px-2 py-1.5"
@@ -828,6 +848,37 @@ export default function LeadsTable({
             Bỏ chọn
           </button>
         </div>
+      )}
+
+      {confirmDelete && createPortal(
+        <div style={{ position: 'fixed', inset: 0, zIndex: 10000 }} className="flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm bg-white rounded-xl shadow-xl p-5">
+            <div className="flex items-center gap-2 text-rose-600 mb-2">
+              <AlertTriangle size={18} />
+              <h3 className="text-base font-semibold">Xoá {sel.size} lead?</h3>
+            </div>
+            <p className="text-sm text-slate-600 mb-4">
+              Toàn bộ lịch sử chăm sóc của các lead này cũng bị xoá. Hành động không thể hoàn tác.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setConfirmDelete(false)}
+                disabled={pending}
+                className="text-sm text-slate-600 hover:text-slate-800 px-3 py-1.5 rounded-lg disabled:opacity-50"
+              >
+                Huỷ
+              </button>
+              <button
+                onClick={doDelete}
+                disabled={pending}
+                className="inline-flex items-center gap-1.5 text-sm font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-lg px-3 py-1.5 disabled:opacity-50"
+              >
+                <Trash2 size={14} /> {pending ? 'Đang xoá…' : 'Xoá vĩnh viễn'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
       )}
 
       <div data-table-scroll className="flex-1 min-h-0 overflow-auto">

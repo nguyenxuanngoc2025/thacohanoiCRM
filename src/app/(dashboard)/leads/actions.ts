@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { STATUS_OPTIONS, type LeadStatus } from '@/lib/lead-status';
 import { normalizePhone } from '@/lib/phone';
 import { pickNextAssignee, type AssigneeLoad } from '@/lib/assign';
-import { CAN_CREATE_LEAD, CAN_ASSIGN } from '@/lib/nav';
+import { CAN_CREATE_LEAD, CAN_ASSIGN, CAN_MANAGE_STAFF } from '@/lib/nav';
 import { type UserRole } from '@/types/database';
 
 const VALID = new Set<LeadStatus>(STATUS_OPTIONS.map((s) => s.code));
@@ -281,6 +281,27 @@ export async function bulkReassign(leadIds: string[], newAssigneeId: string | nu
   revalidatePath('/leads');
   revalidatePath('/assign');
   return { ok: true as const, updated: leadIds.length };
+}
+
+/**
+ * Xoá hàng loạt lead — CHỈ admin. lead_logs/lead_notes tự dọn theo ON DELETE CASCADE.
+ * Kiểm tra role ở action (lớp 1) + RLS policy leads_delete admin-only (lớp 2).
+ */
+export async function deleteLeads(leadIds: string[]) {
+  const db = await createClient();
+  const { data: { user } } = await db.auth.getUser();
+  if (!user) return { ok: false as const, error: 'Chưa đăng nhập.' };
+
+  const { data: me } = await db.from('users').select('role').eq('id', user.id).maybeSingle();
+  if (!me || !CAN_MANAGE_STAFF.has(me.role as UserRole)) return { ok: false as const, error: 'Chỉ quản trị viên được xoá lead.' };
+  if (leadIds.length === 0) return { ok: true as const, deleted: 0 };
+
+  const { data: deleted, error } = await db.from('leads').delete().in('id', leadIds).select('id');
+  if (error) return { ok: false as const, error: error.message };
+
+  revalidatePath('/leads');
+  revalidatePath('/assign');
+  return { ok: true as const, deleted: deleted?.length ?? 0 };
 }
 
 export interface NewLeadInput {
