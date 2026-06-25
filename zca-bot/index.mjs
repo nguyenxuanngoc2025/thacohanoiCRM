@@ -8,7 +8,15 @@ const {
   SUPABASE_SCHEMA = 'crm_thacoauto',
   POLL_INTERVAL_MS = '10000', MAX_ATTEMPTS = '5',
   ZALO_CRED_PATH = './zalo-cred.json',
+  // Giãn nhịp gửi để tránh Zalo gắn cờ spam (gửi tối đa 1 tin / nhịp ngẫu nhiên).
+  SEND_MIN_GAP_MS = '45000', SEND_MAX_GAP_MS = '90000',
 } = process.env;
+
+const minGap = parseInt(SEND_MIN_GAP_MS, 10);
+const maxGap = parseInt(SEND_MAX_GAP_MS, 10);
+const randomGap = () => minGap + Math.floor(Math.random() * Math.max(1, maxGap - minGap));
+let lastSentAt = 0;       // mốc lần gửi Zalo thật gần nhất
+let nextGap = 0;          // khoảng cách tới lần gửi kế (0 = gửi ngay khi rảnh)
 
 const db = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
   db: { schema: SUPABASE_SCHEMA },
@@ -56,6 +64,9 @@ async function resolveTarget(n) {
 }
 
 async function tick(api) {
+  // Chưa tới nhịp gửi kế → bỏ qua tick này (giãn nhịp chống spam).
+  if (Date.now() - lastSentAt < nextGap) return;
+
   const max = parseInt(MAX_ATTEMPTS, 10);
   const { data: pending, error } = await db
     .from('notifications')
@@ -70,6 +81,7 @@ async function tick(api) {
     const text = n.payload?.text;
     const groupId = await resolveTarget(n);
     if (!text || !groupId) {
+      // Lỗi dữ liệu → đánh dấu ngay, KHÔNG tính vào nhịp gửi Zalo.
       await db.from('notifications').update({
         status: 'failed', attempts: (n.attempts ?? 0) + 1,
         last_error: !text ? 'thiếu payload.text' : 'thiếu group_id',
@@ -88,6 +100,10 @@ async function tick(api) {
       }).eq('id', n.id);
       console.error('[zca-bot] gửi lỗi', n.id, e?.message);
     }
+    // Đã thực hiện 1 lần gửi Zalo (thành/bại) → đặt nhịp mới rồi dừng tick.
+    lastSentAt = Date.now();
+    nextGap = randomGap();
+    break;
   }
 }
 

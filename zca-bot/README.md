@@ -14,6 +14,11 @@ showroom + nhóm BLĐ, bằng 1 tài khoản Zalo "bot" do doanh nghiệp sở h
 5. Cài service: `cp zca-bot.service /etc/systemd/system/ && systemctl daemon-reload`
    `systemctl enable --now zca-bot` → `journalctl -u zca-bot -f` để xem log.
 
+## Giãn nhịp gửi (chống Zalo gắn cờ spam → khoá acc)
+- Bot gửi TỐI ĐA 1 tin mỗi khoảng ngẫu nhiên trong `[SEND_MIN_GAP_MS, SEND_MAX_GAP_MS]` (mặc định 45–90 giây). Tránh bắn cả loạt cùng lúc khi báo cáo cuối ngày tạo nhiều tin (mỗi showroom + BLĐ 1 tin).
+- Tin lẻ lúc rảnh (vd LEAD MỚI) đi gần như ngay; chỉ khi dồn cục mới nhỏ giọt. Báo cáo ~11 nhóm → gửi hết trong ~10 phút.
+- Khoảng cách NGẪU NHIÊN (không cố định 60s) để không lộ dấu hiệu máy. Chỉnh biên độ qua 2 env trên trong `/opt/zca-bot/.env` rồi `systemctl restart zca-bot`.
+
 ## Khi rớt phiên (log báo cred hỏng / không gửi được)
 - Xoá `zalo-cred.json`, `systemctl restart zca-bot`, xem log lấy QR, quét lại.
 
