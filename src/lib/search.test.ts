@@ -31,9 +31,13 @@ describe('matchesQuery — theo SĐT', () => {
     expect(matchesQuery('A', '0914155096', '5096')).toBe(true);
     expect(matchesQuery('A', '0914155096', '4155')).toBe(true);
   });
-  it('chuỗi <4 số chỉ khớp theo tiền tố', () => {
+  it('khớp đuôi ≥3 số (thói quen nhớ đuôi)', () => {
+    expect(matchesQuery('A', '0914155096', '096')).toBe(true);  // 3 số cuối
+    expect(matchesQuery('A', '0914155096', '5096')).toBe(true); // 4 số cuối
+  });
+  it('chuỗi <3 số chỉ khớp theo tiền tố', () => {
     expect(matchesQuery('A', '0914155096', '091')).toBe(true);  // 3 số, đúng tiền tố
-    expect(matchesQuery('A', '0914155096', '914')).toBe(false); // 3 số, không phải tiền tố
+    expect(matchesQuery('A', '0914155096', '914')).toBe(false); // 3 số, không phải đầu/đuôi
     expect(matchesQuery('A', '0914155096', '50')).toBe(false);  // 2 số, không phải tiền tố
   });
   it('chuẩn hoá số quốc tế đầy đủ 84... → 0...', () => {

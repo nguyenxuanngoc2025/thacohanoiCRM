@@ -11,7 +11,8 @@ export function normalizeText(s: string): string {
 
 /**
  * Khớp lead theo từ khoá tìm kiếm thông minh:
- * - Phần SỐ trong từ khoá → so với SĐT (dạng nội địa 0...): khớp tiền tố, hoặc chuỗi con khi ≥4 số.
+ * - Phần SỐ trong từ khoá → so với SĐT (dạng nội địa 0...): khớp tiền tố, khớp đuôi khi ≥3 số,
+ *   hoặc chuỗi con ở giữa khi ≥4 số.
  * - Phần CHỮ trong từ khoá → so với tên, bỏ dấu cả 2 phía.
  * Khớp 1 trong 2 là đủ. Từ khoá rỗng = khớp tất cả.
  *
@@ -29,7 +30,8 @@ export function matchesQuery(name: string | null, phoneLocal: string, query: str
   if (qDigits) {
     const d = phoneLocal.replace(/\D/g, '');
     if (d.startsWith(qDigits)) return true;
-    if (qDigits.length >= 4 && d.includes(qDigits)) return true;
+    if (qDigits.length >= 3 && d.endsWith(qDigits)) return true; // nhớ đuôi (thói quen VN)
+    if (qDigits.length >= 4 && d.includes(qDigits)) return true; // chuỗi con ở giữa
   }
 
   // — So theo tên (chỉ khi từ khoá có chữ, tránh số lọt vào so tên) —
