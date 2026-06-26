@@ -63,6 +63,49 @@ async function resolveTarget(n) {
   return data?.target ?? null;
 }
 
+// Lead tên rác (payload.enrich) → tra Zalo bù tên TRƯỚC khi gửi.
+// Trả về text (đã thay tên nếu tra được), luôn an toàn — lỗi thì giữ text gốc.
+function pickZaloName(u) {
+  if (!u) return null;
+  const cand = u.display_name || u.zalo_name || u.displayName || u.username || u.name;
+  const s = (typeof cand === 'string' ? cand : '').trim();
+  return s || null;
+}
+
+async function maybeEnrich(api, n) {
+  let text = n.payload?.text;
+  const e = n.payload?.enrich;
+  if (!e?.phone || !e?.leadId || !e?.badName) return text;
+
+  // +84... → 0... (Zalo nhận SĐT nội địa)
+  const localPhone = e.phone.startsWith('+84') ? '0' + e.phone.slice(3) : e.phone;
+  try {
+    const found = await api.findUser(localPhone);
+    const zaloName = pickZaloName(found);
+    if (zaloName) {
+      // Chỉ ghi đè nếu tên hiện tại VẪN = badName (tránh đè tên người vừa sửa tay).
+      const { data: lead } = await db.from('leads').select('full_name').eq('id', e.leadId).maybeSingle();
+      if (lead && lead.full_name === e.badName) {
+        await db.from('leads').update({ full_name: zaloName }).eq('id', e.leadId);
+        await db.from('lead_logs').insert({
+          lead_id: e.leadId, type: 'system',
+          content: `Bù tên từ Zalo: ${e.badName} → ${zaloName}`,
+        });
+      }
+      text = text.replace(e.badName, zaloName);
+      console.log('[zca-bot] bù tên Zalo', e.leadId, e.badName, '→', zaloName);
+    } else {
+      await db.from('lead_logs').insert({
+        lead_id: e.leadId, type: 'system', content: 'SĐT không có Zalo / tên ẩn — giữ tên gốc.',
+      });
+      console.log('[zca-bot] không tra được tên Zalo', e.leadId, localPhone);
+    }
+  } catch (err) {
+    console.error('[zca-bot] findUser lỗi', e.leadId, err?.message);
+  }
+  return text;
+}
+
 async function tick(api) {
   // Chưa tới nhịp gửi kế → bỏ qua tick này (giãn nhịp chống spam).
   if (Date.now() - lastSentAt < nextGap) return;
@@ -78,7 +121,7 @@ async function tick(api) {
   if (error) { console.error('[zca-bot] poll lỗi:', error.message); return; }
 
   for (const n of pending ?? []) {
-    const text = n.payload?.text;
+    let text = n.payload?.text;
     const groupId = await resolveTarget(n);
     if (!text || !groupId) {
       // Lỗi dữ liệu → đánh dấu ngay, KHÔNG tính vào nhịp gửi Zalo.
@@ -88,6 +131,8 @@ async function tick(api) {
       }).eq('id', n.id);
       continue;
     }
+    // Bù tên Zalo nếu là tin new_lead có enrich (tra trước, gửi tên thật).
+    text = await maybeEnrich(api, n);
     try {
       await api.sendMessage({ msg: text }, groupId, 1); // 1 = ThreadType.Group
       await db.from('notifications').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', n.id);
