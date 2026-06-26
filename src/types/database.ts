@@ -1,5 +1,6 @@
 export type UserRole =
-  | 'admin'         // Quản trị hệ thống (chủ nền tảng)
+  | 'platform_owner' // Chủ nền tảng (company_id = NULL), quản trị mọi công ty
+  | 'admin'         // Quản trị cấp công ty
   | 'gd_cty'        // Tổng Giám đốc Công ty
   | 'mkt_cty'       // Marketing Công ty
   | 'gd_brand'      // Giám đốc Thương hiệu

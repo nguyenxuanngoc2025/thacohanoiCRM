@@ -4,6 +4,7 @@ import { type UserRole } from '@/types/database';
 export type ViewScope = 'company' | 'brand' | 'showroom' | 'assigned';
 
 export const ROLE_SCOPE_KIND: Record<UserRole, ViewScope> = {
+  platform_owner: 'company',
   admin: 'company',
   gd_cty: 'company',
   mkt_cty: 'company',
@@ -31,7 +32,7 @@ export const CAN_VIEW_REPORTS = new Set<UserRole>([
 export const CAN_MANAGE_STAFF = new Set<UserRole>(['admin']);
 
 const ALL: UserRole[] = [
-  'admin', 'gd_cty', 'mkt_cty', 'gd_brand', 'mkt_brand', 'tp_brand',
+  'platform_owner', 'admin', 'gd_cty', 'mkt_cty', 'gd_brand', 'mkt_brand', 'tp_brand',
   'gd_showroom', 'mkt_showroom', 'tp_showroom', 'tvbh',
 ];
 const ASSIGN: UserRole[] = [...CAN_ASSIGN];
@@ -55,6 +56,7 @@ export const NAV_ITEMS: NavItem[] = [
 export const ALL_ROLES: UserRole[] = ALL;
 
 export const ROLE_LABELS: Record<UserRole, string> = {
+  platform_owner: 'Chủ nền tảng',
   admin: 'Quản trị hệ thống',
   gd_cty: 'Tổng Giám đốc Công ty',
   mkt_cty: 'Marketing Công ty',
@@ -68,6 +70,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
 };
 
 export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
+  platform_owner: 'Quản trị toàn bộ công ty trên nền tảng',
   admin: 'Quản trị nền tảng — toàn quyền',
   gd_cty: 'Điều hành toàn công ty',
   mkt_cty: 'Marketing cấp công ty',
@@ -81,6 +84,7 @@ export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
 };
 
 export const ROLE_SCOPE: Record<UserRole, string> = {
+  platform_owner: 'Toàn nền tảng — mọi công ty',
   admin: 'Toàn công ty — mọi showroom & lead',
   gd_cty: 'Toàn công ty — mọi showroom & lead',
   mkt_cty: 'Toàn công ty — chỉ xem & báo cáo',
@@ -98,6 +102,7 @@ const REPORT = 'Xem báo cáo';
 const ASSIGN_TXT = 'Phân giao lead cho TVBH';
 
 export const ROLE_CAN: Record<UserRole, string[]> = {
+  platform_owner: ['Quản trị mọi công ty', 'Đặt quota & khóa/mở', 'Quản lý hợp đồng/công nợ'],
   admin: ['Quản lý nhân sự (thêm/sửa/xoá)', 'Cấu hình kênh thu lead', VIEW_ALL, ASSIGN_TXT, REPORT],
   gd_cty: [VIEW_ALL + ' (toàn công ty)', ASSIGN_TXT, REPORT],
   mkt_cty: [VIEW_ALL + ' (toàn công ty)', REPORT],
@@ -111,6 +116,7 @@ export const ROLE_CAN: Record<UserRole, string[]> = {
 };
 
 export const ROLE_CANNOT: Record<UserRole, string[]> = {
+  platform_owner: [],
   admin: [],
   gd_cty: ['Quản lý nhân sự & cấu hình hệ thống'],
   mkt_cty: ['Phân giao lead', 'Quản lý nhân sự'],
@@ -124,6 +130,7 @@ export const ROLE_CANNOT: Record<UserRole, string[]> = {
 };
 
 export const ROLE_NEEDS: Record<UserRole, string> = {
+  platform_owner: 'Không thuộc công ty nào',
   admin: 'Không cần gán (toàn công ty)',
   gd_cty: 'Không cần gán (toàn công ty)',
   mkt_cty: 'Không cần gán (toàn công ty)',
@@ -142,6 +149,7 @@ const C_SHOWROOM = { bg: '#e6f0fa', text: '#004B9B', border: '#bfdbfe' };
 const C_TVBH = { bg: '#f0fdf4', text: '#166534', border: '#86efac' };
 
 export const ROLE_COLOR: Record<UserRole, { bg: string; text: string; border: string }> = {
+  platform_owner: C_ADMIN,
   admin: C_ADMIN,
   gd_cty: C_ADMIN,
   mkt_cty: C_ADMIN,
