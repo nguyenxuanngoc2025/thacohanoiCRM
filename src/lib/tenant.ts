@@ -1,4 +1,6 @@
-// src/lib/tenant.ts
+import { headers } from 'next/headers';
+import { createServiceClient } from '@/lib/supabase/server';
+
 export type HostMatch =
   | { kind: 'custom'; host: string }
   | { kind: 'subdomain'; sub: string }
@@ -16,9 +18,6 @@ export function parseHost(rawHost: string, platformDomain: string): HostMatch {
   }
   return { kind: 'custom', host };
 }
-
-import { headers } from 'next/headers';
-import { createServiceClient } from '@/lib/supabase/server';
 
 export interface CompanyBranding {
   display_name?: string;
