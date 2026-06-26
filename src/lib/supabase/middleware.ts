@@ -48,10 +48,35 @@ export async function updateSession(request: NextRequest) {
         process.env.SUPABASE_SERVICE_ROLE_KEY!,
         { auth: { autoRefreshToken: false, persistSession: false }, db: { schema: 'crm_thacoauto' } }
       );
-      const { data: profile } = await admin.from('users').select('id,is_active').eq('id', user.id).maybeSingle();
+      const { data: profile } = await admin
+        .from('users')
+        .select('id,is_active,role,company_id')
+        .eq('id', user.id)
+        .maybeSingle();
       if (!profile || !profile.is_active) {
         await supabase.auth.signOut();
         return redirectTo('/login');
+      }
+
+      const isPlatformOwner = profile.role === 'platform_owner';
+      const isAdminArea = request.nextUrl.pathname.startsWith('/admin');
+
+      // Chan nguoi KHONG phai chu nen tang vao khu /admin
+      if (isAdminArea && !isPlatformOwner) {
+        return redirectTo('/leads');
+      }
+
+      // Chan dang nhap khi cong ty bi tam khoa (platform_owner khong thuoc cong ty → bo qua)
+      if (!isPlatformOwner && profile.company_id) {
+        const { data: company } = await admin
+          .from('companies')
+          .select('plan_status')
+          .eq('id', profile.company_id)
+          .maybeSingle();
+        if (company?.plan_status === 'suspended') {
+          await supabase.auth.signOut();
+          return redirectTo('/login?suspended=1');
+        }
       }
     } catch (e) {
       console.error('[middleware] profile check failed (allowing through):', e);
