@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient, createClient } from '@/lib/supabase/server';
 import type { UserRole } from '@/types/database';
 import { roleNeedsShowroom, roleNeedsBrand } from '@/lib/nav';
+import { usernameToEmail } from '@/lib/account-email';
 
 // auth.users không truy vấn theo email trực tiếp qua admin SDK → phân trang listUsers.
 async function findAuthUserIdByEmail(
@@ -45,7 +46,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const cleanEmail = email.toLowerCase().trim();
+    // Người dùng có thể nhập tên trơn (vd "nguyenvana") → tự ghép đuôi @thaco.com.vn.
+    const cleanEmail = usernameToEmail(email);
 
     // auth.users dùng CHUNG mọi app trên Supabase này. Tạo mới; nếu email đã có
     // (tài khoản app khác) thì gắn profile CRM vào auth id sẵn có → đăng nhập chung 2 app.

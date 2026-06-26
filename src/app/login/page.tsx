@@ -4,6 +4,7 @@ import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useFormStatus } from 'react-dom';
 import { login } from './actions';
+import { EMAIL_DOMAIN, usernameToEmail } from '@/lib/account-email';
 
 const KEYFRAMES = `
   @keyframes fadeUp { from { opacity:0; transform:translate3d(0,24px,0);} to { opacity:1; transform:translate3d(0,0,0);} }
@@ -123,10 +124,10 @@ function LoginForm() {
             </div>
 
             <form action={login} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-              <input type="hidden" name="email" value={username.trim() + '@thaco.com.vn'} />
+              <input type="hidden" name="email" value={usernameToEmail(username)} />
               <FloatInput id="login-user" type="text" label="Tên đăng nhập" value={username} onChange={setUsername}
                 focused={focused === 'email'} onFocus={() => setFocused('email')} onBlur={() => setFocused(null)}
-                autoComplete="username" suffix="@thaco.com.vn" />
+                autoComplete="username" suffix={`@${EMAIL_DOMAIN}`} />
               <FloatInput id="login-pass" name="password" type="password" label="Mật khẩu" value={password} onChange={setPassword}
                 focused={focused === 'password'} onFocus={() => setFocused('password')} onBlur={() => setFocused(null)}
                 autoComplete="current-password" />

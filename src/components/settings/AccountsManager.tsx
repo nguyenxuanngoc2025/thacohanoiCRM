@@ -8,6 +8,7 @@ import {
   ROLE_COLOR, roleNeedsShowroom, roleNeedsBrand, ALL_ROLES,
 } from '@/lib/nav';
 import { type UserRole } from '@/types/database';
+import { EMAIL_DOMAIN, usernameToEmail } from '@/lib/account-email';
 
 export interface StaffRow {
   id: string;
@@ -337,7 +338,7 @@ function EditModal({
 
   const submit = async () => {
     setError(null);
-    if (isNew && (!fullName.trim() || !email.trim())) { setError('Vui lòng nhập họ tên và email.'); return; }
+    if (isNew && (!fullName.trim() || !email.trim())) { setError('Vui lòng nhập họ tên và tên đăng nhập.'); return; }
     if (!isNew && !fullName.trim()) { setError('Vui lòng nhập họ tên.'); return; }
     if (needsShowroom && !showroomId) { setError('Vai trò này bắt buộc gán showroom.'); return; }
     if (needsBrand && !brandId) { setError('Vai trò này bắt buộc gán thương hiệu.'); return; }
@@ -347,7 +348,7 @@ function EditModal({
         const res = await fetch('/api/admin/create-user', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            email: email.trim(), full_name: fullName.trim(), role,
+            email: usernameToEmail(email), full_name: fullName.trim(), role,
             company_id: companyId,
             showroom_id: needsShowroom ? showroomId : null,
             brand_id: needsBrand ? brandId : null,
@@ -390,9 +391,13 @@ function EditModal({
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#004B9B]" placeholder="Nguyễn Văn A" />
           </Field>
           {isNew ? (
-            <Field label="Email">
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#004B9B]" placeholder="nhanvien@thaco.com.vn" />
+            <Field label="Tên đăng nhập">
+              <div className="flex items-stretch border border-slate-200 rounded-lg overflow-hidden focus-within:border-[#004B9B]">
+                <input type="text" value={email} onChange={(e) => setEmail(e.target.value)}
+                  className="flex-1 min-w-0 px-3 py-2 text-sm outline-none" placeholder="nguyenvana" autoComplete="off" />
+                <span className="px-3 py-2 text-sm text-slate-400 bg-slate-50 border-l border-slate-100 whitespace-nowrap select-none">@{EMAIL_DOMAIN}</span>
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1">Chỉ nhập tên, hệ thống tự thêm @{EMAIL_DOMAIN}</p>
             </Field>
           ) : (
             <Field label="Email">

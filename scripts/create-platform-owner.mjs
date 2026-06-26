@@ -1,11 +1,19 @@
 // Tạo tài khoản chủ nền tảng. Chạy 1 lần:
-//   node scripts/create-platform-owner.mjs <email> <password> "<Họ tên>"
+//   node scripts/create-platform-owner.mjs <tên-đăng-nhập|email> <password> "<Họ tên>"
+// Tên trơn (vd "0938806341") sẽ tự ghép @thaco.com.vn.
 // Yêu cầu biến môi trường: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 import { createClient } from '@supabase/supabase-js';
 
-const [email, password, fullName] = process.argv.slice(2);
+const EMAIL_DOMAIN = 'thaco.com.vn';
+const usernameToEmail = (v) => {
+  const s = (v ?? '').trim().toLowerCase();
+  return !s ? '' : s.includes('@') ? s : `${s}@${EMAIL_DOMAIN}`;
+};
+
+const [rawUser, password, fullName] = process.argv.slice(2);
+const email = usernameToEmail(rawUser);
 if (!email || !password || !fullName) {
-  console.error('Cách dùng: node create-platform-owner.mjs <email> <password> "<Họ tên>"');
+  console.error('Cách dùng: node create-platform-owner.mjs <tên-đăng-nhập> <password> "<Họ tên>"');
   process.exit(1);
 }
 
