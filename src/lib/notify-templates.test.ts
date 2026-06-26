@@ -1,8 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { renderNewLead, renderOverdue, renderDailySr, renderDailyMgmt } from './notify-templates';
+import { renderNewLead, renderOverdue, renderDailySr, renderDailyMgmt, maskPhone } from './notify-templates';
 
 describe('notify-templates', () => {
-  it('renderNewLead: gồm showroom, tên, sđt, nguồn, xe, TVBH — không emoji', () => {
+  it('maskPhone: che 3 số cuối bằng ***', () => {
+    expect(maskPhone('+84901234567')).toBe('+84901234***');
+    expect(maskPhone('0901234567')).toBe('0901234***');
+    expect(maskPhone('123')).toBe('***');
+  });
+
+  it('renderNewLead: gồm showroom, tên, sđt CHE 3 số cuối, nguồn, xe, TVBH — không emoji', () => {
     const t = renderNewLead({
       showroom: 'KIA Hà Nội', fullName: 'Nguyễn Văn A', phone: '+84901234567',
       source: 'facebook', model: 'Sonet', assignee: 'Trần B',
@@ -10,15 +16,16 @@ describe('notify-templates', () => {
     expect(t).toContain('LEAD MỚI');
     expect(t).toContain('KIA Hà Nội');
     expect(t).toContain('Nguyễn Văn A');
-    expect(t).toContain('+84901234567');
+    expect(t).toContain('+84901234***');     // SĐT che 3 số cuối
+    expect(t).not.toContain('+84901234567');  // KHÔNG lộ SĐT đầy đủ
     expect(t).toContain('Trần B');
     expect(t).not.toMatch(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u); // không emoji
   });
 
-  it('renderNewLead: thiếu tên → "Khách lẻ"; chưa giao → "chưa phân"', () => {
+  it('renderNewLead: thiếu tên → "Khách lẻ"; chưa giao → "Chưa được phân giao"', () => {
     const t = renderNewLead({ showroom: 'Mazda', fullName: null, phone: '+84909', source: null, model: null, assignee: null });
     expect(t).toContain('Khách lẻ');
-    expect(t).toContain('chưa phân');
+    expect(t).toContain('Chưa được phân giao');
   });
 
   it('renderNewLead: có model → hiện "Xe:"; không model → ẩn hẳn dòng xe', () => {
@@ -29,15 +36,18 @@ describe('notify-templates', () => {
     expect(khong).toContain('Nguồn: fb');
   });
 
-  it('renderOverdue: tiêu đề có số lead, mỗi dòng có KH + TVBH + số giờ', () => {
+  it('renderOverdue: tiêu đề có số lead, dòng có KH + TVBH + giờ, SĐT che, chưa giao ghi rõ', () => {
     const t = renderOverdue('KIA Hà Nội', [
-      { fullName: 'A', phone: '+8490', assignee: 'B', overdueHours: 5 },
-      { fullName: null, phone: '+8491', assignee: null, overdueHours: 12 },
+      { fullName: 'A', phone: '+84901234567', assignee: 'B', overdueHours: 5 },
+      { fullName: null, phone: '+84909876543', assignee: null, overdueHours: 12 },
     ]);
     expect(t).toContain('QUÁ HẠN LIÊN HỆ');
     expect(t).toContain('(2 lead)');
     expect(t).toContain('quá hạn 5h');
     expect(t).toContain('Khách lẻ');
+    expect(t).toContain('+84901234***');      // SĐT che 3 số cuối
+    expect(t).not.toContain('+84901234567');   // KHÔNG lộ đầy đủ
+    expect(t).toContain('Chưa được phân giao'); // lead chưa giao
   });
 
   it('renderDailySr: tổng lead, tỷ lệ LH, phân loại, dòng chưa tuân thủ', () => {

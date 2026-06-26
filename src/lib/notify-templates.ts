@@ -1,6 +1,14 @@
 // Hàm thuần render nội dung tin Zalo. KHÔNG emoji (preference user).
 // zca-bot chỉ gửi payload.text — mọi logic nội dung nằm ở đây.
 
+// Che 3 số cuối SĐT khi gửi vào nhóm chung: chống TVBH xem trọn SĐT KH của TVBH khác.
+// TVBH phụ trách vẫn xem SĐT đầy đủ trong app (lead của mình).
+export function maskPhone(phone: string): string {
+  const p = phone.trim();
+  if (p.length <= 3) return '***';
+  return p.slice(0, -3) + '***';
+}
+
 export interface NewLeadInput {
   showroom: string;
   fullName: string | null;
@@ -14,10 +22,10 @@ export function renderNewLead(i: NewLeadInput): string {
   const ten = i.fullName?.trim() || 'Khách lẻ';
   const nguon = i.source?.trim() || 'không rõ';
   const xe = i.model?.trim();
-  const tvbh = i.assignee?.trim() || 'chưa phân';
+  const tvbh = i.assignee?.trim() || 'Chưa được phân giao';
   return [
     `LEAD MỚI — ${i.showroom}`,
-    `KH: ${ten} · ${i.phone}`,
+    `KH: ${ten} · ${maskPhone(i.phone)}`,
     xe ? `Nguồn: ${nguon} · Xe: ${xe}` : `Nguồn: ${nguon}`,
     `Giao cho: ${tvbh}`,
   ].join('\n');
@@ -34,8 +42,8 @@ export function renderOverdue(showroom: string, items: OverdueItem[]): string {
   const head = `QUÁ HẠN LIÊN HỆ — ${showroom} (${items.length} lead)`;
   const lines = items.map((it) => {
     const ten = it.fullName?.trim() || 'Khách lẻ';
-    const tvbh = it.assignee?.trim() || 'chưa phân';
-    return `• ${ten} ${it.phone} — ${tvbh} — quá hạn ${it.overdueHours}h`;
+    const tvbh = it.assignee?.trim() || 'Chưa được phân giao';
+    return `• ${ten} ${maskPhone(it.phone)} — ${tvbh} — quá hạn ${it.overdueHours}h`;
   });
   return [head, ...lines].join('\n');
 }
