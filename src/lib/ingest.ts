@@ -1,5 +1,6 @@
 import { createServiceClient } from '@/lib/supabase/server';
 import { normalizePhone } from '@/lib/phone';
+import { looksLikePersonName } from '@/lib/person-name';
 import { pickNextAssignee, type AssigneeLoad } from '@/lib/assign';
 import type { IngestPayload, IngestResult } from '@/types/database';
 
@@ -186,15 +187,22 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
       ? (await db.from('users').select('full_name').eq('id', assignedTo).maybeSingle()).data?.full_name ?? null
       : null;
 
+    const fullName = payload.full_name ?? null;
     const { renderNewLead } = await import('@/lib/notify-templates');
     const text = renderNewLead({
       showroom: srRow?.name ?? 'Showroom',
-      fullName: payload.full_name ?? null,
+      fullName,
       phone,
       source: payload.source ?? 'facebook',
       model: null,
       assignee: assigneeName,
     });
+
+    // Tên rác → kèm enrich để bot tra Zalo bù tên TRƯỚC khi gửi.
+    // badName = đúng chuỗi tên đang nằm trong text (để bot replace chính xác).
+    const enrich = !looksLikePersonName(fullName)
+      ? { leadId: inserted.id, phone, badName: (fullName?.trim() || 'Khách lẻ') }
+      : null;
 
     await db.from('notifications').insert(
       targets.map((c) => ({
@@ -202,7 +210,7 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
         channel: c.channel,
         channel_id: c.id,
         status: 'pending',
-        payload: { event: 'new_lead', leadId: inserted.id, target: c.target, text },
+        payload: { event: 'new_lead', leadId: inserted.id, target: c.target, text, ...(enrich ? { enrich } : {}) },
       }))
     );
   }
