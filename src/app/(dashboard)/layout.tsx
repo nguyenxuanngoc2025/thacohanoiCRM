@@ -3,10 +3,14 @@ import { redirect } from 'next/navigation';
 import DashboardShell from '@/components/layout/DashboardShell';
 import { type UserRole } from '@/types/database';
 import { ROLE_LABELS } from '@/lib/nav';
+import { getTenant } from '@/lib/tenant';
 
 export const dynamic = 'force-dynamic';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const tenant = await getTenant();
+  if (!tenant) redirect('/login?tenant=unknown');
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
@@ -17,18 +21,16 @@ export default async function DashboardLayout({ children }: { children: React.Re
     .eq('id', user.id)
     .maybeSingle();
 
+  // Chặn nhầm tenant: user phải thuộc đúng công ty của tên miền đang truy cập.
+  // (Vai trò "Chủ nền tảng" cross-company sẽ nới ở plan #3.)
+  if (profile?.company_id && profile.company_id !== tenant.id) {
+    await supabase.auth.signOut();
+    redirect('/login?error=wrongtenant');
+  }
+
   const role = (profile?.role ?? 'tvbh') as UserRole;
   const userName = profile?.full_name ?? user.email ?? 'Người dùng';
-
-  let companyName = 'Thaco Auto Hà Nội';
-  if (profile?.company_id) {
-    const { data: company } = await supabase
-      .from('companies')
-      .select('name')
-      .eq('id', profile.company_id)
-      .maybeSingle();
-    if (company?.name) companyName = company.name;
-  }
+  const companyName = tenant.branding?.display_name ?? tenant.name;
 
   const { data: leadRows } = await supabase.from('leads').select('status').limit(5000);
   const tally = (s: string) => (leadRows ?? []).filter((l) => l.status === s).length;
