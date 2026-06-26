@@ -14,15 +14,26 @@ export default async function PlatformAdminLayout({ children }: { children: Reac
 
   return (
     <div className="min-h-screen flex bg-slate-50">
-      <aside className="w-60 shrink-0 border-r border-slate-200 bg-white">
-        <div className="px-5 py-4 border-b border-slate-100">
-          <p className="text-sm font-bold text-slate-900">Bảng điều khiển nền tảng</p>
-          <p className="text-xs text-slate-400 mt-0.5">Quản trị toàn bộ công ty</p>
+      <aside
+        className="w-60 shrink-0 flex flex-col text-white"
+        style={{ background: 'var(--sidebar-bg)', borderRight: '1px solid rgba(0,0,0,0.18)' }}
+      >
+        <div
+          className="px-5 py-4 flex flex-col items-center text-center gap-2"
+          style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="https://thacoautohanoi.vn/storage/logo/header-website.webp" alt="Thaco Auto" style={{ height: 24, objectFit: 'contain' }} />
+          <p className="text-[13px] font-semibold uppercase tracking-wide text-white">Bảng điều khiển nền tảng</p>
+          <p className="text-[11px]" style={{ color: 'rgba(255,255,255,0.55)' }}>Quản trị toàn bộ công ty</p>
         </div>
-        <nav className="p-2 space-y-0.5">
+        <nav className="flex-1 p-2 space-y-1">
           {TABS.map((t) => (
-            <Link key={t.href} href={t.href}
-              className="block px-3 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50">
+            <Link
+              key={t.href}
+              href={t.href}
+              className="block px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-white/80 hover:bg-white/10 hover:text-white"
+            >
               {t.label}
             </Link>
           ))}
