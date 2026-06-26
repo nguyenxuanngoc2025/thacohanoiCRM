@@ -67,3 +67,28 @@ export async function getTenant(): Promise<TenantCompany | null> {
   const h = await headers();
   return resolveCompanyFromHost(h.get('host') ?? '');
 }
+
+/**
+ * Dùng cho on-demand TLS `ask`: hostname này có được phép cấp cert không?
+ * KHÁC resolveCompanyFromHost — KHÔNG fallback công ty mặc định; host lạ → false.
+ */
+export async function isProvisionedHost(
+  rawHost: string,
+  platformDomain: string = PLATFORM_DOMAIN,
+): Promise<boolean> {
+  const host = rawHost.toLowerCase().split(':')[0].trim();
+  if (!host) return false;
+  if (host === platformDomain) return true; // apex nền tảng
+
+  const svc = createServiceClient();
+  const match = parseHost(host, platformDomain);
+  if (match.kind === 'subdomain') {
+    const { data } = await svc.from('companies').select('id').eq('subdomain', match.sub).maybeSingle();
+    return !!data;
+  }
+  if (match.kind === 'custom') {
+    const { data } = await svc.from('companies').select('id').eq('custom_domain', match.host).maybeSingle();
+    return !!data;
+  }
+  return false; // root khác apex (không xảy ra) → từ chối
+}
