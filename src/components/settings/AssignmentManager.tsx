@@ -2,8 +2,8 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { GitBranch, Plus, Edit2, Trash2, X, Clock, Layers, Bell } from 'lucide-react';
-import type { ShowroomRow, AssignmentRuleRow, SlaRow, AssignStrategy } from './types';
+import { GitBranch, Plus, Edit2, Trash2, X, Clock, Bell, ChevronRight, ChevronDown, Building2, Boxes, User } from 'lucide-react';
+import type { ShowroomRow, SalesTeamRow, AssignmentRuleRow, SlaRow, AssignStrategy } from './types';
 import type { StaffRow } from './AccountsManager';
 import {
   PanelHeader, PrimaryBtn, GhostBtn, Field, TextInput, Select, Toggle, StatusPill, FlashBar, Panel, postAdmin,
@@ -17,9 +17,10 @@ const STRATEGY_LABELS: Record<AssignStrategy, string> = {
 };
 
 export default function AssignmentManager({
-  showrooms, staff, rules, sla, companyId, companyShowroomStrategy,
+  showrooms, salesTeams, staff, rules, sla, companyId, companyShowroomStrategy,
 }: {
   showrooms: ShowroomRow[];
+  salesTeams: SalesTeamRow[];
   staff: StaffRow[];
   rules: AssignmentRuleRow[];
   sla: SlaRow[];
@@ -46,41 +47,25 @@ export default function AssignmentManager({
     <div className="space-y-4">
       <FlashBar msg={flash} />
 
-      {/* Nguyên tắc phân giao + kiểu chia vào showroom */}
+      {/* Cây phân giao 3 cấp — làm trọn 1 chỗ */}
       <Panel>
         <PanelHeader
-          title="Nguyên tắc phân giao lead"
-          desc="Mỗi lead mới đi qua 3 cấp. Mỗi cấp tự chọn 1 trong 3 kiểu chia."
+          title="Cây phân giao lead"
+          desc="Đặt kiểu chia cho cả 3 cấp tại đây: công ty → showroom → phòng → TVBH. Mở từng nhánh để chỉnh sâu hơn."
         />
-        <div className="rounded-lg bg-slate-50 border border-slate-100 p-4 space-y-3 text-sm text-slate-600">
-          <div className="flex items-start gap-2.5">
-            <span className="mt-0.5 w-5 h-5 shrink-0 inline-flex items-center justify-center rounded-full bg-white border border-slate-200 text-[11px] font-bold text-slate-700">1</span>
-            <p><span className="font-semibold text-slate-800">Vào showroom</span> — lead mới được chọn về 1 showroom (theo kiểu chia đặt ngay bên dưới).</p>
-          </div>
-          <div className="flex items-start gap-2.5">
-            <span className="mt-0.5 w-5 h-5 shrink-0 inline-flex items-center justify-center rounded-full bg-white border border-slate-200 text-[11px] font-bold text-slate-700">2</span>
-            <p><span className="font-semibold text-slate-800">Vào phòng bán hàng</span> — trong showroom, lead được chia về 1 phòng (kiểu chia đặt tại từng showroom).</p>
-          </div>
-          <div className="flex items-start gap-2.5">
-            <span className="mt-0.5 w-5 h-5 shrink-0 inline-flex items-center justify-center rounded-full bg-white border border-slate-200 text-[11px] font-bold text-slate-700">3</span>
-            <p><span className="font-semibold text-slate-800">Cho TVBH</span> — trong phòng, lead được giao cho 1 tư vấn bán hàng (kiểu chia đặt tại từng phòng).</p>
-          </div>
-          <div className="pt-2 border-t border-slate-200 text-[13px] leading-relaxed">
-            <span className="font-semibold text-slate-800">3 kiểu chia:</span>{' '}
-            <b>Ít lead nhất</b> (ưu tiên nơi đang giữ ít lead chờ nhất) ·{' '}
-            <b>Xoay vòng</b> (nơi lâu nhất chưa nhận thì tới lượt) ·{' '}
-            <b>Theo tỷ lệ %</b> (mỗi nơi một phần trăm, tổng 100%, ai đang thiếu so với tỷ lệ thì nhận).
-          </div>
+        <div className="rounded-lg bg-slate-50 border border-slate-100 p-3.5 mb-4 text-[13px] leading-relaxed text-slate-600">
+          <span className="font-semibold text-slate-800">3 kiểu chia:</span>{' '}
+          <b>Ít lead nhất</b> (ưu tiên nơi đang giữ ít lead chờ nhất) ·{' '}
+          <b>Xoay vòng</b> (nơi lâu nhất chưa nhận thì tới lượt) ·{' '}
+          <b>Theo tỷ lệ %</b> (mỗi nơi một phần trăm, tổng nên bằng 100%).
         </div>
-
-        <div className="mt-4">
-          <CompanyStrategyPanel
-            companyId={companyId}
-            initial={companyShowroomStrategy}
-            showrooms={showrooms}
-            onDone={(m) => { flashMsg(m); router.refresh(); }}
-          />
-        </div>
+        <AssignmentTree
+          companyShowroomStrategy={companyShowroomStrategy}
+          showrooms={showrooms}
+          salesTeams={salesTeams}
+          staff={staff}
+          onDone={(m) => { flashMsg(m); router.refresh(); }}
+        />
       </Panel>
 
       {/* Thời hạn liên hệ và nhắc nhở (thay SLA) */}
@@ -96,7 +81,7 @@ export default function AssignmentManager({
       <Panel>
         <PanelHeader
           title="Luật phân giao đặc biệt"
-          desc="Luật ghi đè: ghim toàn bộ lead của 1 showroom về 1 TVBH cố định (ưu tiên cao hơn 3 cấp ở trên)."
+          desc="Luật ghi đè: ghim toàn bộ lead của 1 showroom về 1 TVBH cố định (ưu tiên cao hơn cây phân giao ở trên)."
           action={<PrimaryBtn onClick={() => setEdit('new')}><Plus size={15} /> Thêm luật</PrimaryBtn>}
         />
         <div className="overflow-hidden rounded-lg border border-slate-100">
@@ -130,7 +115,7 @@ export default function AssignmentManager({
                 </tr>
               ))}
               {rules.length === 0 && (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400">Chưa có luật ghim — lead chia theo 3 cấp ở trên.</td></tr>
+                <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400">Chưa có luật ghim — lead chia theo cây phân giao ở trên.</td></tr>
               )}
             </tbody>
           </table>
@@ -146,78 +131,247 @@ export default function AssignmentManager({
   );
 }
 
-// Kiểu chia "vào showroom" (mức công ty). Khi chọn Theo tỷ lệ → nhập % từng showroom.
-function CompanyStrategyPanel({
-  companyId, initial, showrooms, onDone,
-}: { companyId: string; initial: AssignStrategy; showrooms: ShowroomRow[]; onDone: (m: string) => void }) {
-  const [strategy, setStrategy] = useState<AssignStrategy>(initial);
-  const [busy, setBusy] = useState(false);
-
-  const saveStrategy = async (next: AssignStrategy) => {
-    setStrategy(next);
-    setBusy(true);
-    const r = await postAdmin('/api/admin/assignment-rules', { op: 'set-company-strategy', showroom_assign_strategy: next });
-    setBusy(false);
-    if (!r.ok) { window.alert(r.error); setStrategy(initial); return; }
-    onDone('Đã đổi kiểu chia vào showroom.');
-  };
-
+// Select 3 kiểu chia dùng chung.
+function StratSelect({ value, disabled, onChange }: { value: AssignStrategy; disabled?: boolean; onChange: (v: AssignStrategy) => void }) {
   return (
-    <div className="border border-slate-200 rounded-lg p-4 space-y-3">
-      <div className="flex items-center gap-2 text-sm font-bold text-slate-800">
-        <Layers size={15} style={{ color: '#004B9B' }} /> Kiểu chia lead vào showroom
+    <Select value={value} disabled={disabled} onChange={(e) => onChange(e.target.value as AssignStrategy)}>
+      <option value="least_loaded">{STRATEGY_LABELS.least_loaded}</option>
+      <option value="round_robin">{STRATEGY_LABELS.round_robin}</option>
+      <option value="weighted">{STRATEGY_LABELS.weighted}</option>
+    </Select>
+  );
+}
+
+// Ô nhập % + nút lưu, dùng chung cho showroom / phòng / TVBH.
+function PctInput({ value, onChange, onSave, busy }: { value: string; onChange: (v: string) => void; onSave: () => void; busy: boolean }) {
+  return (
+    <div className="flex items-center gap-1.5 shrink-0">
+      <div className="w-20">
+        <TextInput type="number" min={0} value={value} disabled={busy}
+          onChange={(e) => onChange(e.target.value)} onBlur={onSave} />
       </div>
-      <Field label="Cấp công ty → showroom" hint="Áp dụng khi công ty có nhiều showroom.">
-        <Select value={strategy} disabled={busy} onChange={(e) => saveStrategy(e.target.value as AssignStrategy)}>
-          <option value="least_loaded">{STRATEGY_LABELS.least_loaded}</option>
-          <option value="round_robin">{STRATEGY_LABELS.round_robin}</option>
-          <option value="weighted">{STRATEGY_LABELS.weighted}</option>
-        </Select>
-      </Field>
-      {strategy === 'weighted' && (
-        <ShowroomShareList showrooms={showrooms} onDone={onDone} />
-      )}
+      <span className="text-xs text-slate-400">%</span>
     </div>
   );
 }
 
-// Danh sách % share từng showroom (chỉ hiện khi công ty chọn Theo tỷ lệ).
-function ShowroomShareList({ showrooms, onDone }: { showrooms: ShowroomRow[]; onDone: (m: string) => void }) {
-  const [vals, setVals] = useState<Record<string, string>>(
+// Nhãn tổng % của một nhóm.
+function TotalBadge({ total }: { total: number }) {
+  return (
+    <span className="text-xs">
+      Tổng: <span className={total === 100 ? 'font-bold text-emerald-600' : 'font-bold text-amber-600'}>{total}%</span>
+      {total !== 100 && <span className="text-slate-400"> (nên 100%)</span>}
+    </span>
+  );
+}
+
+// Cây phân giao: 1 màn hình đặt kiểu chia cả 3 cấp.
+function AssignmentTree({
+  companyShowroomStrategy, showrooms, salesTeams, staff, onDone,
+}: {
+  companyShowroomStrategy: AssignStrategy;
+  showrooms: ShowroomRow[];
+  salesTeams: SalesTeamRow[];
+  staff: StaffRow[];
+  onDone: (m: string) => void;
+}) {
+  const tvbh = staff.filter((s) => s.role === 'tvbh');
+
+  const [coStrat, setCoStrat] = useState<AssignStrategy>(companyShowroomStrategy);
+  const [srStrat, setSrStrat] = useState<Record<string, AssignStrategy>>(
+    Object.fromEntries(showrooms.map((s) => [s.id, s.team_assign_strategy])),
+  );
+  const [srPct, setSrPct] = useState<Record<string, string>>(
     Object.fromEntries(showrooms.map((s) => [s.id, String(s.assign_share_pct ?? 0)])),
   );
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const total = showrooms.reduce((acc, s) => acc + (Number(vals[s.id]) || 0), 0);
+  const [tmStrat, setTmStrat] = useState<Record<string, AssignStrategy>>(
+    Object.fromEntries(salesTeams.map((t) => [t.id, t.tvbh_assign_strategy])),
+  );
+  const [tmPct, setTmPct] = useState<Record<string, string>>(
+    Object.fromEntries(salesTeams.map((t) => [t.id, String(t.assign_share_pct ?? 0)])),
+  );
+  const [tvbhPct, setTvbhPct] = useState<Record<string, string>>(
+    Object.fromEntries(tvbh.map((u) => [u.id, String(u.assign_share_pct ?? 0)])),
+  );
 
-  const save = async (s: ShowroomRow) => {
-    setBusyId(s.id);
+  const [openSr, setOpenSr] = useState<Record<string, boolean>>({});
+  const [openTm, setOpenTm] = useState<Record<string, boolean>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const teamsOf = (showroomId: string) => salesTeams.filter((t) => t.showroom_id === showroomId);
+  const tvbhOf = (teamId: string) => tvbh.filter((u) => u.sales_team_id === teamId);
+
+  const saveCo = async (next: AssignStrategy) => {
+    const prev = coStrat;
+    setCoStrat(next); setBusy('co');
+    const r = await postAdmin('/api/admin/assignment-rules', { op: 'set-company-strategy', showroom_assign_strategy: next });
+    setBusy(null);
+    if (!r.ok) { window.alert(r.error); setCoStrat(prev); return; }
+    onDone('Đã đổi kiểu chia vào showroom.');
+  };
+
+  const saveSrStrat = async (s: ShowroomRow, next: AssignStrategy) => {
+    const prev = srStrat[s.id];
+    setSrStrat((v) => ({ ...v, [s.id]: next })); setBusy(`sr-${s.id}`);
     const r = await postAdmin('/api/admin/showrooms', {
-      op: 'update', id: s.id, name: s.name, code: s.code, brand_ids: s.brand_ids,
-      assign_share_pct: Number(vals[s.id]) || 0,
+      op: 'update', id: s.id, name: s.name, code: s.code, brand_ids: s.brand_ids, team_assign_strategy: next,
     });
-    setBusyId(null);
+    setBusy(null);
+    if (!r.ok) { window.alert(r.error); setSrStrat((v) => ({ ...v, [s.id]: prev })); return; }
+    onDone(`Đã đổi kiểu chia của showroom ${s.name}.`);
+  };
+
+  const saveSrPct = async (s: ShowroomRow) => {
+    setBusy(`srpct-${s.id}`);
+    const r = await postAdmin('/api/admin/showrooms', {
+      op: 'update', id: s.id, name: s.name, code: s.code, brand_ids: s.brand_ids, assign_share_pct: Number(srPct[s.id]) || 0,
+    });
+    setBusy(null);
     if (!r.ok) { window.alert(r.error); return; }
     onDone(`Đã lưu tỷ lệ showroom ${s.name}.`);
   };
 
+  const saveTmStrat = async (t: SalesTeamRow, next: AssignStrategy) => {
+    const prev = tmStrat[t.id];
+    setTmStrat((v) => ({ ...v, [t.id]: next })); setBusy(`tm-${t.id}`);
+    const r = await postAdmin('/api/admin/sales-teams', { op: 'set-strategy', sales_team_id: t.id, tvbh_assign_strategy: next });
+    setBusy(null);
+    if (!r.ok) { window.alert(r.error); setTmStrat((v) => ({ ...v, [t.id]: prev })); return; }
+    onDone(`Đã đổi kiểu chia của phòng ${t.name}.`);
+  };
+
+  const saveTmPct = async (t: SalesTeamRow) => {
+    setBusy(`tmpct-${t.id}`);
+    const r = await postAdmin('/api/admin/sales-teams', { op: 'set-strategy', sales_team_id: t.id, assign_share_pct: Number(tmPct[t.id]) || 0 });
+    setBusy(null);
+    if (!r.ok) { window.alert(r.error); return; }
+    onDone(`Đã lưu tỷ lệ phòng ${t.name}.`);
+  };
+
+  const saveTvbhPct = async (u: StaffRow) => {
+    setBusy(`tvbh-${u.id}`);
+    const r = await postAdmin('/api/admin/update-user', { userId: u.id, assign_share_pct: Number(tvbhPct[u.id]) || 0 });
+    setBusy(null);
+    if (!r.ok) { window.alert(r.error); return; }
+    onDone(`Đã lưu tỷ lệ TVBH ${u.full_name ?? ''}.`);
+  };
+
+  const srTotal = showrooms.reduce((acc, s) => acc + (Number(srPct[s.id]) || 0), 0);
+
   return (
-    <div className="space-y-2 pt-1">
-      <div className="text-xs text-slate-500">
-        Nhập phần trăm cho từng showroom. Tổng hiện tại:{' '}
-        <span className={total === 100 ? 'font-bold text-emerald-600' : 'font-bold text-amber-600'}>{total}%</span>
-        {total !== 100 && ' (nên bằng 100%)'}
-      </div>
-      {showrooms.map((s) => (
-        <div key={s.id} className="flex items-center gap-2">
-          <span className="flex-1 text-sm text-slate-700 truncate">{s.name}</span>
-          <div className="w-24">
-            <TextInput type="number" min={0} value={vals[s.id] ?? '0'}
-              onChange={(e) => setVals((v) => ({ ...v, [s.id]: e.target.value }))} />
-          </div>
-          <GhostBtn onClick={() => save(s)} disabled={busyId === s.id}>{busyId === s.id ? '...' : 'Lưu'}</GhostBtn>
+    <div className="space-y-3">
+      {/* Cấp 1: công ty → showroom */}
+      <div className="border border-slate-200 rounded-lg p-4">
+        <div className="flex items-center gap-2 text-sm font-bold text-slate-800 mb-2">
+          <Building2 size={15} style={{ color: '#004B9B' }} /> Công ty chia lead vào các showroom
         </div>
-      ))}
-      {showrooms.length === 0 && <div className="text-sm text-slate-400">Chưa có showroom.</div>}
+        <div className="max-w-xs">
+          <StratSelect value={coStrat} disabled={busy === 'co'} onChange={saveCo} />
+        </div>
+        {coStrat === 'weighted' && (
+          <div className="mt-2 pl-1">
+            <TotalBadge total={srTotal} />
+          </div>
+        )}
+      </div>
+
+      {/* Cấp 2 + 3: từng showroom → phòng → TVBH */}
+      {showrooms.length === 0 && (
+        <div className="text-sm text-slate-400 px-1">Chưa có showroom. Thêm ở tab "Showroom · Thương hiệu".</div>
+      )}
+      {showrooms.map((s) => {
+        const teams = teamsOf(s.id);
+        const tmTotal = teams.reduce((acc, t) => acc + (Number(tmPct[t.id]) || 0), 0);
+        const isOpen = !!openSr[s.id];
+        return (
+          <div key={s.id} className="border border-slate-200 rounded-lg overflow-hidden">
+            {/* Hàng showroom */}
+            <div className="flex items-center gap-2 px-3 py-2.5 bg-slate-50">
+              <button onClick={() => setOpenSr((v) => ({ ...v, [s.id]: !v[s.id] }))}
+                className="w-6 h-6 inline-flex items-center justify-center rounded text-slate-500 hover:bg-slate-200 shrink-0">
+                {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+              </button>
+              <Building2 size={15} className="text-slate-500 shrink-0" />
+              <span className="flex-1 text-sm font-semibold text-slate-800 truncate">{s.name}</span>
+              {coStrat === 'weighted' && (
+                <PctInput value={srPct[s.id] ?? '0'} busy={busy === `srpct-${s.id}`}
+                  onChange={(val) => setSrPct((v) => ({ ...v, [s.id]: val }))} onSave={() => saveSrPct(s)} />
+              )}
+            </div>
+
+            {isOpen && (
+              <div className="p-3 space-y-3 border-t border-slate-100">
+                {/* Cấp 2: showroom → phòng */}
+                <div className="pl-2">
+                  <div className="text-xs font-semibold text-slate-500 mb-1.5">Showroom này chia lead vào các phòng:</div>
+                  <div className="max-w-xs">
+                    <StratSelect value={srStrat[s.id] ?? 'weighted'} disabled={busy === `sr-${s.id}`}
+                      onChange={(next) => saveSrStrat(s, next)} />
+                  </div>
+                  {srStrat[s.id] === 'weighted' && teams.length > 0 && (
+                    <div className="mt-1.5"><TotalBadge total={tmTotal} /></div>
+                  )}
+                </div>
+
+                {/* Danh sách phòng */}
+                {teams.length === 0 && (
+                  <div className="text-xs text-slate-400 pl-2">Showroom chưa có phòng bán hàng.</div>
+                )}
+                {teams.map((t) => {
+                  const members = tvbhOf(t.id);
+                  const memTotal = members.reduce((acc, u) => acc + (Number(tvbhPct[u.id]) || 0), 0);
+                  const tmOpen = !!openTm[t.id];
+                  return (
+                    <div key={t.id} className="ml-2 border-l-2 border-slate-100 pl-3">
+                      <div className="flex items-center gap-2 py-1">
+                        <button onClick={() => setOpenTm((v) => ({ ...v, [t.id]: !v[t.id] }))}
+                          className="w-6 h-6 inline-flex items-center justify-center rounded text-slate-500 hover:bg-slate-100 shrink-0">
+                          {tmOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+                        </button>
+                        <Boxes size={14} className="text-slate-400 shrink-0" />
+                        <span className="flex-1 text-sm text-slate-700 truncate">{t.name}</span>
+                        {srStrat[s.id] === 'weighted' && (
+                          <PctInput value={tmPct[t.id] ?? '0'} busy={busy === `tmpct-${t.id}`}
+                            onChange={(val) => setTmPct((v) => ({ ...v, [t.id]: val }))} onSave={() => saveTmPct(t)} />
+                        )}
+                      </div>
+
+                      {tmOpen && (
+                        <div className="pl-8 pb-2 pt-1 space-y-2">
+                          {/* Cấp 3: phòng → TVBH */}
+                          <div>
+                            <div className="text-xs font-semibold text-slate-500 mb-1.5">Phòng này chia lead cho TVBH:</div>
+                            <div className="max-w-xs">
+                              <StratSelect value={tmStrat[t.id] ?? 'least_loaded'} disabled={busy === `tm-${t.id}`}
+                                onChange={(next) => saveTmStrat(t, next)} />
+                            </div>
+                            {tmStrat[t.id] === 'weighted' && members.length > 0 && (
+                              <div className="mt-1.5"><TotalBadge total={memTotal} /></div>
+                            )}
+                          </div>
+                          {members.length === 0 && (
+                            <div className="text-xs text-slate-400">Phòng chưa có TVBH.</div>
+                          )}
+                          {members.map((u) => (
+                            <div key={u.id} className="flex items-center gap-2 py-0.5">
+                              <User size={13} className="text-slate-400 shrink-0" />
+                              <span className="flex-1 text-sm text-slate-600 truncate">{u.full_name ?? u.email}</span>
+                              {tmStrat[t.id] === 'weighted' && (
+                                <PctInput value={tvbhPct[u.id] ?? '0'} busy={busy === `tvbh-${u.id}`}
+                                  onChange={(val) => setTvbhPct((v) => ({ ...v, [u.id]: val }))} onSave={() => saveTvbhPct(u)} />
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

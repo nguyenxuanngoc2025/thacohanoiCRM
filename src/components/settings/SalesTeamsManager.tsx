@@ -2,16 +2,9 @@
 
 import React, { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Boxes, Plus, Edit2, Trash2, X, Check, SlidersHorizontal, Loader2 } from 'lucide-react';
-import type { SalesTeamRow, ShowroomRow, BrandRow, AssignStrategy } from './types';
+import { Boxes, Plus, Edit2, Trash2, X, Check, Loader2 } from 'lucide-react';
+import type { SalesTeamRow, ShowroomRow, BrandRow } from './types';
 import type { StaffRow } from './AccountsManager';
-
-// Nhãn 3 kiểu chia (dùng cho cách phòng chia lead tới TVBH).
-const STRATEGY_LABELS: Record<AssignStrategy, string> = {
-  least_loaded: 'Ít lead nhất',
-  round_robin: 'Xoay vòng',
-  weighted: 'Theo tỷ lệ %',
-};
 
 export default function SalesTeamsManager({
   salesTeams, showrooms, brands, staff,
@@ -24,7 +17,6 @@ export default function SalesTeamsManager({
   const router = useRouter();
   const [success, setSuccess] = useState<string | null>(null);
   const [editTarget, setEditTarget] = useState<SalesTeamRow | 'new' | null>(null);
-  const [allocTarget, setAllocTarget] = useState<SalesTeamRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<SalesTeamRow | null>(null);
 
   const flash = (msg: string) => { setSuccess(msg); setTimeout(() => setSuccess(null), 3500); };
@@ -44,11 +36,6 @@ export default function SalesTeamsManager({
     return Array.from(map.entries());
   }, [salesTeams]);
 
-  const strategySummary = (t: SalesTeamRow) => {
-    const kieu = STRATEGY_LABELS[t.tvbh_assign_strategy] ?? STRATEGY_LABELS.least_loaded;
-    return `Chia TVBH: ${kieu} · Tỷ lệ phòng: ${t.assign_share_pct ?? 0}%`;
-  };
-
   return (
     <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
       <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between">
@@ -56,7 +43,7 @@ export default function SalesTeamsManager({
           <Boxes size={18} style={{ color: '#004B9B' }} />
           <div>
             <h2 className="text-sm font-bold text-slate-900">Phòng bán hàng</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Lớp giữa Showroom → TVBH. Mỗi phòng chọn cách chia lead cho TVBH; tỷ lệ phòng dùng khi showroom chia theo tỷ lệ.</p>
+            <p className="text-xs text-slate-400 mt-0.5">Lớp giữa Showroom → TVBH. Kiểu chia lead đặt ở mục Phân giao (cây phân giao).</p>
           </div>
         </div>
         <button
@@ -96,13 +83,8 @@ export default function SalesTeamsManager({
                     </div>
                     <div className="text-xs text-slate-500 mt-1">
                       Trưởng phòng: {headName(t.head_user_id) ?? <span className="italic text-slate-400">Chưa gán</span>}
-                      {' · '}<span className="text-slate-600">{strategySummary(t)}</span>
                     </div>
                   </div>
-                  <button title="Cách chia lead" onClick={() => setAllocTarget(t)}
-                    className="w-7 h-7 inline-flex items-center justify-center rounded-md border border-slate-200 hover:bg-slate-50">
-                    <SlidersHorizontal size={14} className="text-amber-600" />
-                  </button>
                   <button title="Chỉnh sửa" onClick={() => setEditTarget(t)}
                     className="w-7 h-7 inline-flex items-center justify-center rounded-md border border-slate-200 hover:bg-slate-50">
                     <Edit2 size={14} style={{ color: '#004B9B' }} />
@@ -128,13 +110,6 @@ export default function SalesTeamsManager({
           staff={staff}
           onClose={() => setEditTarget(null)}
           onDone={(msg) => { setEditTarget(null); flash(msg); router.refresh(); }}
-        />
-      )}
-      {allocTarget && (
-        <StrategyModal
-          team={allocTarget}
-          onClose={() => setAllocTarget(null)}
-          onDone={(msg) => { setAllocTarget(null); flash(msg); router.refresh(); }}
         />
       )}
       {deleteTarget && (
@@ -256,78 +231,6 @@ function EditTeamModal({
             className="text-sm font-medium text-white rounded-lg px-4 py-2 disabled:opacity-60"
             style={{ background: 'linear-gradient(135deg, #004B9B, #0468BF)' }}>
             {submitting ? 'Đang lưu...' : (isNew ? 'Tạo phòng' : 'Lưu thay đổi')}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Modal cách chia lead cho TVBH + tỷ lệ phòng ──────────────────────────────
-
-function StrategyModal({
-  team, onClose, onDone,
-}: {
-  team: SalesTeamRow;
-  onClose: () => void;
-  onDone: (msg: string) => void;
-}) {
-  const [strategy, setStrategy] = useState<AssignStrategy>(team.tvbh_assign_strategy ?? 'least_loaded');
-  const [sharePct, setSharePct] = useState(String(team.assign_share_pct ?? 0));
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const submit = async () => {
-    setError(null);
-    setSubmitting(true);
-    try {
-      const res = await fetch('/api/admin/sales-teams', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          op: 'set-strategy', sales_team_id: team.id,
-          tvbh_assign_strategy: strategy, assign_share_pct: Number(sharePct) || 0,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setError(data.error ?? 'Lưu thất bại.'); return; }
-      onDone(`Đã cập nhật cách chia lead phòng "${team.name}".`);
-    } catch {
-      setError('Lỗi kết nối máy chủ.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
-          <h3 className="font-bold text-slate-900">Cách chia lead — {team.name}</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700"><X size={18} /></button>
-        </div>
-        <div className="p-5 space-y-4">
-          <Field label="Cách chia lead cho TVBH trong phòng">
-            <select value={strategy} onChange={(e) => setStrategy(e.target.value as AssignStrategy)}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#004B9B] bg-white">
-              <option value="least_loaded">{STRATEGY_LABELS.least_loaded}</option>
-              <option value="round_robin">{STRATEGY_LABELS.round_robin}</option>
-              <option value="weighted">{STRATEGY_LABELS.weighted}</option>
-            </select>
-            <p className="text-[11px] text-slate-400 mt-1">Khi chọn &quot;Theo tỷ lệ %&quot;, nhập % cho từng TVBH ở mục quản lý nhân sự.</p>
-          </Field>
-          <Field label="Tỷ lệ nhận lead của phòng (%)">
-            <input type="number" min={0} value={sharePct} onChange={(e) => setSharePct(e.target.value)}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#004B9B]" />
-            <p className="text-[11px] text-slate-400 mt-1">Chỉ dùng khi showroom chia lead vào phòng theo tỷ lệ. Tổng các phòng cùng showroom nên bằng 100%.</p>
-          </Field>
-          {error && <div className="text-sm bg-rose-50 text-rose-600 border border-rose-100 rounded-lg px-3 py-2">{error}</div>}
-        </div>
-        <div className="flex justify-end gap-2 px-5 py-3.5 border-t border-slate-100">
-          <button onClick={onClose} className="text-sm font-medium text-slate-600 border border-slate-200 rounded-lg px-4 py-2 hover:bg-slate-50">Hủy</button>
-          <button onClick={submit} disabled={submitting}
-            className="text-sm font-medium text-white rounded-lg px-4 py-2 disabled:opacity-60"
-            style={{ background: 'linear-gradient(135deg, #004B9B, #0468BF)' }}>
-            {submitting ? 'Đang lưu...' : 'Lưu'}
           </button>
         </div>
       </div>

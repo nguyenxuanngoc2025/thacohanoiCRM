@@ -135,7 +135,7 @@ export default function SettingsClient({
         )}
         {active === 'pipeline' && <PipelineReference counts={statusCounts} />}
         {active === 'assignment' && (
-          <AssignmentManager showrooms={showrooms} staff={staff} rules={assignmentRules} sla={slaConfig} companyId={companyId} companyShowroomStrategy={companyShowroomStrategy} />
+          <AssignmentManager showrooms={showrooms} salesTeams={salesTeams} staff={staff} rules={assignmentRules} sla={slaConfig} companyId={companyId} companyShowroomStrategy={companyShowroomStrategy} />
         )}
         {active === 'notifications' && <NotificationsManager channels={notifChannels} showrooms={showrooms} />}
         {active === 'audit' && <ActivityLog logs={recentLogs} staff={staff} />}

@@ -3,17 +3,10 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronDown, ChevronRight, X } from 'lucide-react';
-import type { ShowroomRow, BrandRow, ModelRow, AssignStrategy } from './types';
+import type { ShowroomRow, BrandRow, ModelRow } from './types';
 import {
   PanelHeader, PrimaryBtn, GhostBtn, Field, TextInput, Select, FlashBar, Panel, postAdmin,
 } from './ui';
-
-// Nhãn 3 kiểu chia (dùng cho cách showroom chia lead vào các phòng).
-const STRATEGY_LABELS: Record<AssignStrategy, string> = {
-  least_loaded: 'Ít lead nhất',
-  round_robin: 'Xoay vòng',
-  weighted: 'Theo tỷ lệ %',
-};
 
 export default function OrgManager({
   showrooms, brands, models, canEditCatalog,
@@ -213,8 +206,6 @@ function ShowroomModal({
   const [name, setName] = useState(init?.name ?? '');
   const [code, setCode] = useState(init?.code ?? '');
   const [brandIds, setBrandIds] = useState<string[]>(init?.brand_ids ?? []);
-  const [teamStrategy, setTeamStrategy] = useState<AssignStrategy>(init?.team_assign_strategy ?? 'weighted');
-  const [sharePct, setSharePct] = useState(String(init?.assign_share_pct ?? 0));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -229,7 +220,6 @@ function ShowroomModal({
       op: isNew ? 'create' : 'update',
       id: isNew ? undefined : (target as ShowroomRow).id,
       name: name.trim(), code: code.trim() || null, brand_ids: brandIds,
-      team_assign_strategy: teamStrategy, assign_share_pct: Number(sharePct) || 0,
     });
     setBusy(false);
     if (!r.ok) { setError(r.error ?? null); return; }
@@ -258,16 +248,6 @@ function ShowroomModal({
           })}
           {brands.length === 0 && <p className="text-sm text-slate-400">Chưa có thương hiệu nào.</p>}
         </div>
-      </Field>
-      <Field label="Cách chia lead vào các phòng" hint="Áp dụng khi showroom có nhiều phòng bán hàng.">
-        <Select value={teamStrategy} onChange={(e) => setTeamStrategy(e.target.value as AssignStrategy)}>
-          <option value="least_loaded">{STRATEGY_LABELS.least_loaded}</option>
-          <option value="round_robin">{STRATEGY_LABELS.round_robin}</option>
-          <option value="weighted">{STRATEGY_LABELS.weighted}</option>
-        </Select>
-      </Field>
-      <Field label="Tỷ lệ nhận lead của showroom (%)" hint="Chỉ dùng khi công ty chia lead vào showroom theo tỷ lệ. Tổng các showroom nên bằng 100%.">
-        <TextInput type="number" min={0} value={sharePct} onChange={(e) => setSharePct(e.target.value)} />
       </Field>
     </ModalShell>
   );
