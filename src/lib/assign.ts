@@ -43,3 +43,40 @@ export function pickWeightedTeam(candidates: WeightedLoad[]): string | null {
   );
   return scored[0].id;
 }
+
+export type AssignStrategy = 'least_loaded' | 'round_robin' | 'weighted';
+
+export interface RoundRobinCandidate {
+  id: string;
+  lastAssignedAt: number | null; // epoch ms của lead gần nhất; null = chưa từng nhận
+}
+
+/** Xoay vòng: nơi chưa từng nhận (null) ưu tiên nhất, kế đến nơi nhận lâu nhất; hòa → id nhỏ nhất. */
+export function pickRoundRobin(candidates: RoundRobinCandidate[]): string | null {
+  if (candidates.length === 0) return null;
+  const sorted = [...candidates].sort((x, y) => {
+    const ax = x.lastAssignedAt ?? -Infinity;
+    const ay = y.lastAssignedAt ?? -Infinity;
+    return ax !== ay ? ax - ay : x.id.localeCompare(y.id);
+  });
+  return sorted[0].id;
+}
+
+export interface StrategyCandidate {
+  id: string;
+  activeLeadCount: number;
+  sharePct: number;              // % mục tiêu (dùng cho weighted)
+  lastAssignedAt: number | null; // dùng cho round_robin
+}
+
+/** Chọn 1 ứng viên theo chiến lược. */
+export function pickByStrategy(strategy: AssignStrategy, candidates: StrategyCandidate[]): string | null {
+  if (candidates.length === 0) return null;
+  if (strategy === 'round_robin') {
+    return pickRoundRobin(candidates.map((c) => ({ id: c.id, lastAssignedAt: c.lastAssignedAt })));
+  }
+  if (strategy === 'weighted') {
+    return pickWeightedTeam(candidates.map((c) => ({ id: c.id, weight: c.sharePct, activeLeadCount: c.activeLeadCount })));
+  }
+  return pickNextAssignee(candidates.map((c) => ({ id: c.id, activeLeadCount: c.activeLeadCount })));
+}
