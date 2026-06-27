@@ -25,6 +25,7 @@ export interface ModelRow {
   name: string;
   sort_order: number;
   is_active: boolean;
+  keywords: string[];
 }
 
 // Phòng bán hàng (lớp giữa Showroom ↔ TVBH). Mỗi phòng cố định 1 thương hiệu.

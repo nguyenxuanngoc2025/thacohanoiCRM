@@ -23,11 +23,16 @@ export async function POST(request: NextRequest) {
     const brandId = String(body.brand_id ?? '').trim();
     if (!brandId) return NextResponse.json({ error: 'Thiếu thương hiệu' }, { status: 400 });
 
+    const keywords: string[] = Array.isArray(body.keywords)
+      ? body.keywords.map((k: unknown) => String(k).trim()).filter((k: string) => k.length > 0)
+      : [];
+
     const row = {
       brand_id: brandId,
       name,
       sort_order: Number.isFinite(body.sort_order) ? Number(body.sort_order) : 0,
       is_active: body.is_active === undefined ? true : !!body.is_active,
+      keywords,
     };
 
     if (op === 'update') {

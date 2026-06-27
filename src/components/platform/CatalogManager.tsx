@@ -165,6 +165,7 @@ function ModelModal({
   const [brandId, setBrandId] = useState(init?.brand_id ?? initialBrandId ?? '');
   const [sortOrder, setSortOrder] = useState(String(init?.sort_order ?? 0));
   const [isActive, setIsActive] = useState(init?.is_active ?? true);
+  const [keywords, setKeywords] = useState((init?.keywords ?? []).join(', '));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -178,6 +179,7 @@ function ModelModal({
       id: isNew ? undefined : (target as ModelRow).id,
       name: name.trim(), brand_id: brandId,
       sort_order: Number(sortOrder) || 0, is_active: isActive,
+      keywords: keywords.split(',').map((k) => k.trim()).filter((k) => k.length > 0),
     });
     setBusy(false);
     if (!r.ok) { setError(r.error ?? null); return; }
@@ -193,6 +195,9 @@ function ModelModal({
         </Select>
       </Field>
       <Field label="Tên dòng xe"><TextInput value={name} onChange={(e) => setName(e.target.value)} placeholder="New Carnival" /></Field>
+      <Field label="Từ khoá nhận diện (phân tách dấu phẩy)" hint="Biệt danh khách hay gõ, dùng để tự dò dòng xe từ lead. Tên dòng xe đã tự khớp, không cần nhập lại. VD: so ren to, sorento may dau">
+        <TextInput value={keywords} onChange={(e) => setKeywords(e.target.value)} placeholder="cx5, cx 5, mazda cx5" />
+      </Field>
       <Field label="Thứ tự hiển thị" hint="Số nhỏ hiển thị trước.">
         <TextInput value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} placeholder="0" inputMode="numeric" />
       </Field>

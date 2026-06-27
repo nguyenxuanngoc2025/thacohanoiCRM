@@ -14,7 +14,7 @@ export default async function CatalogPage() {
   const service = createServiceClient();
   const [{ data: brands }, { data: models }] = await Promise.all([
     service.from('brands').select('id, name, slug').order('name'),
-    service.from('models').select('id, brand_id, name, sort_order, is_active').order('sort_order'),
+    service.from('models').select('id, brand_id, name, sort_order, is_active, keywords').order('sort_order'),
   ]);
 
   return (
