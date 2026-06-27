@@ -38,13 +38,19 @@ export interface OverdueItem {
   overdueHours: number;
 }
 
+// Giới hạn số lead liệt kê trong 1 tin: tin quá dài bị Zalo từ chối ("Tham số không hợp lệ").
+const OVERDUE_MAX_LINES = 20;
+
 export function renderOverdue(showroom: string, items: OverdueItem[]): string {
   const head = `QUÁ HẠN LIÊN HỆ — ${showroom} (${items.length} lead)`;
-  const lines = items.map((it) => {
+  const shown = items.slice(0, OVERDUE_MAX_LINES);
+  const lines = shown.map((it) => {
     const ten = it.fullName?.trim() || 'Khách lẻ';
     const tvbh = it.assignee?.trim() || 'Chưa được phân giao';
     return `• ${ten} ${maskPhone(it.phone)} — ${tvbh} — quá hạn ${it.overdueHours}h`;
   });
+  const remaining = items.length - shown.length;
+  if (remaining > 0) lines.push(`… và ${remaining} lead khác — xem chi tiết trên hệ thống.`);
   return [head, ...lines].join('\n');
 }
 

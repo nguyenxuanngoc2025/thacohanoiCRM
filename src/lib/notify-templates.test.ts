@@ -50,6 +50,18 @@ describe('notify-templates', () => {
     expect(t).toContain('Chưa được phân giao'); // lead chưa giao
   });
 
+  it('renderOverdue: nhiều lead → giới hạn số dòng, phần dư rút gọn "… và N lead khác"', () => {
+    const items = Array.from({ length: 92 }, (_, i) => ({
+      fullName: `KH ${i}`, phone: '+84901234567', assignee: 'B', overdueHours: 5,
+    }));
+    const t = renderOverdue('KIA Hà Nội', items);
+    expect(t).toContain('(92 lead)');               // tiêu đề vẫn tổng đúng
+    const lineCount = t.split('\n').filter((l) => l.startsWith('•')).length;
+    expect(lineCount).toBeLessThanOrEqual(20);        // không liệt kê hết
+    expect(t).toContain('lead khác');                 // có dòng rút gọn
+    expect(t.length).toBeLessThan(2000);              // không vượt giới hạn Zalo
+  });
+
   it('renderDailySr: tổng lead, tỷ lệ LH, phân loại, dòng chưa tuân thủ', () => {
     const t = renderDailySr('KIA Hà Nội', '24/06', {
       total: 10, contacted: 6, pending: 4, overdue: 2,
