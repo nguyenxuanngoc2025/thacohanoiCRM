@@ -1,7 +1,7 @@
 import { type UserRole } from '@/types/database';
 
 // ─── Phạm vi xem lead theo vai trò ──────────────────────────────────────────────
-export type ViewScope = 'company' | 'brand' | 'showroom' | 'assigned';
+export type ViewScope = 'company' | 'brand' | 'showroom' | 'team' | 'assigned';
 
 export const ROLE_SCOPE_KIND: Record<UserRole, ViewScope> = {
   platform_owner: 'company',
@@ -14,26 +14,27 @@ export const ROLE_SCOPE_KIND: Record<UserRole, ViewScope> = {
   gd_showroom: 'showroom',
   mkt_showroom: 'showroom',
   tp_showroom: 'showroom',
+  tp_phong: 'team',
   tvbh: 'assigned',
 };
 
 // Vai trò "điều hành": được phân giao & thêm lead thủ công (TP/Giám đốc/admin).
 // Marketing chỉ xem + báo cáo (không phân giao). TVBH chỉ chăm sóc lead của mình.
 export const CAN_ASSIGN = new Set<UserRole>([
-  'admin', 'gd_cty', 'gd_brand', 'tp_brand', 'gd_showroom', 'tp_showroom',
+  'admin', 'gd_cty', 'gd_brand', 'tp_brand', 'gd_showroom', 'tp_showroom', 'tp_phong',
 ]);
 export const CAN_CREATE_LEAD = CAN_ASSIGN;
 // Báo cáo: mọi vai trò trừ TVBH.
 export const CAN_VIEW_REPORTS = new Set<UserRole>([
   'admin', 'gd_cty', 'mkt_cty', 'gd_brand', 'mkt_brand', 'tp_brand',
-  'gd_showroom', 'mkt_showroom', 'tp_showroom',
+  'gd_showroom', 'mkt_showroom', 'tp_showroom', 'tp_phong',
 ]);
 // Quản trị tài khoản / kênh / cấu hình hệ thống.
 export const CAN_MANAGE_STAFF = new Set<UserRole>(['admin']);
 
 const ALL: UserRole[] = [
   'platform_owner', 'admin', 'gd_cty', 'mkt_cty', 'gd_brand', 'mkt_brand', 'tp_brand',
-  'gd_showroom', 'mkt_showroom', 'tp_showroom', 'tvbh',
+  'gd_showroom', 'mkt_showroom', 'tp_showroom', 'tp_phong', 'tvbh',
 ];
 const ASSIGN: UserRole[] = [...CAN_ASSIGN];
 const REPORTS: UserRole[] = [...CAN_VIEW_REPORTS];
@@ -67,6 +68,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   gd_showroom: 'Giám đốc Showroom',
   mkt_showroom: 'Marketing Showroom',
   tp_showroom: 'TP Bán hàng (Showroom)',
+  tp_phong: 'TP Bán hàng (Phòng)',
   tvbh: 'Tư vấn bán hàng',
 };
 
@@ -81,6 +83,7 @@ export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
   gd_showroom: 'Điều hành 1 showroom',
   mkt_showroom: 'Marketing 1 showroom',
   tp_showroom: 'Trưởng phòng bán hàng showroom',
+  tp_phong: 'Trưởng 1 phòng bán hàng trong showroom',
   tvbh: 'Tư vấn bán hàng',
 };
 
@@ -95,6 +98,7 @@ export const ROLE_SCOPE: Record<UserRole, string> = {
   gd_showroom: 'Theo showroom — toàn bộ lead của showroom',
   mkt_showroom: 'Theo showroom — chỉ xem & báo cáo',
   tp_showroom: 'Theo showroom — toàn bộ lead của showroom',
+  tp_phong: 'Theo phòng — toàn bộ lead của phòng mình',
   tvbh: 'Cá nhân — chỉ lead được giao cho mình',
 };
 
@@ -113,6 +117,7 @@ export const ROLE_CAN: Record<UserRole, string[]> = {
   gd_showroom: [VIEW_ALL + ' (showroom)', ASSIGN_TXT, REPORT],
   mkt_showroom: [VIEW_ALL + ' (showroom)', REPORT],
   tp_showroom: [VIEW_ALL + ' (showroom)', ASSIGN_TXT, REPORT],
+  tp_phong: [VIEW_ALL + ' (phòng)', ASSIGN_TXT, REPORT],
   tvbh: ['Xem & chăm sóc lead được giao', 'Cập nhật trạng thái lead', 'Ghi nhật ký chăm sóc'],
 };
 
@@ -127,6 +132,7 @@ export const ROLE_CANNOT: Record<UserRole, string[]> = {
   gd_showroom: ['Xem lead showroom khác', 'Quản lý nhân sự'],
   mkt_showroom: ['Phân giao lead', 'Xem lead showroom khác'],
   tp_showroom: ['Xem lead showroom khác', 'Quản lý nhân sự'],
+  tp_phong: ['Xem lead phòng khác', 'Quản lý nhân sự'],
   tvbh: ['Xem lead của người khác', 'Phân giao lead', 'Quản lý nhân sự'],
 };
 
@@ -141,7 +147,8 @@ export const ROLE_NEEDS: Record<UserRole, string> = {
   gd_showroom: 'Bắt buộc gán 1 showroom',
   mkt_showroom: 'Bắt buộc gán 1 showroom',
   tp_showroom: 'Bắt buộc gán 1 showroom',
-  tvbh: 'Bắt buộc gán 1 showroom + 1 thương hiệu (phòng bán)',
+  tp_phong: 'Bắt buộc gán 1 phòng bán hàng',
+  tvbh: 'Bắt buộc gán 1 phòng bán hàng',
 };
 
 const C_ADMIN = { bg: '#fef3c7', text: '#92400e', border: '#fde68a' };
@@ -160,12 +167,13 @@ export const ROLE_COLOR: Record<UserRole, { bg: string; text: string; border: st
   gd_showroom: C_SHOWROOM,
   mkt_showroom: C_SHOWROOM,
   tp_showroom: C_SHOWROOM,
+  tp_phong: C_SHOWROOM,
   tvbh: C_TVBH,
 };
 
-/** Vai trò cấp showroom (+ TVBH) bắt buộc gán showroom. */
+/** Vai trò cấp showroom bắt buộc gán showroom. */
 export function roleNeedsShowroom(role: UserRole): boolean {
-  return ROLE_SCOPE_KIND[role] === 'showroom' || role === 'tvbh';
+  return ROLE_SCOPE_KIND[role] === 'showroom';
 }
 
 /** Vai trò cấp thương hiệu bắt buộc gán thương hiệu. */
@@ -174,9 +182,9 @@ export function roleNeedsBrand(role: UserRole): boolean {
 }
 
 /**
- * TVBH bắt buộc gán cả showroom lẫn thương hiệu: 1 showroom có nhiều phòng bán
- * theo từng thương hiệu, nên TVBH thuộc đúng 1 phòng = (showroom + thương hiệu).
+ * TVBH & TP Phòng thuộc đúng 1 phòng bán hàng (= showroom + thương hiệu cố định).
+ * Showroom + thương hiệu được suy ra từ phòng → form chỉ chọn phòng.
  */
-export function roleNeedsShowroomBrand(role: UserRole): boolean {
-  return role === 'tvbh';
+export function roleNeedsSalesTeam(role: UserRole): boolean {
+  return role === 'tvbh' || role === 'tp_phong';
 }

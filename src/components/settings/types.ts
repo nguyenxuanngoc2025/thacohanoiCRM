@@ -22,6 +22,18 @@ export interface ModelRow {
   is_active: boolean;
 }
 
+// Phòng bán hàng (lớp giữa Showroom ↔ TVBH). Mỗi phòng cố định 1 thương hiệu.
+export interface SalesTeamRow {
+  id: string;
+  showroom_id: string;
+  brand_id: string;
+  name: string;
+  head_user_id: string | null;
+  is_default: boolean;
+  // Trọng số phân bổ theo kênh: { facebook: 2, '*': 1, ... }
+  allocations: Record<string, number>;
+}
+
 export interface ChannelRow {
   id: string;
   page_name: string | null;

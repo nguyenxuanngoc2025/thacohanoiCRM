@@ -9,6 +9,7 @@ export type UserRole =
   | 'gd_showroom'   // Giám đốc Showroom
   | 'mkt_showroom'  // Marketing Showroom
   | 'tp_showroom'   // TP Bán hàng (showroom)
+  | 'tp_phong'      // TP Bán hàng (phòng): chỉ phòng mình
   | 'tvbh';         // Tư vấn bán hàng
 export type LeadStatus = 'KHQT' | 'GDTD' | 'KHĐ' | 'Chưa LH được' | 'Fail';
 

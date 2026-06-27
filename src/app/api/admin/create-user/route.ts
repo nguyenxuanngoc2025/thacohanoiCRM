@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient, createClient } from '@/lib/supabase/server';
 import type { UserRole } from '@/types/database';
-import { roleNeedsShowroom, roleNeedsBrand, roleNeedsShowroomBrand } from '@/lib/nav';
+import { roleNeedsShowroom, roleNeedsBrand, roleNeedsSalesTeam } from '@/lib/nav';
 import { usernameToEmail } from '@/lib/account-email';
 
 // auth.users không truy vấn theo email trực tiếp qua admin SDK → phân trang listUsers.
@@ -26,20 +26,22 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await request.json();
-    const { email, full_name, role, showroom_id, brand_id } = body as {
+    const { email, full_name, role, showroom_id, brand_id, sales_team_id } = body as {
       email: string; full_name: string; role: UserRole;
-      showroom_id?: string | null; brand_id?: string | null;
+      showroom_id?: string | null; brand_id?: string | null; sales_team_id?: string | null;
     };
     if (!email || !full_name || !role) {
       return NextResponse.json({ error: 'Thiếu thông tin bắt buộc' }, { status: 400 });
     }
-    // TVBH thuộc 1 phòng bán = (showroom + thương hiệu) → bắt buộc cả hai.
-    const isTvbh = roleNeedsShowroomBrand(role);
-    const needsBrand = roleNeedsBrand(role) || isTvbh;
-    if (roleNeedsShowroom(role) && !showroom_id) {
+    // TVBH & TP Phòng thuộc đúng 1 phòng bán → form chỉ chọn phòng, suy ra showroom + thương hiệu.
+    const needsTeam = roleNeedsSalesTeam(role);
+    if (needsTeam && !sales_team_id) {
+      return NextResponse.json({ error: 'Vai trò này bắt buộc gán 1 phòng bán hàng.' }, { status: 400 });
+    }
+    if (!needsTeam && roleNeedsShowroom(role) && !showroom_id) {
       return NextResponse.json({ error: 'Vai trò này bắt buộc gán showroom.' }, { status: 400 });
     }
-    if (needsBrand && !brand_id) {
+    if (!needsTeam && roleNeedsBrand(role) && !brand_id) {
       return NextResponse.json({ error: 'Vai trò này bắt buộc gán thương hiệu.' }, { status: 400 });
     }
 
@@ -54,16 +56,22 @@ export async function POST(request: NextRequest) {
     if (!company_id) {
       return NextResponse.json({ error: 'Tài khoản admin chưa gắn công ty.' }, { status: 400 });
     }
-    // Showroom (nếu có) phải thuộc công ty của admin.
-    if (showroom_id) {
-      const { data: sr } = await service.from('showrooms').select('id').eq('id', showroom_id).eq('company_id', company_id).maybeSingle();
+    // TVBH/TP Phòng: suy showroom + thương hiệu từ phòng (đã kiểm tra thuộc đúng công ty).
+    let finalShowroomId: string | null = roleNeedsShowroom(role) ? (showroom_id ?? null) : null;
+    let finalBrandId: string | null = roleNeedsBrand(role) ? (brand_id ?? null) : null;
+    let finalTeamId: string | null = null;
+    if (needsTeam) {
+      const { data: team } = await service.from('sales_teams')
+        .select('id, showroom_id, brand_id, company_id')
+        .eq('id', sales_team_id!).eq('company_id', company_id).maybeSingle();
+      if (!team) return NextResponse.json({ error: 'Phòng bán hàng không thuộc công ty của bạn.' }, { status: 400 });
+      finalTeamId = team.id;
+      finalShowroomId = team.showroom_id;
+      finalBrandId = team.brand_id;
+    } else if (finalShowroomId) {
+      // Showroom (nếu có) phải thuộc công ty của admin.
+      const { data: sr } = await service.from('showrooms').select('id').eq('id', finalShowroomId).eq('company_id', company_id).maybeSingle();
       if (!sr) return NextResponse.json({ error: 'Showroom không thuộc công ty của bạn.' }, { status: 400 });
-    }
-    // TVBH: thương hiệu phải là phòng bán mà showroom đó thực sự kinh doanh.
-    if (isTvbh && showroom_id && brand_id) {
-      const { data: sb } = await service.from('showroom_brands')
-        .select('brand_id').eq('showroom_id', showroom_id).eq('brand_id', brand_id).maybeSingle();
-      if (!sb) return NextResponse.json({ error: 'Showroom này không kinh doanh thương hiệu đã chọn.' }, { status: 400 });
     }
 
     // Người dùng có thể nhập tên trơn (vd "nguyenvana") → tự ghép đuôi @thaco.com.vn.
@@ -104,8 +112,9 @@ export async function POST(request: NextRequest) {
       full_name,
       role,
       company_id,
-      showroom_id: roleNeedsShowroom(role) ? (showroom_id ?? null) : null,
-      brand_id: needsBrand ? (brand_id ?? null) : null,
+      showroom_id: finalShowroomId,
+      brand_id: finalBrandId,
+      sales_team_id: finalTeamId,
       is_active: true,
     });
     if (profileError) {

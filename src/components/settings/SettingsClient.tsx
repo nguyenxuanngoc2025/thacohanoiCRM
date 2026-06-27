@@ -2,23 +2,24 @@
 
 import React, { useState } from 'react';
 import {
-  Users, ShieldCheck, Building2, Plug, ListChecks, GitBranch, Bell, ScrollText,
+  Users, ShieldCheck, Building2, Plug, ListChecks, GitBranch, Bell, ScrollText, Boxes,
 } from 'lucide-react';
-import AccountsManager, { RoleReference, type StaffRow, type ShowroomOption } from './AccountsManager';
+import AccountsManager, { RoleReference, type StaffRow, type ShowroomOption, type SalesTeamOption } from './AccountsManager';
 import IntegrationsCatalog from './IntegrationsCatalog';
 import OrgManager from './OrgManager';
 import PipelineReference from './PipelineReference';
 import AssignmentManager from './AssignmentManager';
 import NotificationsManager from './NotificationsManager';
 import ActivityLog from './ActivityLog';
+import SalesTeamsManager from './SalesTeamsManager';
 import type {
-  ShowroomRow, BrandRow, ModelRow, ChannelRow, AssignmentRuleRow, SlaRow, NotifChannelRow, LeadLogRow,
+  ShowroomRow, BrandRow, ModelRow, ChannelRow, AssignmentRuleRow, SlaRow, NotifChannelRow, LeadLogRow, SalesTeamRow,
 } from './types';
 
 export type { ChannelRow };
 
 type ItemKey =
-  | 'accounts' | 'roles' | 'org'
+  | 'accounts' | 'roles' | 'org' | 'teams'
   | 'integrations'
   | 'pipeline' | 'assignment'
   | 'notifications' | 'audit';
@@ -33,6 +34,7 @@ const NAV: NavGroup[] = [
       { key: 'accounts', label: 'Tài khoản', icon: Users },
       { key: 'roles', label: 'Phân quyền', icon: ShieldCheck },
       { key: 'org', label: 'Showroom · Thương hiệu', icon: Building2 },
+      { key: 'teams', label: 'Phòng bán hàng', icon: Boxes },
     ],
   },
   {
@@ -58,13 +60,14 @@ const NAV: NavGroup[] = [
 ];
 
 export default function SettingsClient({
-  staff, showrooms, brands, models, companyId, currentUserId, channels,
+  staff, showrooms, brands, models, salesTeams, companyId, currentUserId, channels,
   assignmentRules, slaConfig, notifChannels, recentLogs, statusCounts, canEditCatalog,
 }: {
   staff: StaffRow[];
   showrooms: ShowroomRow[];
   brands: BrandRow[];
   models: ModelRow[];
+  salesTeams: SalesTeamRow[];
   companyId: string;
   currentUserId: string;
   channels: ChannelRow[];
@@ -77,6 +80,13 @@ export default function SettingsClient({
 }) {
   const [active, setActive] = useState<ItemKey>('accounts');
   const showroomOpts: ShowroomOption[] = showrooms;
+
+  // Tên hiển thị phòng cho dropdown tài khoản: "Showroom · Thương hiệu · Tên phòng".
+  const teamOpts: SalesTeamOption[] = salesTeams.map((t) => {
+    const sr = showrooms.find((s) => s.id === t.showroom_id)?.name ?? 'Showroom';
+    const br = brands.find((b) => b.id === t.brand_id)?.name ?? 'Thương hiệu';
+    return { id: t.id, showroom_id: t.showroom_id, brand_id: t.brand_id, label: `${sr} · ${br} · ${t.name}` };
+  });
 
   return (
     <div className="flex gap-6 items-start">
@@ -112,10 +122,13 @@ export default function SettingsClient({
       {/* Nội dung */}
       <div className="flex-1 min-w-0">
         {active === 'accounts' && (
-          <AccountsManager staff={staff} showrooms={showroomOpts} brands={brands} companyId={companyId} currentUserId={currentUserId} />
+          <AccountsManager staff={staff} showrooms={showroomOpts} brands={brands} salesTeams={teamOpts} companyId={companyId} currentUserId={currentUserId} />
         )}
         {active === 'roles' && <RoleReference />}
         {active === 'org' && <OrgManager showrooms={showrooms} brands={brands} models={models} canEditCatalog={canEditCatalog} />}
+        {active === 'teams' && (
+          <SalesTeamsManager salesTeams={salesTeams} showrooms={showrooms} brands={brands} staff={staff} channels={channels} />
+        )}
         {active === 'integrations' && (
           <IntegrationsCatalog channels={channels} showrooms={showrooms} brands={brands} />
         )}

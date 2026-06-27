@@ -1,7 +1,7 @@
 import { createServiceClient } from '@/lib/supabase/server';
 import { normalizePhone } from '@/lib/phone';
 import { looksLikePersonName } from '@/lib/person-name';
-import { pickNextAssignee, type AssigneeLoad } from '@/lib/assign';
+import { pickNextAssignee, pickWeightedTeam, type AssigneeLoad, type WeightedLoad } from '@/lib/assign';
 import type { IngestPayload, IngestResult } from '@/types/database';
 
 /** Cửa nạp lead chung — mọi kênh (FB webhook, n8n sau này) gọi vào đây. */
@@ -53,24 +53,48 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
     return { ok: true, leadId: existing.id, deduped: true };
   }
 
-  // TVBH active của tất cả showroom ứng viên (1 truy vấn)
-  const { data: tvbhAll } = await db
-    .from('users')
+  // Kênh chuẩn hoá (lowercase) — dùng để khớp tỷ trọng & đếm lead RIÊNG từng kênh.
+  const channelKey = (payload.source ?? 'facebook').trim().toLowerCase() || 'facebook';
+
+  // Phòng bán hàng (sales_teams) của ĐÚNG thương hiệu fanpage, trong các showroom ứng viên.
+  const { data: teamsAll } = await db
+    .from('sales_teams')
     .select('id, showroom_id')
     .in('showroom_id', candidateShowroomIds)
-    .eq('role', 'tvbh')
-    .eq('is_active', true);
+    .eq('brand_id', channel.brand_id);
 
-  const tvbhByShowroom = new Map<string, string[]>();
-  for (const t of tvbhAll ?? []) {
-    const arr = tvbhByShowroom.get(t.showroom_id) ?? [];
+  const teamsByShowroom = new Map<string, string[]>();
+  const teamIds: string[] = [];
+  for (const t of teamsAll ?? []) {
+    teamIds.push(t.id);
+    const arr = teamsByShowroom.get(t.showroom_id) ?? [];
     arr.push(t.id);
-    tvbhByShowroom.set(t.showroom_id, arr);
+    teamsByShowroom.set(t.showroom_id, arr);
+  }
+
+  // TVBH active theo phòng (1 truy vấn). Map theo sales_team_id.
+  const { data: tvbhAll } = teamIds.length
+    ? await db
+        .from('users')
+        .select('id, sales_team_id')
+        .in('sales_team_id', teamIds)
+        .eq('role', 'tvbh')
+        .eq('is_active', true)
+    : { data: [] as { id: string; sales_team_id: string | null }[] };
+
+  const tvbhByTeam = new Map<string, string[]>();
+  for (const t of tvbhAll ?? []) {
+    if (!t.sales_team_id) continue;
+    const arr = tvbhByTeam.get(t.sales_team_id) ?? [];
+    arr.push(t.id);
+    tvbhByTeam.set(t.sales_team_id, arr);
   }
 
   // CẤP 1 — chia đều cho showroom: chọn showroom ít lead đang mở nhất.
-  // Chỉ xét showroom có ≥1 TVBH active để lead có người nhận; nếu không có thì xét hết.
-  const withTvbh = candidateShowroomIds.filter((id) => (tvbhByShowroom.get(id)?.length ?? 0) > 0);
+  // Chỉ xét showroom có ≥1 phòng-của-brand có ≥1 TVBH active; nếu không có thì xét hết.
+  const showroomHasTvbh = (sid: string) =>
+    (teamsByShowroom.get(sid) ?? []).some((tid) => (tvbhByTeam.get(tid)?.length ?? 0) > 0);
+  const withTvbh = candidateShowroomIds.filter(showroomHasTvbh);
   const showroomPool = withTvbh.length > 0 ? withTvbh : candidateShowroomIds;
 
   const showroomLoads: AssigneeLoad[] = [];
@@ -110,22 +134,68 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
   const rule = applicable[0];
 
   let assignedTo: string | null = null;
+  let chosenTeamId: string | null = null;
+
   if (rule?.strategy === 'specific_user' && rule.specific_user_id) {
+    // Rule chỉ định TVBH cố định → suy ra phòng của TVBH đó.
     assignedTo = rule.specific_user_id;
+    const { data: u } = await db
+      .from('users')
+      .select('sales_team_id')
+      .eq('id', rule.specific_user_id)
+      .maybeSingle();
+    chosenTeamId = u?.sales_team_id ?? null;
   } else {
-    // CẤP 2 — least_loaded TVBH trong showroom đã chọn
-    const tvbhIds = tvbhByShowroom.get(chosenShowroomId) ?? [];
-    if (tvbhIds.length > 0) {
-      const loads: AssigneeLoad[] = [];
-      for (const id of tvbhIds) {
+    // CẤP 2 — chọn phòng trong showroom theo tỷ trọng RIÊNG kênh (weighted round-robin theo thâm hụt).
+    const teamsInShowroom = teamsByShowroom.get(chosenShowroomId) ?? [];
+    const teamsWithTvbh = teamsInShowroom.filter((tid) => (tvbhByTeam.get(tid)?.length ?? 0) > 0);
+    const teamPool = teamsWithTvbh.length > 0 ? teamsWithTvbh : teamsInShowroom;
+
+    if (teamPool.length > 0) {
+      // Trọng số theo kênh: khớp channel cụ thể → fallback '*' → mặc định 1.
+      const { data: allocs } = await db
+        .from('team_allocation')
+        .select('sales_team_id, channel, weight')
+        .in('sales_team_id', teamPool);
+      const weightOf = (tid: string): number => {
+        const exact = (allocs ?? []).find(
+          (a) => a.sales_team_id === tid && a.channel.toLowerCase() === channelKey
+        );
+        if (exact) return Number(exact.weight);
+        const star = (allocs ?? []).find((a) => a.sales_team_id === tid && a.channel === '*');
+        if (star) return Number(star.weight);
+        return 1;
+      };
+
+      const weightedLoads: WeightedLoad[] = [];
+      for (const tid of teamPool) {
+        // Đếm lead active CÙNG kênh của phòng này → tỷ lệ tính riêng từng kênh.
         const { count } = await db
           .from('leads')
           .select('id', { count: 'exact', head: true })
-          .eq('assigned_to', id)
+          .eq('sales_team_id', tid)
+          .eq('source', channelKey)
           .or('status.is.null,status.neq.Fail');
-        loads.push({ id, activeLeadCount: count ?? 0 });
+        weightedLoads.push({ id: tid, weight: weightOf(tid), activeLeadCount: count ?? 0 });
       }
-      assignedTo = pickNextAssignee(loads);
+      chosenTeamId = pickWeightedTeam(weightedLoads);
+    }
+
+    // CẤP 3 — least_loaded TVBH trong phòng đã chọn.
+    if (chosenTeamId) {
+      const tvbhIds = tvbhByTeam.get(chosenTeamId) ?? [];
+      if (tvbhIds.length > 0) {
+        const loads: AssigneeLoad[] = [];
+        for (const id of tvbhIds) {
+          const { count } = await db
+            .from('leads')
+            .select('id', { count: 'exact', head: true })
+            .eq('assigned_to', id)
+            .or('status.is.null,status.neq.Fail');
+          loads.push({ id, activeLeadCount: count ?? 0 });
+        }
+        assignedTo = pickNextAssignee(loads);
+      }
     }
   }
 
@@ -146,13 +216,14 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
     .insert({
       company_id: showroom.company_id,
       showroom_id: chosenShowroomId,
+      sales_team_id: chosenTeamId,
       brand_id: channel.brand_id,
       channel_account_id: channel.id,
       assigned_to: assignedTo,
       phone,
       phone_raw: payload.phone_raw,
       full_name: payload.full_name ?? null,
-      source: payload.source ?? 'facebook',
+      source: channelKey, // chuẩn hoá lowercase để đếm/khớp tỷ trọng theo kênh
       status: null, // chưa phân loại — TVBH phân loại sau khi liên hệ
       round: 1,
       next_contact_at: nextContactAt,

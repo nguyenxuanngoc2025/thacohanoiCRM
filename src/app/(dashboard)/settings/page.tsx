@@ -25,7 +25,7 @@ export default async function SettingsPage() {
 
   // Giai đoạn 1: nhân sự + showroom của ĐÚNG công ty này (làm gốc scope cho phần còn lại).
   const [{ data: staff }, { data: showroomRows }] = await Promise.all([
-    service.from('users').select('id, full_name, email, role, showroom_id, brand_id, is_active').eq('company_id', companyId).order('role'),
+    service.from('users').select('id, full_name, email, role, showroom_id, brand_id, sales_team_id, is_active').eq('company_id', companyId).order('role'),
     service.from('showrooms').select('id, name, code').eq('company_id', companyId).order('name'),
   ]);
   const srIds = ((showroomRows ?? []) as { id: string }[]).map((s) => s.id);
@@ -45,6 +45,7 @@ export default async function SettingsPage() {
     { data: notifChannels },
     { data: recentLogs },
     { data: leadStatusRows },
+    { data: salesTeamRows },
   ] = await Promise.all([
     service.from('showroom_brands').select('showroom_id, brand_id').in('showroom_id', srFilter),
     service.from('brands').select('id, name, slug').order('name'),
@@ -56,7 +57,21 @@ export default async function SettingsPage() {
     service.from('notification_channels').select('id, channel, name, target, events, is_active, showroom_id, scope').eq('company_id', companyId).order('created_at', { ascending: false }),
     service.from('lead_logs').select('id, lead_id, user_id, type, content, old_status, new_status, created_at').in('user_id', userFilter).order('created_at', { ascending: false }).limit(50),
     service.from('leads').select('status').eq('company_id', companyId),
+    service.from('sales_teams').select('id, showroom_id, brand_id, name, head_user_id, is_default, sort_order').eq('company_id', companyId).order('sort_order'),
   ]);
+
+  // Trọng số phân bổ theo kênh cho từng phòng (gom vào sales_teams)
+  const teamIds = ((salesTeamRows ?? []) as { id: string }[]).map((t) => t.id);
+  const { data: allocRows } = teamIds.length
+    ? await service.from('team_allocation').select('sales_team_id, channel, weight').in('sales_team_id', teamIds)
+    : { data: [] as { sales_team_id: string; channel: string; weight: number }[] };
+  const allocByTeam: Record<string, Record<string, number>> = {};
+  for (const a of (allocRows ?? []) as { sales_team_id: string; channel: string; weight: number }[]) {
+    (allocByTeam[a.sales_team_id] ??= {})[a.channel] = Number(a.weight);
+  }
+  const salesTeams = ((salesTeamRows ?? []) as {
+    id: string; showroom_id: string; brand_id: string; name: string; head_user_id: string | null; is_default: boolean;
+  }[]).map((t) => ({ ...t, allocations: allocByTeam[t.id] ?? {} }));
 
   // Đếm lead theo trạng thái (phục vụ trang Trạng thái lead)
   const statusCounts: Record<string, number> = {};
@@ -93,6 +108,7 @@ export default async function SettingsPage() {
         showrooms={showrooms ?? []}
         brands={brands ?? []}
         models={models ?? []}
+        salesTeams={salesTeams ?? []}
         companyId={companyId}
         currentUserId={user.id}
         channels={channelsWithShowrooms}
