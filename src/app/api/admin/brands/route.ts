@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { requireAdmin } from '@/lib/admin-guard';
+import { requirePlatformOwner } from '@/lib/platform-guard';
 
-// CRUD brands (thương hiệu KIA / Mazda / ...)
+// CRUD brands (thương hiệu KIA / Mazda / ...) — danh mục dùng chung mọi công ty,
+// chỉ Chủ nền tảng (platform_owner) được sửa.
 function slugify(s: string): string {
   return s
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -11,7 +12,7 @@ function slugify(s: string): string {
 }
 
 export async function POST(request: NextRequest) {
-  const guard = await requireAdmin();
+  const guard = await requirePlatformOwner();
   if (guard.error) return guard.error;
   const { service } = guard.ctx;
 

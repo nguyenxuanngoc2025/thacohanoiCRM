@@ -34,23 +34,22 @@ export default function DashboardShell({
   };
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--color-bg)', flexDirection: 'column' }}>
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        <Sidebar
-          userRole={userRole}
-          userName={userName}
-          userCode={userCode}
-          companyName={companyName}
-          collapsed={collapsed}
-          onToggleCollapse={toggleCollapse}
-        />
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
-          <main style={{ flex: 1, minHeight: 0, overflowY: 'auto', background: 'var(--color-bg)', position: 'relative' }}>
-            {children}
-          </main>
-        </div>
+    // Sidebar chạy full chiều cao; status bar nằm trong cột phải, ngay dưới nội dung chính.
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--color-bg)' }}>
+      <Sidebar
+        userRole={userRole}
+        userName={userName}
+        userCode={userCode}
+        companyName={companyName}
+        collapsed={collapsed}
+        onToggleCollapse={toggleCollapse}
+      />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+        <main style={{ flex: 1, minHeight: 0, overflowY: 'auto', background: 'var(--color-bg)', position: 'relative' }}>
+          {children}
+        </main>
+        <StatusBar role={userRole} companyName={companyName} metrics={metrics} />
       </div>
-      <StatusBar role={userRole} companyName={companyName} metrics={metrics} />
     </div>
   );
 }

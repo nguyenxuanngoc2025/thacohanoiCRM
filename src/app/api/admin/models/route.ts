@@ -1,9 +1,10 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { requireAdmin } from '@/lib/admin-guard';
+import { requirePlatformOwner } from '@/lib/platform-guard';
 
-// CRUD dòng xe (models) theo thương hiệu. Chỉ admin.
+// CRUD dòng xe (models) theo thương hiệu — danh mục dùng chung mọi công ty,
+// chỉ Chủ nền tảng (platform_owner) được sửa.
 export async function POST(request: NextRequest) {
-  const guard = await requireAdmin();
+  const guard = await requirePlatformOwner();
   if (guard.error) return guard.error;
   const { service } = guard.ctx;
 

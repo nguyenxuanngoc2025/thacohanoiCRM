@@ -4,7 +4,7 @@ import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useFormStatus } from 'react-dom';
 import { login } from './actions';
-import { EMAIL_DOMAIN, usernameToEmail } from '@/lib/account-email';
+import { usernameToEmail } from '@/lib/account-email';
 
 const KEYFRAMES = `
   @keyframes fadeUp { from { opacity:0; transform:translate3d(0,24px,0);} to { opacity:1; transform:translate3d(0,0,0);} }
@@ -136,7 +136,7 @@ function LoginForm() {
               <input type="hidden" name="email" value={usernameToEmail(username)} />
               <FloatInput id="login-user" type="text" label="Tên đăng nhập" value={username} onChange={setUsername}
                 focused={focused === 'email'} onFocus={() => setFocused('email')} onBlur={() => setFocused(null)}
-                autoComplete="username" suffix={`@${EMAIL_DOMAIN}`} />
+                autoComplete="username" />
               <FloatInput id="login-pass" name="password" type="password" label="Mật khẩu" value={password} onChange={setPassword}
                 focused={focused === 'password'} onFocus={() => setFocused('password')} onBlur={() => setFocused(null)}
                 autoComplete="current-password" />
@@ -166,7 +166,7 @@ function LoginForm() {
               <img src="https://thacoautohanoi.vn/storage/logo/header-website.webp" alt="Thaco Auto" style={{ height: 22, opacity: 0.35, filter: 'grayscale(1)' }} />
             </div>
           </div>
-          <div style={{ position: 'absolute', bottom: 16, fontSize: 10, color: '#cbd5e1' }}>© 2026 Newtab Agency · Thiết kế &amp; phát triển hệ thống</div>
+          <div style={{ position: 'absolute', bottom: 16, fontSize: 10, color: '#cbd5e1' }}>© 2026 Newtab · Thiết kế &amp; phát triển hệ thống</div>
         </div>
       </div>
     </>

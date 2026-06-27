@@ -59,7 +59,7 @@ const NAV: NavGroup[] = [
 
 export default function SettingsClient({
   staff, showrooms, brands, models, companyId, currentUserId, channels,
-  assignmentRules, slaConfig, notifChannels, recentLogs, statusCounts,
+  assignmentRules, slaConfig, notifChannels, recentLogs, statusCounts, canEditCatalog,
 }: {
   staff: StaffRow[];
   showrooms: ShowroomRow[];
@@ -73,6 +73,7 @@ export default function SettingsClient({
   notifChannels: NotifChannelRow[];
   recentLogs: LeadLogRow[];
   statusCounts: Record<string, number>;
+  canEditCatalog: boolean;
 }) {
   const [active, setActive] = useState<ItemKey>('accounts');
   const showroomOpts: ShowroomOption[] = showrooms;
@@ -114,7 +115,7 @@ export default function SettingsClient({
           <AccountsManager staff={staff} showrooms={showroomOpts} brands={brands} companyId={companyId} currentUserId={currentUserId} />
         )}
         {active === 'roles' && <RoleReference />}
-        {active === 'org' && <OrgManager showrooms={showrooms} brands={brands} models={models} />}
+        {active === 'org' && <OrgManager showrooms={showrooms} brands={brands} models={models} canEditCatalog={canEditCatalog} />}
         {active === 'integrations' && (
           <IntegrationsCatalog channels={channels} showrooms={showrooms} brands={brands} />
         )}

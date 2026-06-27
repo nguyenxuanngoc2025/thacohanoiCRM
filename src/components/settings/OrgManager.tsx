@@ -9,8 +9,8 @@ import {
 } from './ui';
 
 export default function OrgManager({
-  showrooms, brands, models,
-}: { showrooms: ShowroomRow[]; brands: BrandRow[]; models: ModelRow[] }) {
+  showrooms, brands, models, canEditCatalog,
+}: { showrooms: ShowroomRow[]; brands: BrandRow[]; models: ModelRow[]; canEditCatalog: boolean }) {
   const router = useRouter();
   const [flash, setFlash] = useState<string | null>(null);
   const flashMsg = (m: string) => { setFlash(m); setTimeout(() => setFlash(null), 3000); };
@@ -110,8 +110,10 @@ export default function OrgManager({
       <Panel>
         <PanelHeader
           title="Thương hiệu & dòng xe"
-          desc="Mỗi thương hiệu (KIA, Mazda…) gom các dòng xe của nó. Nhấn tên thương hiệu để mở danh sách dòng xe. Lead chống trùng theo từng thương hiệu."
-          action={<PrimaryBtn onClick={() => setBrandEdit('new')}>Thêm thương hiệu</PrimaryBtn>}
+          desc={canEditCatalog
+            ? 'Mỗi thương hiệu (KIA, Mazda…) gom các dòng xe của nó. Nhấn tên thương hiệu để mở danh sách dòng xe. Lead chống trùng theo từng thương hiệu.'
+            : 'Danh mục dùng chung toàn hệ thống, chỉ Chủ nền tảng được sửa. Nhấn tên thương hiệu để xem danh sách dòng xe.'}
+          action={canEditCatalog ? <PrimaryBtn onClick={() => setBrandEdit('new')}>Thêm thương hiệu</PrimaryBtn> : undefined}
         />
         <div className="space-y-2">
           {brands.map((b) => {
@@ -129,11 +131,13 @@ export default function OrgManager({
                     : <ChevronRight size={16} className="text-slate-400 shrink-0" />}
                   <span className="font-semibold text-slate-800">{b.name}</span>
                   <span className="text-xs text-slate-400">{list.length} dòng xe</span>
-                  <div className="ml-auto flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-                    <TextBtn onClick={() => { setNewModelBrand(b.id); setModelEdit('new'); }}>Thêm dòng xe</TextBtn>
-                    <TextBtn onClick={() => setBrandEdit(b)}>Sửa</TextBtn>
-                    <TextBtn danger onClick={() => delBrand(b)}>Xoá</TextBtn>
-                  </div>
+                  {canEditCatalog && (
+                    <div className="ml-auto flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                      <TextBtn onClick={() => { setNewModelBrand(b.id); setModelEdit('new'); }}>Thêm dòng xe</TextBtn>
+                      <TextBtn onClick={() => setBrandEdit(b)}>Sửa</TextBtn>
+                      <TextBtn danger onClick={() => delBrand(b)}>Xoá</TextBtn>
+                    </div>
+                  )}
                 </div>
 
                 {/* Danh sách dòng xe */}
@@ -146,10 +150,12 @@ export default function OrgManager({
                         style={{ opacity: m.is_active ? 1 : 0.5 }}>
                         <span className="text-sm font-medium text-slate-700">{m.name}</span>
                         {!m.is_active && <span className="text-[10px] text-slate-400">(ẩn)</span>}
-                        <div className="ml-auto flex items-center gap-1.5">
-                          <TextBtn onClick={() => setModelEdit(m)}>Sửa</TextBtn>
-                          <TextBtn danger onClick={() => delModel(m)}>Xoá</TextBtn>
-                        </div>
+                        {canEditCatalog && (
+                          <div className="ml-auto flex items-center gap-1.5">
+                            <TextBtn onClick={() => setModelEdit(m)}>Sửa</TextBtn>
+                            <TextBtn danger onClick={() => delModel(m)}>Xoá</TextBtn>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>

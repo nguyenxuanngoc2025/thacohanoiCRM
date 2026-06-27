@@ -11,7 +11,9 @@ export default async function SettingsPage() {
   if (!user) redirect('/login');
 
   const { data: me } = await supabase.from('users').select('role, company_id').eq('id', user.id).maybeSingle();
-  if (me?.role !== 'admin') redirect('/leads');
+  if (me?.role !== 'admin' && me?.role !== 'platform_owner') redirect('/leads');
+  // Danh mục dùng chung (thương hiệu/dòng xe) chỉ Chủ nền tảng được sửa; admin công ty chỉ xem.
+  const canEditCatalog = me.role === 'platform_owner';
 
   // service_role: master catalog (brands/showrooms/channel_accounts) RLS OFF, đọc qua service cho chắc.
   // service_role BỎ QUA RLS → MỌI truy vấn dữ liệu thuộc-công-ty phải tự lọc theo company_id,
@@ -99,6 +101,7 @@ export default async function SettingsPage() {
         notifChannels={notifChannels ?? []}
         recentLogs={recentLogs ?? []}
         statusCounts={statusCounts}
+        canEditCatalog={canEditCatalog}
       />
     </div>
   );

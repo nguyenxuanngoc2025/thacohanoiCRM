@@ -18,7 +18,7 @@ export default function StatusBar({ role, companyName, metrics }: StatusBarProps
   return (
     <div className="status-bar">
       <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#9ca3af', fontWeight: 500 }}>
-        Phát triển bởi <span style={{ fontWeight: 700, color: '#4b5563' }}>Newtab Agency</span>
+        Phát triển bởi <span style={{ fontWeight: 700, color: '#4b5563' }}>Newtab</span>
       </span>
       <div style={{ flex: 1 }} />
 
