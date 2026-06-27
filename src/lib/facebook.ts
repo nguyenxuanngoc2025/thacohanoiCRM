@@ -5,9 +5,10 @@ export interface FbLeadField { name: string; values: string[] }
 /** Lấy chi tiết lead form từ Graph API bằng System User token. */
 export async function fetchLeadDetail(leadgenId: string): Promise<{
   fullName: string | null; phone: string | null; raw: unknown;
+  adName: string | null; formName: string | null; campaignName: string | null;
 }> {
   const token = process.env.FB_SYSTEM_USER_TOKEN!;
-  const res = await fetch(`${GRAPH}/${leadgenId}?access_token=${token}`);
+  const res = await fetch(`${GRAPH}/${leadgenId}?fields=field_data,ad_name,form_name,campaign_name&access_token=${token}`);
   const raw = await res.json();
   if (!res.ok) {
     // Token hết hạn / rate limit → KHÔNG nuốt lỗi âm thầm, để webhook log lại.
@@ -20,6 +21,9 @@ export async function fetchLeadDetail(leadgenId: string): Promise<{
     fullName: get(['full_name', 'name', 'họ_và_tên']),
     phone: get(['phone_number', 'phone', 'số_điện_thoại']),
     raw,
+    adName: typeof raw?.ad_name === 'string' ? raw.ad_name : null,
+    formName: typeof raw?.form_name === 'string' ? raw.form_name : null,
+    campaignName: typeof raw?.campaign_name === 'string' ? raw.campaign_name : null,
   };
 }
 

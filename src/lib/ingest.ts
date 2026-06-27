@@ -2,6 +2,7 @@ import { createServiceClient } from '@/lib/supabase/server';
 import { normalizePhone } from '@/lib/phone';
 import { looksLikePersonName } from '@/lib/person-name';
 import { pickByStrategy, type AssignStrategy, type StrategyCandidate } from '@/lib/assign';
+import { detectModel } from '@/lib/detect-model';
 import type { IngestPayload, IngestResult } from '@/types/database';
 
 /** Cửa nạp lead chung — mọi kênh (FB webhook, n8n sau này) gọi vào đây. */
@@ -55,6 +56,20 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
 
   // Kênh chuẩn hoá (lowercase) — lưu vào cột source để biết nguồn lead.
   const channelKey = (payload.source ?? 'facebook').trim().toLowerCase() || 'facebook';
+
+  // Tự động dò dòng xe khách quan tâm — scope theo brand của fanpage, chỉ điền khi trúng đúng 1 dòng.
+  let modelId: string | null = null;
+  let modelName: string | null = null;
+  if (channel.brand_id && payload.intent_text) {
+    const { data: brandModels } = await db
+      .from('models')
+      .select('id, brand_id, name, keywords, is_active')
+      .eq('brand_id', channel.brand_id)
+      .eq('is_active', true);
+    const models = (brandModels ?? []) as { id: string; brand_id: string; name: string; keywords: string[]; is_active: boolean }[];
+    modelId = detectModel({ brandId: channel.brand_id, text: payload.intent_text, models });
+    if (modelId) modelName = models.find((m) => m.id === modelId)?.name ?? null;
+  }
 
   // Phòng bán hàng (sales_teams) của ĐÚNG thương hiệu fanpage, trong các showroom ứng viên.
   const { data: teamsAll } = await db
@@ -239,6 +254,7 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
       showroom_id: chosenShowroomId,
       sales_team_id: chosenTeamId,
       brand_id: channel.brand_id,
+      model_id: modelId,
       channel_account_id: channel.id,
       assigned_to: assignedTo,
       phone,
@@ -286,7 +302,7 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
       fullName,
       phone,
       source: payload.source ?? 'facebook',
-      model: null,
+      model: modelName,
       assignee: assigneeName,
     });
 

@@ -20,6 +20,7 @@ export interface IngestPayload {
   source?: string | null;
   fb_lead_id?: string | null;
   external_payload?: Record<string, unknown> | null;
+  intent_text?: string; // văn bản gom để dò dòng xe (tuỳ kênh)
 }
 
 export interface IngestResult {

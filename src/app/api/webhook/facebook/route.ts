@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { fetchLeadDetail } from '@/lib/facebook';
+import { fetchLeadDetail, type FbLeadField } from '@/lib/facebook';
 import { ingestLead } from '@/lib/ingest';
 import { extractPhone } from '@/lib/phone';
+import { gatherIntentText } from '@/lib/lead-intent-text';
 
 // GET — Facebook xác minh webhook (hub.challenge)
 export async function GET(request: NextRequest) {
@@ -31,6 +32,13 @@ export async function POST(request: NextRequest) {
           const leadgenId = change.value?.leadgen_id;
           if (!leadgenId) continue;
           const detail = await fetchLeadDetail(String(leadgenId));
+          const fieldData = ((detail.raw as { field_data?: FbLeadField[] })?.field_data) ?? [];
+          const intentText = gatherIntentText({
+            fieldData,
+            formName: detail.formName,
+            adName: detail.adName,
+            campaignName: detail.campaignName,
+          });
           await ingestLead({
             page_id: pageId,
             phone_raw: detail.phone,
@@ -38,6 +46,7 @@ export async function POST(request: NextRequest) {
             source: 'facebook',
             fb_lead_id: String(leadgenId),
             external_payload: detail.raw as Record<string, unknown>,
+            intent_text: intentText,
           });
           continue;
         }
@@ -55,6 +64,7 @@ export async function POST(request: NextRequest) {
             source: 'fb_comment',
             fb_lead_id: v.comment_id ? String(v.comment_id) : null,
             external_payload: v as Record<string, unknown>,
+            intent_text: typeof v.message === 'string' ? v.message : '',
           });
         }
       }
@@ -71,6 +81,7 @@ export async function POST(request: NextRequest) {
           source: 'fb_message',
           fb_lead_id: m.message?.mid ? String(m.message.mid) : null,
           external_payload: m as Record<string, unknown>,
+          intent_text: typeof m.message?.text === 'string' ? m.message.text : '',
         });
       }
     }
