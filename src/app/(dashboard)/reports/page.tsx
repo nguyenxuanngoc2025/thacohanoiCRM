@@ -11,6 +11,7 @@ interface RawLead {
   status: ReportLead['status'];
   source: string | null;
   brand_id: string;
+  model_id: string | null;
   showroom_id: string | null;
   assigned_to: string | null;
   created_at: string;
@@ -18,6 +19,7 @@ interface RawLead {
   next_contact_at: string | null;
   fail_reason: string | null;
   brand: { name: string } | null;
+  model: { name: string } | null;
   showroom: { name: string } | null;
   assignee: { full_name: string } | null;
 }
@@ -68,7 +70,7 @@ export default async function ReportsPage({
   const { data: raw } = await supabase
     .from('leads')
     .select(
-      'status, source, brand_id, showroom_id, assigned_to, created_at, last_contact_at, next_contact_at, fail_reason, brand:brands(name), showroom:showrooms(name), assignee:users!assigned_to(full_name)',
+      'status, source, brand_id, model_id, showroom_id, assigned_to, created_at, last_contact_at, next_contact_at, fail_reason, brand:brands(name), model:models(name), showroom:showrooms(name), assignee:users!assigned_to(full_name)',
     )
     .gte('created_at', iso(fromMs))
     .lte('created_at', iso(toMs))
@@ -80,6 +82,8 @@ export default async function ReportsPage({
     source: l.source,
     brand_id: l.brand_id,
     brand_name: l.brand?.name ?? '—',
+    model_id: l.model_id,
+    model_name: l.model?.name ?? null,
     showroom_id: l.showroom_id,
     showroom_name: l.showroom?.name ?? null,
     assigned_to: l.assigned_to,

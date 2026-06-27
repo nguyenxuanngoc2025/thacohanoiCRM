@@ -110,7 +110,7 @@ export default function TablesTab({ leads }: { leads: ReportLead[] }) {
       </Panel>
 
       <p className="text-xs text-slate-400">
-        Nút <b>Xuất Excel</b> tạo file .xlsx gồm bảng đang xem + 1 sheet cho mỗi chiều (Showroom, Thương hiệu, Nguồn, TVBH, Trạng thái).
+        Nút <b>Xuất Excel</b> tạo file .xlsx gồm bảng đang xem + 1 sheet cho mỗi chiều (Showroom, Thương hiệu, Dòng xe, Nguồn, TVBH, Trạng thái).
       </p>
     </div>
   );

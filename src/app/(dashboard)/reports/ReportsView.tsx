@@ -4,6 +4,7 @@ import React, { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Users, PhoneCall, TrendingUp, FileSignature, Clock, XCircle, LayoutDashboard, Table2 } from 'lucide-react';
 import { computeKpis, type ReportLead } from '@/lib/reports';
+import { STATUS_LABEL, type LeadStatus } from '@/lib/lead-status';
 import { Dropdown, uniqOpts, BRAND, fmt, type Opt } from './ui';
 import OverviewTab from './OverviewTab';
 import TablesTab from './TablesTab';
@@ -26,21 +27,42 @@ export default function ReportsView({
 
   const [tab, setTab] = useState<Tab>('overview');
   const [brand, setBrand] = useState('');
+  const [model, setModel] = useState('');
   const [showroom, setShowroom] = useState('');
   const [source, setSource] = useState('');
+  const [assignee, setAssignee] = useState('');
+  const [status, setStatus] = useState('');
   const [cFrom, setCFrom] = useState(from);
   const [cTo, setCTo] = useState(to);
 
   const brandOpts = useMemo<Opt[]>(() => uniqOpts(leads, (l) => [l.brand_id, l.brand_name]), [leads]);
+  // Dòng xe lọc theo thương hiệu đang chọn (nếu có) — đúng quan hệ cấp con của thương hiệu.
+  const modelOpts = useMemo<Opt[]>(
+    () => uniqOpts(brand ? leads.filter((l) => l.brand_id === brand) : leads, (l) => [l.model_id, l.model_name]),
+    [leads, brand],
+  );
   const showroomOpts = useMemo<Opt[]>(() => uniqOpts(leads, (l) => [l.showroom_id, l.showroom_name]), [leads]);
   const sourceOpts = useMemo<Opt[]>(() => uniqOpts(leads, (l) => [l.source, l.source]), [leads]);
+  const assigneeOpts = useMemo<Opt[]>(() => uniqOpts(leads, (l) => [l.assigned_to, l.assignee_name]), [leads]);
+  const statusOpts = useMemo<Opt[]>(
+    () => uniqOpts(leads, (l) => [l.status, l.status ? STATUS_LABEL[l.status as LeadStatus] : null]),
+    [leads],
+  );
+
+  // Đổi thương hiệu thì bỏ dòng xe đang chọn (tránh chọn dòng xe của hãng khác).
+  const onBrand = (v: string) => { setBrand(v); setModel(''); };
+  const hasFilter = brand || model || showroom || source || assignee || status;
+  const clearFilters = () => { setBrand(''); setModel(''); setShowroom(''); setSource(''); setAssignee(''); setStatus(''); };
 
   const filtered = useMemo(
     () => leads.filter((l) =>
       (!brand || l.brand_id === brand) &&
+      (!model || l.model_id === model) &&
       (!showroom || l.showroom_id === showroom) &&
-      (!source || l.source === source)),
-    [leads, brand, showroom, source],
+      (!source || l.source === source) &&
+      (!assignee || l.assigned_to === assignee) &&
+      (!status || l.status === status)),
+    [leads, brand, model, showroom, source, assignee, status],
   );
 
   const kpis = useMemo(() => computeKpis(filtered, nowMs), [filtered, nowMs]);
@@ -86,11 +108,14 @@ export default function ReportsView({
       {/* Lọc nhanh */}
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Lọc nhanh</span>
-        <Dropdown value={brand} onChange={setBrand} placeholder="Tất cả thương hiệu" options={brandOpts} />
+        <Dropdown value={brand} onChange={onBrand} placeholder="Tất cả thương hiệu" options={brandOpts} />
+        <Dropdown value={model} onChange={setModel} placeholder="Tất cả dòng xe" options={modelOpts} />
         <Dropdown value={showroom} onChange={setShowroom} placeholder="Tất cả showroom" options={showroomOpts} />
         <Dropdown value={source} onChange={setSource} placeholder="Tất cả nguồn" options={sourceOpts} />
-        {(brand || showroom || source) && (
-          <button onClick={() => { setBrand(''); setShowroom(''); setSource(''); }}
+        <Dropdown value={assignee} onChange={setAssignee} placeholder="Tất cả TVBH" options={assigneeOpts} />
+        <Dropdown value={status} onChange={setStatus} placeholder="Tất cả trạng thái" options={statusOpts} />
+        {hasFilter && (
+          <button onClick={clearFilters}
             className="text-xs text-rose-600 hover:underline">Xoá lọc</button>
         )}
       </div>

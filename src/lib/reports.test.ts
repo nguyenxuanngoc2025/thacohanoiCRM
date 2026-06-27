@@ -1,12 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import {
-  computeKpis, computeFunnel, groupBySource, groupByAssignee,
-  dailyTrend, failReasons, statusDistribution, isOverdue, crossShowroomBrand,
+  computeKpis, computeFunnel, groupBySource, groupByAssignee, groupByModel,
+  dailyTrend, failReasons, statusDistribution, isOverdue, crossShowroomBrand, crossDimension,
   type ReportLead,
 } from './reports';
 
 const base: ReportLead = {
   status: null, source: 'facebook', brand_id: 'b1', brand_name: 'KIA',
+  model_id: 'm1', model_name: 'Sonet',
   showroom_id: 's1', showroom_name: 'KIA HN', assigned_to: 'u1', assignee_name: 'An',
   created_at: '2026-06-10T03:00:00Z', last_contact_at: null, next_contact_at: null, fail_reason: null,
 };
@@ -118,6 +119,38 @@ describe('groupByAssignee', () => {
     expect(rows).toHaveLength(2);
     expect(rows[0].label).toBe('Bình');
     expect(rows[0].won).toBe(1);
+  });
+});
+
+describe('groupByModel', () => {
+  it('gom theo dòng xe; lead chưa gán gộp "Chưa gán dòng xe"', () => {
+    const leads = [
+      L({ model_id: 'm1', model_name: 'Sonet', status: 'KHĐ' }),
+      L({ model_id: 'm1', model_name: 'Sonet', status: 'KHQT' }),
+      L({ model_id: 'm2', model_name: 'Seltos', status: 'Fail' }),
+      L({ model_id: null, model_name: null }),
+    ];
+    const rows = groupByModel(leads, NOW);
+    expect(rows[0].key).toBe('m1');
+    expect(rows[0].leads).toBe(2);
+    expect(rows[0].won).toBe(1);
+    const none = rows.find((r) => r.key === '__none__');
+    expect(none?.label).toBe('Chưa gán dòng xe');
+  });
+});
+
+describe('crossDimension brand × model', () => {
+  it('hàng=thương hiệu, cột=dòng xe — ô số lead/ký HĐ đúng', () => {
+    const leads = [
+      L({ brand_id: 'kia', brand_name: 'KIA', model_id: 'sonet', model_name: 'Sonet', status: 'KHĐ' }),
+      L({ brand_id: 'kia', brand_name: 'KIA', model_id: 'sonet', model_name: 'Sonet', status: 'KHQT' }),
+      L({ brand_id: 'kia', brand_name: 'KIA', model_id: 'seltos', model_name: 'Seltos', status: 'KHĐ' }),
+    ];
+    const p = crossDimension(leads, 'brand', 'model');
+    const kia = p.rows.find((r) => r.key === 'kia')!;
+    expect(kia.cells['sonet']).toEqual({ leads: 2, won: 1 });
+    expect(kia.cells['seltos']).toEqual({ leads: 1, won: 1 });
+    expect(kia.total).toEqual({ leads: 3, won: 2 });
   });
 });
 
