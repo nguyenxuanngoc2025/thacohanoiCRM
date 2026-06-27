@@ -62,10 +62,14 @@ export async function resolveCompanyFromHost(rawHost: string): Promise<TenantCom
   return (data as unknown as TenantCompany) ?? null;
 }
 
-/** Đọc Host của request hiện tại (server component / route) → tenant. */
+/** Đọc Host của request hiện tại (server component / route) → tenant.
+ * Ưu tiên `x-forwarded-host`: khi Next render trang đích trong luồng Server Action
+ * redirect, `host` là địa chỉ bind nội bộ (vd localhost:3007), còn host thật do
+ * reverse proxy (Caddy/Hostinger) chuyển qua `x-forwarded-host`. */
 export async function getTenant(): Promise<TenantCompany | null> {
   const h = await headers();
-  return resolveCompanyFromHost(h.get('host') ?? '');
+  const host = h.get('x-forwarded-host') ?? h.get('host') ?? '';
+  return resolveCompanyFromHost(host);
 }
 
 /**
