@@ -1,10 +1,13 @@
 // Hàm thuần render nội dung tin Zalo. KHÔNG emoji (preference user).
 // zca-bot chỉ gửi payload.text — mọi logic nội dung nằm ở đây.
 
+import { formatPhoneDisplay } from './phone';
+
 // Che 3 số cuối SĐT khi gửi vào nhóm chung: chống TVBH xem trọn SĐT KH của TVBH khác.
 // TVBH phụ trách vẫn xem SĐT đầy đủ trong app (lead của mình).
+// Luôn hiển thị dạng 10 chữ số (0xxxxxxxxx), KHÔNG dùng +84.
 export function maskPhone(phone: string): string {
-  const p = phone.trim();
+  const p = formatPhoneDisplay(phone).trim();
   if (p.length <= 3) return '***';
   return p.slice(0, -3) + '***';
 }

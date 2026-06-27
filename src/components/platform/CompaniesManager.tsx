@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { EMAIL_DOMAIN } from '@/lib/account-email';
 import { STATUS_LABEL, type LeadStatus } from '@/lib/lead-status';
+import { formatPhoneDisplay } from '@/lib/phone';
 import type { PlatformCompany, PlatformBrand, CompanyViewData } from './types';
 
 async function patchCompany(body: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
@@ -233,7 +234,7 @@ function CompanyViewModal({ company, onClose }: { company: PlatformCompany; onCl
                     {data.recentLeads.map((l) => (
                       <tr key={l.id} className="border-t border-slate-100">
                         <td className="px-3 py-2 text-slate-700">{l.full_name ?? '—'}</td>
-                        <td className="px-3 py-2 font-mono text-xs text-slate-500">{l.phone}</td>
+                        <td className="px-3 py-2 font-mono text-xs text-slate-500">{formatPhoneDisplay(l.phone)}</td>
                         <td className="px-3 py-2 text-slate-600">{STATUS_LABEL[l.status as LeadStatus] ?? l.status}</td>
                         <td className="px-3 py-2 text-slate-600">{l.showroom_name ?? '—'}</td>
                         <td className="px-3 py-2 text-slate-400 text-xs whitespace-nowrap">{new Date(l.created_at).toLocaleDateString('vi-VN')}</td>

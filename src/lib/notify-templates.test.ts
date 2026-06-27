@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { renderNewLead, renderOverdue, renderDailySr, renderDailyMgmt, maskPhone } from './notify-templates';
 
 describe('notify-templates', () => {
-  it('maskPhone: che 3 số cuối bằng ***', () => {
-    expect(maskPhone('+84901234567')).toBe('+84901234***');
+  it('maskPhone: hiển thị 10 chữ số (0...) + che 3 số cuối', () => {
+    expect(maskPhone('+84901234567')).toBe('0901234***'); // +84 → 0, che 3 số cuối
     expect(maskPhone('0901234567')).toBe('0901234***');
     expect(maskPhone('123')).toBe('***');
   });
@@ -16,8 +16,9 @@ describe('notify-templates', () => {
     expect(t).toContain('LEAD MỚI');
     expect(t).toContain('KIA Hà Nội');
     expect(t).toContain('Nguyễn Văn A');
-    expect(t).toContain('+84901234***');     // SĐT che 3 số cuối
-    expect(t).not.toContain('+84901234567');  // KHÔNG lộ SĐT đầy đủ
+    expect(t).toContain('0901234***');        // SĐT dạng 10 chữ số, che 3 số cuối
+    expect(t).not.toContain('+84');           // KHÔNG dùng +84
+    expect(t).not.toContain('0901234567');    // KHÔNG lộ SĐT đầy đủ
     expect(t).toContain('Trần B');
     expect(t).not.toMatch(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u); // không emoji
   });
@@ -45,8 +46,9 @@ describe('notify-templates', () => {
     expect(t).toContain('(2 lead)');
     expect(t).toContain('quá hạn 5h');
     expect(t).toContain('Khách lẻ');
-    expect(t).toContain('+84901234***');      // SĐT che 3 số cuối
-    expect(t).not.toContain('+84901234567');   // KHÔNG lộ đầy đủ
+    expect(t).toContain('0901234***');         // SĐT dạng 10 chữ số, che 3 số cuối
+    expect(t).not.toContain('+84');            // KHÔNG dùng +84
+    expect(t).not.toContain('0901234567');     // KHÔNG lộ đầy đủ
     expect(t).toContain('Chưa được phân giao'); // lead chưa giao
   });
 

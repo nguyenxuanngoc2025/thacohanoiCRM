@@ -3,6 +3,7 @@
 import React, { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { reassignLead, autoDistributeLeads } from '../leads/actions';
+import { formatPhoneDisplay } from '@/lib/phone';
 
 export interface UnassignedLead {
   id: string;
@@ -12,6 +13,7 @@ export interface UnassignedLead {
   created_at: string;
   showroom_id: string | null;
   brand_name: string;
+  model_name: string | null;
   showroom_name: string | null;
 }
 
@@ -99,6 +101,7 @@ export default function AssignView({ leads, tvbh }: { leads: UnassignedLead[]; t
                   <tr>
                     <th className="px-5 py-2.5 font-semibold">Khách hàng</th>
                     <th className="px-3 py-2.5 font-semibold">Thương hiệu</th>
+                    <th className="px-3 py-2.5 font-semibold">Dòng xe</th>
                     <th className="px-3 py-2.5 font-semibold">Showroom</th>
                     <th className="px-3 py-2.5 font-semibold">Ngày</th>
                     <th className="px-5 py-2.5 font-semibold text-right">Giao cho</th>
@@ -113,9 +116,14 @@ export default function AssignView({ leads, tvbh }: { leads: UnassignedLead[]; t
                       <tr key={l.id} className="border-t border-slate-100">
                         <td className="px-5 py-2.5">
                           <div className="font-medium text-slate-800">{l.full_name ?? 'Khách lẻ'}</div>
-                          <div className="text-xs text-slate-400">{l.phone}{l.source ? ` · ${l.source}` : ''}</div>
+                          <div className="text-xs text-slate-400">{formatPhoneDisplay(l.phone)}{l.source ? ` · ${l.source}` : ''}</div>
                         </td>
                         <td className="px-3 py-2.5 text-slate-600">{l.brand_name}</td>
+                        <td className="px-3 py-2.5">
+                          {l.model_name
+                            ? <span className="inline-flex text-xs font-medium text-slate-700 bg-slate-100 rounded-full px-2 py-0.5">{l.model_name}</span>
+                            : <span className="text-slate-400">—</span>}
+                        </td>
                         <td className="px-3 py-2.5 text-slate-600">{l.showroom_name ?? '—'}</td>
                         <td className="px-3 py-2.5 text-slate-500 whitespace-nowrap">{fmtDate(l.created_at)}</td>
                         <td className="px-5 py-2.5 text-right">

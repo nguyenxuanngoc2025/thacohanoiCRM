@@ -18,6 +18,14 @@ describe('normalizePhone', () => {
     expect(normalizePhone('')).toBeNull();
     expect(normalizePhone('abc')).toBeNull();
   });
+  it('chap nhan SDT khong co so 0 dau (9 chu so) → +84', () => {
+    expect(normalizePhone('938806341')).toBe('+84938806341');
+  });
+  it('loai SDT khong phai 10 chu so (local != 9)', () => {
+    expect(normalizePhone('093880634')).toBeNull();    // 9 chu so hien thi (local 8)
+    expect(normalizePhone('09388063412')).toBeNull();  // 11 chu so hien thi (local 10)
+    expect(normalizePhone('+8493880634')).toBeNull();  // local 8
+  });
 });
 
 describe('extractPhone', () => {

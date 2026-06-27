@@ -1,4 +1,8 @@
-/** Chuan hoa SDT VN ve +84... (khoa dinh danh noi bo). Tra null neu khong hop le. */
+/**
+ * Chuan hoa SDT VN ve +84... (khoa dinh danh noi bo). Tra null neu khong hop le.
+ * Quy uoc: SDT hop le = dung 10 chu so dang hien thi (0 + 9 chu so) => phan local DUNG 9 chu so.
+ * Moi so khac 10 chu so => khong tinh la lead (tra null).
+ */
 export function normalizePhone(input: string | null | undefined): string | null {
   if (!input) return null;
   const digits = input.replace(/[^\d+]/g, '');
@@ -7,7 +11,7 @@ export function normalizePhone(input: string | null | undefined): string | null 
   else if (digits.startsWith('84')) local = digits.slice(2);
   else if (digits.startsWith('0')) local = digits.slice(1);
   else local = digits.replace(/^\+/, '');
-  if (!/^\d{9,10}$/.test(local)) return null;
+  if (!/^\d{9}$/.test(local)) return null;
   return '+84' + local;
 }
 

@@ -210,6 +210,39 @@ export async function updateLead(input: LeadUpdateInput) {
 }
 
 /**
+ * Đổi dòng xe của lead (sửa nhanh ngay trong bảng). null = bỏ dòng xe.
+ * CHỈ ghi cột model_id — KHÔNG đụng trạng thái/đánh dấu liên hệ. Ghi log 'system'.
+ */
+export async function setLeadModel(leadId: string, modelId: string | null) {
+  const db = await createClient();
+  const { data: { user } } = await db.auth.getUser();
+  if (!user) return { ok: false as const, error: 'Chưa đăng nhập.' };
+
+  const { data: prev } = await db.from('leads').select('model_id').eq('id', leadId).maybeSingle();
+  if ((prev?.model_id ?? null) === modelId) return { ok: true as const };
+
+  const { error } = await db.from('leads').update({ model_id: modelId }).eq('id', leadId);
+  if (error) return { ok: false as const, error: error.message };
+
+  // Tên dòng xe để ghi log dễ đọc
+  let newName = 'Bỏ dòng xe';
+  if (modelId) {
+    const { data: m } = await db.from('models').select('name').eq('id', modelId).maybeSingle();
+    newName = m?.name ?? '—';
+  }
+  await db.from('lead_logs').insert({
+    lead_id: leadId,
+    user_id: user.id,
+    type: 'system',
+    content: `Cập nhật dòng xe: ${newName}.`,
+  });
+
+  revalidatePath('/leads');
+  revalidatePath('/assign');
+  return { ok: true as const };
+}
+
+/**
  * Đổi người phụ trách (chỉ admin/manager). TVBH không có quyền.
  * Ghi log 'system' để truy vết ai đổi, từ ai sang ai.
  */

@@ -17,6 +17,7 @@ interface RawUnassigned {
   created_at: string;
   showroom_id: string | null;
   brand: { name: string } | null;
+  model: { name: string } | null;
   showroom: { name: string } | null;
 }
 
@@ -35,7 +36,7 @@ export default async function AssignPage() {
   ] = await Promise.all([
     supabase
       .from('leads')
-      .select('id, full_name, phone, source, created_at, showroom_id, brand:brands(name), showroom:showrooms(name)')
+      .select('id, full_name, phone, source, created_at, showroom_id, brand:brands(name), model:models(name), showroom:showrooms(name)')
       .is('assigned_to', null)
       .order('created_at', { ascending: false })
       .limit(300),
@@ -76,6 +77,7 @@ export default async function AssignPage() {
     created_at: l.created_at,
     showroom_id: l.showroom_id,
     brand_name: l.brand?.name ?? '—',
+    model_name: l.model?.name ?? null,
     showroom_name: l.showroom?.name ?? null,
   }));
 

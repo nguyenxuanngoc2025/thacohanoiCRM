@@ -11,7 +11,7 @@ import { formatPhoneDisplay } from '@/lib/phone';
 import { matchesQuery } from '@/lib/search';
 import { STATUS_OPTIONS, FAIL_REASONS, isContacted, type LeadStatus } from '@/lib/lead-status';
 import { sourceLabel, sourcePlatform } from '@/lib/source';
-import { classifyLead, markContacted, unmarkContacted, bulkReassign, deleteLeads } from './actions';
+import { classifyLead, markContacted, unmarkContacted, bulkReassign, deleteLeads, setLeadModel } from './actions';
 import type { ModelOption, BrandOption, ShowroomOption, AssigneeOption } from './LeadsView';
 import LeadDrawer from './LeadDrawer';
 import NewLeadModal from './NewLeadModal';
@@ -231,6 +231,93 @@ function Filter({ value, onChange, placeholder, options }: {
             ))}
           </div>
         </>
+      )}
+    </>
+  );
+}
+
+// Sửa nhanh dòng xe ngay trong bảng — popup chọn dòng xe (lọc theo thương hiệu của lead).
+// Click pill → mở danh sách dòng xe cùng thương hiệu; chọn = cập nhật ngay (server action),
+// kèm tuỳ chọn "Bỏ dòng xe". KHÔNG mở LeadDrawer, KHÔNG đụng trạng thái/liên hệ.
+function ModelPicker({ lead, models, pending, start }: {
+  lead: LeadRow;
+  models: ModelOption[];
+  pending: boolean;
+  start: (cb: () => void) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ left: number; top?: number; bottom?: number } | null>(null);
+  const btnRef = React.useRef<HTMLButtonElement>(null);
+
+  const brandModels = models.filter((m) => m.brand_id === lead.brand_id);
+  const close = () => setOpen(false);
+
+  const toggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (open) { close(); return; }
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r) {
+      const below = window.innerHeight - r.bottom;
+      if (below < 300 && r.top > below) setPos({ left: r.left, bottom: window.innerHeight - r.top + 4 });
+      else setPos({ left: r.left, top: r.bottom + 4 });
+    }
+    setOpen(true);
+  };
+
+  const pick = (modelId: string | null) => {
+    close();
+    if ((lead.model_id ?? null) === modelId) return;
+    start(() => { void setLeadModel(lead.id, modelId); });
+  };
+
+  return (
+    <>
+      <button
+        ref={btnRef} disabled={pending} onClick={toggle}
+        title="Bấm để đổi dòng xe"
+        className={`inline-flex items-center gap-1 text-xs rounded-full px-2.5 py-1 disabled:opacity-50 ${
+          lead.model_name
+            ? 'font-medium text-slate-700 bg-slate-100 hover:bg-slate-200'
+            : 'text-slate-400 border border-dashed border-slate-300 hover:border-slate-400 hover:text-slate-500'
+        }`}
+      >
+        {lead.model_name ?? 'Chọn dòng xe'} <ChevronDown size={11} className="opacity-60" />
+      </button>
+      {open && pos && createPortal(
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 9998 }} onClick={(e) => { e.stopPropagation(); close(); }} />
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'fixed', top: pos.top, bottom: pos.bottom, left: pos.left, minWidth: 200, zIndex: 9999,
+              background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.12)', padding: 6,
+              maxHeight: '70vh', overflowY: 'auto',
+            }}
+          >
+            <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide px-2 py-1">{lead.brand_name}</div>
+            {brandModels.length === 0 ? (
+              <div className="text-sm text-slate-400 px-2 py-1.5">Thương hiệu chưa có dòng xe.</div>
+            ) : (
+              brandModels.map((m) => (
+                <button key={m.id} onClick={() => pick(m.id)}
+                  className={`flex items-center gap-2 w-full text-left text-sm rounded-md px-2 py-1.5 hover:bg-slate-50 ${
+                    lead.model_id === m.id ? 'text-[#004B9B] font-medium' : 'text-slate-700'
+                  }`}>
+                  {lead.model_id === m.id && <Check size={13} />}
+                  <span className={lead.model_id === m.id ? '' : 'pl-[21px]'}>{m.name}</span>
+                </button>
+              ))
+            )}
+            {lead.model_id && (
+              <button onClick={() => pick(null)}
+                className="flex items-center gap-2 w-full text-left text-sm rounded-md px-2 py-1.5 hover:bg-slate-50 text-rose-600 border-t border-slate-100 mt-1 pt-1.5">
+                <span className="pl-[21px]">Bỏ dòng xe</span>
+              </button>
+            )}
+          </div>
+        </>,
+        document.body,
       )}
     </>
   );
@@ -683,7 +770,7 @@ export default function LeadsTable({
       case 'phone': return <span className="text-slate-600">{formatPhoneDisplay(l.phone)}</span>;
       case 'showroom': return <span className="text-slate-600">{l.showroom_name ?? '—'}</span>;
       case 'brand': return <span className="text-slate-600">{l.brand_name}</span>;
-      case 'model': return <span className="text-slate-600">{l.model_name ?? '—'}</span>;
+      case 'model': return <ModelPicker lead={l} models={models} pending={pending} start={start} />;
       case 'assignee': return <span className="text-slate-600">{l.assignee_name ?? '—'}</span>;
       case 'contactedAt':
         return <span className="text-slate-500">{contacted ? fmtDate(l.last_contact_at!) : '—'}</span>;
