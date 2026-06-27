@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import {
   PhoneCall, Check, ChevronUp, ChevronDown, ChevronsUpDown, ChevronLeft,
   SlidersHorizontal, UserPlus, Search, Download, AlertTriangle, ListFilter, Trash2,
+  GripVertical, Pin,
 } from 'lucide-react';
 import { formatPhoneDisplay } from '@/lib/phone';
 import { matchesQuery } from '@/lib/search';
@@ -143,6 +144,10 @@ const SEL_W = 44;
 
 const STORAGE_KEY = 'leads.cols.v5';
 const DEFAULT_HIDDEN: ColKey[] = ['source', 'model', 'contactedAt', 'note', 'next', 'count'];
+
+// Thứ tự cột do người dùng kéo-thả (chỉ áp dụng cho cột KHÔNG đóng băng; cột sticky luôn ghim đầu).
+const ORDER_KEY = 'leads.colorder.v1';
+const DEFAULT_ORDER: ColKey[] = COLS.filter((c) => !STICKY.includes(c.key)).map((c) => c.key);
 
 const fmtDate = (v: string) => new Date(v).toLocaleString('vi-VN', {
   day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
@@ -444,6 +449,9 @@ export default function LeadsTable({
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [pending, start] = useTransition();
   const [hidden, setHidden] = useState<Set<ColKey>>(new Set(DEFAULT_HIDDEN));
+  const [order, setOrder] = useState<ColKey[]>(DEFAULT_ORDER);
+  const [dragKey, setDragKey] = useState<ColKey | null>(null);
+  const [overKey, setOverKey] = useState<ColKey | null>(null);
   const [colMenu, setColMenu] = useState(false);
   const [openLead, setOpenLead] = useState<LeadRow | null>(null);
   const [sel, setSel] = useState<Set<string>>(new Set());
@@ -472,11 +480,20 @@ export default function LeadsTable({
     setColMenu(true);
   };
 
-  // Khôi phục cấu hình cột hiển thị
+  // Khôi phục cấu hình cột hiển thị + thứ tự cột
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) setHidden(new Set(JSON.parse(raw) as ColKey[]));
+    } catch { /* ignore */ }
+    try {
+      const rawOrder = localStorage.getItem(ORDER_KEY);
+      if (rawOrder) {
+        // Giữ thứ tự đã lưu cho cột còn tồn tại, nối thêm cột mới (nếu sau này thêm cột) vào cuối.
+        const saved = (JSON.parse(rawOrder) as ColKey[]).filter((k) => DEFAULT_ORDER.includes(k));
+        const missing = DEFAULT_ORDER.filter((k) => !saved.includes(k));
+        setOrder([...saved, ...missing]);
+      }
     } catch { /* ignore */ }
   }, []);
 
@@ -492,6 +509,21 @@ export default function LeadsTable({
     });
   };
 
+  // Kéo-thả đổi thứ tự cột (chèn cột `from` vào vị trí của cột `to`).
+  const moveCol = (from: ColKey, to: ColKey) => {
+    if (from === to) return;
+    setOrder((prev) => {
+      const arr = [...prev];
+      const fi = arr.indexOf(from);
+      const ti = arr.indexOf(to);
+      if (fi < 0 || ti < 0) return prev;
+      arr.splice(fi, 1);
+      arr.splice(ti, 0, from);
+      try { localStorage.setItem(ORDER_KEY, JSON.stringify(arr)); } catch { /* ignore */ }
+      return arr;
+    });
+  };
+
   const setF = (k: keyof Filters, v: string) =>
     setFilters((prev) => ({ ...prev, [k]: v, ...(k === 'brand' ? { model: '' } : {}) }));
 
@@ -499,7 +531,10 @@ export default function LeadsTable({
   const activeFilters = [filters.month, filters.showroom, filters.brand, filters.model, filters.source, filters.assignee, filters.status].filter(Boolean).length;
   const clearFilters = () => setFilters((prev) => ({ ...EMPTY_FILTERS, q: prev.q }));
 
-  const visibleCols = COLS.filter((c) => !hidden.has(c.key));
+  // Cột sticky luôn ghim đầu theo thứ tự cố định; cột còn lại theo thứ tự người dùng kéo-thả.
+  const byKey = (k: ColKey) => COLS.find((c) => c.key === k)!;
+  const orderedCols: ColDef[] = [...STICKY.map(byKey), ...order.map(byKey)];
+  const visibleCols = orderedCols.filter((c) => !hidden.has(c.key));
 
   // Tính offset trái cho các cột đóng băng (chỉ những cột đang hiện); chừa chỗ cột chọn.
   const leftMap: Partial<Record<ColKey, number>> = {};
@@ -783,17 +818,50 @@ export default function LeadsTable({
                   }}
                 >
                   <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide px-2 py-1.5">Tùy chỉnh cột</div>
-                  {COLS.map((c) => (
+                  {/* Cột đóng băng (ghim trái khi cuộn ngang) — không đổi thứ tự */}
+                  {STICKY.map(byKey).map((c) => (
                     <label key={c.key} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer text-sm text-slate-700">
+                      <Pin size={13} className="text-slate-300 shrink-0" />
                       <input
                         type="checkbox"
                         checked={!hidden.has(c.key)}
                         onChange={() => toggleCol(c.key)}
                         className="accent-[#004B9B]"
                       />
-                      {c.label}
+                      <span className="flex-1">{c.label}</span>
                     </label>
                   ))}
+                  <div className="my-1.5 border-t border-slate-100" />
+                  <div className="text-[10px] text-slate-400 px-2 pb-1">Kéo để đổi thứ tự</div>
+                  {/* Cột còn lại — kéo-thả đổi thứ tự */}
+                  {order.map(byKey).map((c) => {
+                    const isOver = overKey === c.key && dragKey !== c.key;
+                    return (
+                      <label
+                        key={c.key}
+                        draggable
+                        onDragStart={() => setDragKey(c.key)}
+                        onDragEnd={() => { setDragKey(null); setOverKey(null); }}
+                        onDragOver={(e) => { e.preventDefault(); if (overKey !== c.key) setOverKey(c.key); }}
+                        onDrop={(e) => { e.preventDefault(); if (dragKey) moveCol(dragKey, c.key); setDragKey(null); setOverKey(null); }}
+                        className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer text-sm text-slate-700 transition-colors"
+                        style={{
+                          background: isOver ? '#e6f0fa' : undefined,
+                          opacity: dragKey === c.key ? 0.4 : 1,
+                          borderTop: isOver ? '2px solid #004B9B' : '2px solid transparent',
+                        }}
+                      >
+                        <GripVertical size={14} className="text-slate-300 shrink-0 cursor-grab active:cursor-grabbing" />
+                        <input
+                          type="checkbox"
+                          checked={!hidden.has(c.key)}
+                          onChange={() => toggleCol(c.key)}
+                          className="accent-[#004B9B]"
+                        />
+                        <span className="flex-1">{c.label}</span>
+                      </label>
+                    );
+                  })}
                 </div>
               </>,
               document.body
