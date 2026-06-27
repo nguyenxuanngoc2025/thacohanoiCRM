@@ -20,9 +20,13 @@ export async function login(formData: FormData) {
     await supabase.auth.signOut();
     redirect('/login?error=wrongtenant');
   }
-  // Quản trị vào thẳng trang Cài đặt; các vai trò khác vào danh sách Lead.
-  const landing = profile?.role === 'admin' || profile?.role === 'platform_owner'
-    ? '/settings' : '/leads';
+  // Chủ nền tảng vào bảng điều khiển nền tảng; quản trị công ty vào Cài đặt;
+  // các vai trò khác vào danh sách Lead.
+  const landing = profile?.role === 'platform_owner'
+    ? '/admin'
+    : profile?.role === 'admin'
+      ? '/settings'
+      : '/leads';
   redirect(landing);
 }
 
