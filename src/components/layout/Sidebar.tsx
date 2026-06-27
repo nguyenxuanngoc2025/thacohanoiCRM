@@ -83,20 +83,17 @@ export default function Sidebar({
   const pathname = usePathname();
   const mainItems = NAV_ITEMS.filter((item) => item.roles.includes(userRole));
   const [hoverExpanded, setHoverExpanded] = useState(false);
-  const [toggleVisible, setToggleVisible] = useState(false);
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isOpen = !collapsed || hoverExpanded;
 
   const handleMouseEnter = useCallback(() => {
-    setToggleVisible(true);
     if (!collapsed) return;
     if (hoverTimerRef.current) { clearTimeout(hoverTimerRef.current); hoverTimerRef.current = null; }
     hoverTimerRef.current = setTimeout(() => { setHoverExpanded(true); hoverTimerRef.current = null; }, HOVER_DELAY_IN);
   }, [collapsed]);
 
   const handleMouseLeave = useCallback(() => {
-    setToggleVisible(false);
     if (!collapsed) return;
     if (hoverTimerRef.current) { clearTimeout(hoverTimerRef.current); hoverTimerRef.current = null; }
     hoverTimerRef.current = setTimeout(() => { setHoverExpanded(false); hoverTimerRef.current = null; }, HOVER_DELAY_OUT);
@@ -121,7 +118,8 @@ export default function Sidebar({
         height: '100%',
         position: 'relative',
         flexShrink: 0,
-        zIndex: 200,
+        // Khi auto-hide bung rộng (overlay), phải vượt StatusBar (z-index 500) để không bị thanh đáy đè.
+        zIndex: collapsed && hoverExpanded ? 600 : 200,
         background: 'var(--sidebar-bg)',
         transition: 'width 0.25s cubic-bezier(0.4,0,0.2,1), min-width 0.25s cubic-bezier(0.4,0,0.2,1)',
       }}
@@ -206,35 +204,42 @@ export default function Sidebar({
           <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', margin: '6px 10px 4px' }} />
         </nav>
 
+        {/* Nút chuyển chế độ tự ẩn / ghim mở — dòng menu cố định ở đáy */}
+        <button
+          onClick={onToggleCollapse}
+          title={collapsed ? 'Ghim mở sidebar' : 'Tự ẩn sidebar'}
+          style={{
+            display: 'flex', alignItems: 'center',
+            justifyContent: isOpen ? 'flex-start' : 'center',
+            gap: 11,
+            padding: isOpen ? '10px 12px' : '12px 0',
+            margin: '2px 8px 6px',
+            borderRadius: 7,
+            background: 'transparent', border: 'none', cursor: 'pointer',
+            color: 'rgba(255,255,255,0.7)',
+            fontSize: 14.5, fontWeight: 500,
+            whiteSpace: 'nowrap', overflow: 'hidden', flexShrink: 0,
+            transition: 'background 0.15s ease',
+          }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.07)'; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+        >
+          {collapsed
+            ? <ChevronRight size={isOpen ? 20 : 22} style={{ flexShrink: 0, opacity: 0.85 }} />
+            : <ChevronLeft size={20} style={{ flexShrink: 0, opacity: 0.85 }} />}
+          <span style={{
+            opacity: isOpen ? 1 : 0,
+            maxWidth: isOpen ? 180 : 0,
+            overflow: 'hidden',
+            transition: 'opacity 0.18s ease, max-width 0.22s ease',
+          }}>
+            {collapsed ? 'Ghim mở menu' : 'Tự ẩn menu'}
+          </span>
+        </button>
+
         {/* User panel (avatar + Cài đặt) */}
         <UserPanel userName={userName} userCode={userCode} userRole={userRole} isOpen={isOpen} />
       </div>
-
-      {/* Toggle button */}
-      <button
-        onClick={onToggleCollapse}
-        title={collapsed ? 'Mở rộng sidebar' : 'Thu gọn sidebar'}
-        style={{
-          position: 'absolute',
-          top: 64,
-          left: currentW - 12,
-          transform: `translateY(-50%) ${toggleVisible ? 'scale(1)' : 'scale(0.7)'}`,
-          opacity: toggleVisible ? 1 : 0,
-          width: 24, height: 24, borderRadius: '50%',
-          background: '#004B9B',
-          border: '2px solid rgba(255,255,255,0.25)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          cursor: 'pointer', color: '#ffffff',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
-          transition: 'left 0.25s cubic-bezier(0.4,0,0.2,1), opacity 0.2s ease, transform 0.2s cubic-bezier(0.34,1.56,0.64,1), background 0.15s ease',
-          zIndex: 300,
-          pointerEvents: toggleVisible ? 'auto' : 'none',
-        }}
-        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = '#0060c7'; }}
-        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = '#004B9B'; }}
-      >
-        {collapsed ? <ChevronRight size={13} /> : <ChevronLeft size={13} />}
-      </button>
     </aside>
   );
 }
