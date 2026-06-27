@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient, createClient } from '@/lib/supabase/server';
 import type { UserRole } from '@/types/database';
-import { roleNeedsShowroom, roleNeedsBrand, roleNeedsSalesTeam } from '@/lib/nav';
+import { roleNeedsShowroom, roleNeedsBrand, roleNeedsSalesTeam, isCreatableRole } from '@/lib/nav';
 import { usernameToEmail } from '@/lib/account-email';
 
 // auth.users không truy vấn theo email trực tiếp qua admin SDK → phân trang listUsers.
@@ -26,23 +26,29 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await request.json();
-    const { email, full_name, role, showroom_id, brand_id, sales_team_id } = body as {
-      email: string; full_name: string; role: UserRole;
-      showroom_id?: string | null; brand_id?: string | null; sales_team_id?: string | null;
+    const { email, full_name, role, sales_team_id } = body as {
+      email: string; full_name: string; role: UserRole; sales_team_id?: string | null;
     };
+    // Đa phạm vi: form gửi MẢNG brand_ids/showroom_ids (vai trò brand/showroom được nhiều).
+    const brand_ids: string[] = Array.isArray(body.brand_ids) ? body.brand_ids.filter(Boolean) : [];
+    const showroom_ids: string[] = Array.isArray(body.showroom_ids) ? body.showroom_ids.filter(Boolean) : [];
     if (!email || !full_name || !role) {
       return NextResponse.json({ error: 'Thiếu thông tin bắt buộc' }, { status: 400 });
+    }
+    // Chặn cứng: không tạo platform_owner / vai trò không hợp lệ qua UI.
+    if (!isCreatableRole(role)) {
+      return NextResponse.json({ error: 'Vai trò không hợp lệ.' }, { status: 403 });
     }
     // TVBH & TP Phòng thuộc đúng 1 phòng bán → form chỉ chọn phòng, suy ra showroom + thương hiệu.
     const needsTeam = roleNeedsSalesTeam(role);
     if (needsTeam && !sales_team_id) {
       return NextResponse.json({ error: 'Vai trò này bắt buộc gán 1 phòng bán hàng.' }, { status: 400 });
     }
-    if (!needsTeam && roleNeedsShowroom(role) && !showroom_id) {
-      return NextResponse.json({ error: 'Vai trò này bắt buộc gán showroom.' }, { status: 400 });
+    if (!needsTeam && roleNeedsShowroom(role) && showroom_ids.length === 0) {
+      return NextResponse.json({ error: 'Vai trò này bắt buộc gán ≥1 showroom.' }, { status: 400 });
     }
-    if (!needsTeam && roleNeedsBrand(role) && !brand_id) {
-      return NextResponse.json({ error: 'Vai trò này bắt buộc gán thương hiệu.' }, { status: 400 });
+    if (!needsTeam && roleNeedsBrand(role) && brand_ids.length === 0) {
+      return NextResponse.json({ error: 'Vai trò này bắt buộc gán ≥1 thương hiệu.' }, { status: 400 });
     }
 
     const service = createServiceClient();
@@ -56,9 +62,9 @@ export async function POST(request: NextRequest) {
     if (!company_id) {
       return NextResponse.json({ error: 'Tài khoản admin chưa gắn công ty.' }, { status: 400 });
     }
-    // TVBH/TP Phòng: suy showroom + thương hiệu từ phòng (đã kiểm tra thuộc đúng công ty).
-    let finalShowroomId: string | null = roleNeedsShowroom(role) ? (showroom_id ?? null) : null;
-    let finalBrandId: string | null = roleNeedsBrand(role) ? (brand_id ?? null) : null;
+    // Đa phạm vi: junction là nguồn thật; cột đơn brand_id/showroom_id giữ phần tử đầu (tương thích ngược).
+    let finalShowroomIds: string[] = roleNeedsShowroom(role) ? showroom_ids : [];
+    let finalBrandIds: string[] = roleNeedsBrand(role) ? brand_ids : [];
     let finalTeamId: string | null = null;
     if (needsTeam) {
       const { data: team } = await service.from('sales_teams')
@@ -66,13 +72,18 @@ export async function POST(request: NextRequest) {
         .eq('id', sales_team_id!).eq('company_id', company_id).maybeSingle();
       if (!team) return NextResponse.json({ error: 'Phòng bán hàng không thuộc công ty của bạn.' }, { status: 400 });
       finalTeamId = team.id;
-      finalShowroomId = team.showroom_id;
-      finalBrandId = team.brand_id;
-    } else if (finalShowroomId) {
-      // Showroom (nếu có) phải thuộc công ty của admin.
-      const { data: sr } = await service.from('showrooms').select('id').eq('id', finalShowroomId).eq('company_id', company_id).maybeSingle();
-      if (!sr) return NextResponse.json({ error: 'Showroom không thuộc công ty của bạn.' }, { status: 400 });
+      finalShowroomIds = team.showroom_id ? [team.showroom_id] : [];
+      finalBrandIds = team.brand_id ? [team.brand_id] : [];
+    } else if (finalShowroomIds.length > 0) {
+      // Showroom phải thuộc công ty của admin (brands là master toàn cục, không cần check).
+      const { data: srs } = await service.from('showrooms')
+        .select('id').in('id', finalShowroomIds).eq('company_id', company_id);
+      if (!srs || srs.length !== finalShowroomIds.length) {
+        return NextResponse.json({ error: 'Có showroom không thuộc công ty của bạn.' }, { status: 400 });
+      }
     }
+    const finalShowroomId: string | null = finalShowroomIds[0] ?? null;
+    const finalBrandId: string | null = finalBrandIds[0] ?? null;
 
     // Người dùng có thể nhập tên trơn (vd "nguyenvana") → tự ghép đuôi @thaco.com.vn.
     const cleanEmail = usernameToEmail(email);
@@ -120,6 +131,14 @@ export async function POST(request: NextRequest) {
     if (profileError) {
       if (createdNewAuth) await service.auth.admin.deleteUser(authId);
       return NextResponse.json({ error: profileError.message }, { status: 500 });
+    }
+
+    // Junction đa phạm vi (nguồn thật cho RLS get_my_brand_ids / get_my_showroom_ids).
+    if (finalBrandIds.length > 0) {
+      await service.from('user_brands').insert(finalBrandIds.map((brand_id) => ({ user_id: authId, brand_id })));
+    }
+    if (finalShowroomIds.length > 0) {
+      await service.from('user_showrooms').insert(finalShowroomIds.map((showroom_id) => ({ user_id: authId, showroom_id })));
     }
 
     return NextResponse.json({ success: true, userId: authId, reusedAuth: !createdNewAuth });

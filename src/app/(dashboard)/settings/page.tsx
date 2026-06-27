@@ -46,6 +46,8 @@ export default async function SettingsPage() {
     { data: recentLogs },
     { data: leadStatusRows },
     { data: salesTeamRows },
+    { data: userBrandRows },
+    { data: userShowroomRows },
   ] = await Promise.all([
     service.from('showroom_brands').select('showroom_id, brand_id').in('showroom_id', srFilter),
     service.from('brands').select('id, name, slug').order('name'),
@@ -58,7 +60,24 @@ export default async function SettingsPage() {
     service.from('lead_logs').select('id, lead_id, user_id, type, content, old_status, new_status, created_at').in('user_id', userFilter).order('created_at', { ascending: false }).limit(50),
     service.from('leads').select('status').eq('company_id', companyId),
     service.from('sales_teams').select('id, showroom_id, brand_id, name, head_user_id, is_default, sort_order, tvbh_assign_strategy, assign_share_pct').eq('company_id', companyId).order('sort_order'),
+    service.from('user_brands').select('user_id, brand_id').in('user_id', userFilter),
+    service.from('user_showrooms').select('user_id, showroom_id').in('user_id', userFilter),
   ]);
+
+  // Gom phạm vi đa phần (bảng phụ) cho mỗi user → đính vào staff cho UI hiển thị + prefill form.
+  const brandIdsByUser: Record<string, string[]> = {};
+  for (const r of (userBrandRows ?? []) as { user_id: string; brand_id: string }[]) {
+    (brandIdsByUser[r.user_id] ??= []).push(r.brand_id);
+  }
+  const showroomIdsByUser: Record<string, string[]> = {};
+  for (const r of (userShowroomRows ?? []) as { user_id: string; showroom_id: string }[]) {
+    (showroomIdsByUser[r.user_id] ??= []).push(r.showroom_id);
+  }
+  const staffWithScope = (staff ?? []).map((u) => ({
+    ...u,
+    brand_ids: brandIdsByUser[u.id] ?? [],
+    showroom_ids: showroomIdsByUser[u.id] ?? [],
+  }));
 
   // Trọng số phân bổ theo kênh cho từng phòng (gom vào sales_teams)
   const teamIds = ((salesTeamRows ?? []) as { id: string }[]).map((t) => t.id);
@@ -116,7 +135,7 @@ export default async function SettingsPage() {
       </div>
 
       <SettingsClient
-        staff={staff ?? []}
+        staff={staffWithScope}
         showrooms={showrooms ?? []}
         brands={brands ?? []}
         models={models ?? []}

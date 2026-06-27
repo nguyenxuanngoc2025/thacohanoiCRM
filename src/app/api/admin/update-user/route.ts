@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient, createClient } from '@/lib/supabase/server';
 import type { UserRole } from '@/types/database';
-import { roleNeedsShowroom, roleNeedsBrand, roleNeedsSalesTeam } from '@/lib/nav';
+import { roleNeedsShowroom, roleNeedsBrand, roleNeedsSalesTeam, isCreatableRole } from '@/lib/nav';
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,17 +10,22 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await request.json();
-    const { userId, full_name, role, showroom_id, brand_id, sales_team_id, is_active, assign_share_pct } = body as {
+    const { userId, full_name, role, sales_team_id, is_active, assign_share_pct } = body as {
       userId: string;
       full_name?: string;
       role?: UserRole;
-      showroom_id?: string | null;
-      brand_id?: string | null;
       sales_team_id?: string | null;
       is_active?: boolean;
       assign_share_pct?: number;
     };
+    // Đa phạm vi: form gửi MẢNG brand_ids/showroom_ids.
+    const brand_ids: string[] = Array.isArray(body.brand_ids) ? body.brand_ids.filter(Boolean) : [];
+    const showroom_ids: string[] = Array.isArray(body.showroom_ids) ? body.showroom_ids.filter(Boolean) : [];
     if (!userId) return NextResponse.json({ error: 'Thiếu userId' }, { status: 400 });
+    // Chặn cứng: không gán platform_owner / vai trò không hợp lệ qua UI.
+    if (role && !isCreatableRole(role)) {
+      return NextResponse.json({ error: 'Vai trò không hợp lệ.' }, { status: 403 });
+    }
 
     const service = createServiceClient();
     const { data: caller } = await service.from('users').select('role, company_id').eq('id', user.id).maybeSingle();
@@ -42,13 +47,19 @@ export async function POST(request: NextRequest) {
       teamShowroomId = team.showroom_id;
       teamBrandId = team.brand_id;
     }
-    // Nếu đổi showroom, showroom phải thuộc công ty của admin.
-    if (showroom_id) {
-      const { data: sr } = await service.from('showrooms').select('id').eq('id', showroom_id).eq('company_id', caller.company_id).maybeSingle();
-      if (!sr) return NextResponse.json({ error: 'Showroom không thuộc công ty của bạn.' }, { status: 400 });
+    // Nếu đổi showroom, mọi showroom phải thuộc công ty của admin (brands là master toàn cục).
+    if (showroom_ids.length > 0) {
+      const { data: srs } = await service.from('showrooms')
+        .select('id').in('id', showroom_ids).eq('company_id', caller.company_id);
+      if (!srs || srs.length !== showroom_ids.length) {
+        return NextResponse.json({ error: 'Có showroom không thuộc công ty của bạn.' }, { status: 400 });
+      }
     }
 
     const updates: Record<string, unknown> = {};
+    // Junction sẽ đồng bộ lại khi đổi role HOẶC khi đổi phạm vi (gửi kèm mảng).
+    let syncBrands: string[] | null = null;
+    let syncShowrooms: string[] | null = null;
     if (typeof full_name === 'string' && full_name.trim()) updates.full_name = full_name.trim();
     if (role) {
       updates.role = role;
@@ -61,24 +72,39 @@ export async function POST(request: NextRequest) {
         updates.sales_team_id = sales_team_id;
         updates.showroom_id = teamShowroomId;
         updates.brand_id = teamBrandId;
+        syncShowrooms = teamShowroomId ? [teamShowroomId] : [];
+        syncBrands = teamBrandId ? [teamBrandId] : [];
       } else {
-        if (roleNeedsShowroom(role) && !showroom_id) {
-          return NextResponse.json({ error: 'Vai trò này bắt buộc gán showroom.' }, { status: 400 });
+        if (roleNeedsShowroom(role) && showroom_ids.length === 0) {
+          return NextResponse.json({ error: 'Vai trò này bắt buộc gán ≥1 showroom.' }, { status: 400 });
         }
-        if (roleNeedsBrand(role) && !brand_id) {
-          return NextResponse.json({ error: 'Vai trò này bắt buộc gán thương hiệu.' }, { status: 400 });
+        if (roleNeedsBrand(role) && brand_ids.length === 0) {
+          return NextResponse.json({ error: 'Vai trò này bắt buộc gán ≥1 thương hiệu.' }, { status: 400 });
         }
         updates.sales_team_id = null;
-        updates.showroom_id = roleNeedsShowroom(role) ? (showroom_id ?? null) : null;
-        updates.brand_id = roleNeedsBrand(role) ? (brand_id ?? null) : null;
+        syncShowrooms = roleNeedsShowroom(role) ? showroom_ids : [];
+        syncBrands = roleNeedsBrand(role) ? brand_ids : [];
+        updates.showroom_id = syncShowrooms[0] ?? null;
+        updates.brand_id = syncBrands[0] ?? null;
       }
     } else {
+      // Không đổi role: chỉ cập nhật phạm vi nếu form gửi mảng.
       if (sales_team_id !== undefined) {
         updates.sales_team_id = sales_team_id;
-        if (sales_team_id) { updates.showroom_id = teamShowroomId; updates.brand_id = teamBrandId; }
+        if (sales_team_id) {
+          updates.showroom_id = teamShowroomId; updates.brand_id = teamBrandId;
+          syncShowrooms = teamShowroomId ? [teamShowroomId] : [];
+          syncBrands = teamBrandId ? [teamBrandId] : [];
+        }
       }
-      if (showroom_id !== undefined) updates.showroom_id = showroom_id;
-      if (brand_id !== undefined) updates.brand_id = brand_id;
+      if (Array.isArray(body.showroom_ids)) {
+        syncShowrooms = showroom_ids;
+        updates.showroom_id = showroom_ids[0] ?? null;
+      }
+      if (Array.isArray(body.brand_ids)) {
+        syncBrands = brand_ids;
+        updates.brand_id = brand_ids[0] ?? null;
+      }
     }
     if (typeof is_active === 'boolean') updates.is_active = is_active;
     // % chỉ tiêu nhận lead trong phòng (dùng khi phòng chia theo tỷ lệ).
@@ -86,12 +112,28 @@ export async function POST(request: NextRequest) {
       updates.assign_share_pct = Math.max(0, Number(assign_share_pct));
     }
 
-    if (Object.keys(updates).length === 0) {
+    if (Object.keys(updates).length === 0 && syncBrands === null && syncShowrooms === null) {
       return NextResponse.json({ error: 'Không có thay đổi nào.' }, { status: 400 });
     }
 
-    const { error } = await service.from('users').update(updates).eq('id', userId);
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (Object.keys(updates).length > 0) {
+      const { error } = await service.from('users').update(updates).eq('id', userId);
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Đồng bộ junction: xoá hết rồi insert lại theo phạm vi mới.
+    if (syncBrands !== null) {
+      await service.from('user_brands').delete().eq('user_id', userId);
+      if (syncBrands.length > 0) {
+        await service.from('user_brands').insert(syncBrands.map((brand_id) => ({ user_id: userId, brand_id })));
+      }
+    }
+    if (syncShowrooms !== null) {
+      await service.from('user_showrooms').delete().eq('user_id', userId);
+      if (syncShowrooms.length > 0) {
+        await service.from('user_showrooms').insert(syncShowrooms.map((showroom_id) => ({ user_id: userId, showroom_id })));
+      }
+    }
 
     return NextResponse.json({ success: true });
   } catch {

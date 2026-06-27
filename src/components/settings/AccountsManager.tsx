@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Shield, Plus, Search, Edit2, Trash2, X, Check, AlertTriangle, KeyRound, Loader2 } from 'lucide-react';
 import {
   ROLE_LABELS, ROLE_DESCRIPTIONS, ROLE_SCOPE, ROLE_CAN, ROLE_CANNOT, ROLE_NEEDS,
-  ROLE_COLOR, roleNeedsShowroom, roleNeedsBrand, roleNeedsSalesTeam, ALL_ROLES,
+  ROLE_COLOR, roleNeedsShowroom, roleNeedsBrand, roleNeedsSalesTeam, CREATABLE_ROLES,
 } from '@/lib/nav';
 import { type UserRole } from '@/types/database';
 import { EMAIL_DOMAIN, usernameToEmail } from '@/lib/account-email';
@@ -20,6 +20,9 @@ export interface StaffRow {
   sales_team_id: string | null;
   is_active: boolean;
   assign_share_pct?: number;
+  // Đa phạm vi: tập showroom/thương hiệu phụ trách (từ bảng phụ user_showrooms / user_brands).
+  showroom_ids?: string[];
+  brand_ids?: string[];
 }
 
 export interface ShowroomOption {
@@ -56,16 +59,17 @@ export default function AccountsManager({
   const [editTarget, setEditTarget] = useState<StaffRow | 'new' | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<StaffRow | null>(null);
 
-  const showroomName = (id: string | null) => {
-    if (!id) return null;
-    const sr = showrooms.find((s) => s.id === id);
-    return sr ? sr.name : null;
+  // Danh sách showroom của 1 user: ưu tiên bảng phụ (đa phạm vi), fallback cột đơn (tương thích ngược).
+  const showroomNames = (u: StaffRow) => {
+    const ids = (u.showroom_ids && u.showroom_ids.length > 0) ? u.showroom_ids : (u.showroom_id ? [u.showroom_id] : []);
+    const names = ids.map((id) => showrooms.find((s) => s.id === id)?.name).filter(Boolean) as string[];
+    return names.length > 0 ? names.join(', ') : null;
   };
 
-  const brandName = (id: string | null) => {
-    if (!id) return null;
-    const b = brands.find((x) => x.id === id);
-    return b ? b.name : null;
+  const brandNames = (u: StaffRow) => {
+    const ids = (u.brand_ids && u.brand_ids.length > 0) ? u.brand_ids : (u.brand_id ? [u.brand_id] : []);
+    const names = ids.map((id) => brands.find((b) => b.id === id)?.name).filter(Boolean) as string[];
+    return names.length > 0 ? names.join(', ') : null;
   };
 
   const teamLabel = (id: string | null) => {
@@ -130,7 +134,7 @@ export default function AccountsManager({
               className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[#004B9B] bg-white"
             >
               <option value="">Tất cả vai trò</option>
-              {ALL_ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+              {CREATABLE_ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
             </select>
             <span className="ml-auto text-xs text-slate-400">{filtered.length} tài khoản</span>
           </div>
@@ -181,9 +185,9 @@ export default function AccountsManager({
                       {roleNeedsSalesTeam(u.role as UserRole)
                         ? (teamLabel(u.sales_team_id) ?? <span className="text-rose-500 italic text-xs">Chưa gán phòng</span>)
                         : roleNeedsShowroom(u.role as UserRole)
-                        ? (showroomName(u.showroom_id) ?? <span className="text-rose-500 italic text-xs">Chưa gán SR</span>)
+                        ? (showroomNames(u) ?? <span className="text-rose-500 italic text-xs">Chưa gán SR</span>)
                         : roleNeedsBrand(u.role as UserRole)
-                        ? (brandName(u.brand_id) ?? <span className="text-rose-500 italic text-xs">Chưa gán TH</span>)
+                        ? (brandNames(u) ?? <span className="text-rose-500 italic text-xs">Chưa gán TH</span>)
                         : <span className="text-slate-400 italic text-xs">Toàn công ty</span>}
                     </td>
                     <td className="px-4 py-2.5 text-center">
@@ -276,7 +280,7 @@ export function RoleReference() {
         Mỗi loại tài khoản có bộ quyền cố định theo quy trình. Khi tạo tài khoản, chọn đúng loại và gán showroom theo hướng dẫn.
       </p>
       <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
-        {ALL_ROLES.map((role) => {
+        {CREATABLE_ROLES.map((role) => {
           const c = ROLE_COLOR[role];
           return (
             <div key={role} className="rounded-xl bg-white overflow-hidden shadow-sm" style={{ border: `1.5px solid ${c.border}` }}>
@@ -345,11 +349,17 @@ function EditModal({
   const isNew = target === 'new';
   const init = isNew ? null : target;
 
+  // Prefill mảng: ưu tiên bảng phụ, fallback cột đơn (tương thích ngược).
+  const initShowroomIds = (init?.showroom_ids && init.showroom_ids.length > 0)
+    ? init.showroom_ids : (init?.showroom_id ? [init.showroom_id] : []);
+  const initBrandIds = (init?.brand_ids && init.brand_ids.length > 0)
+    ? init.brand_ids : (init?.brand_id ? [init.brand_id] : []);
+
   const [fullName, setFullName] = useState(init?.full_name ?? '');
   const [email, setEmail] = useState(init?.email ?? '');
   const [role, setRole] = useState<UserRole>((init?.role as UserRole) ?? 'tvbh');
-  const [showroomId, setShowroomId] = useState(init?.showroom_id ?? '');
-  const [brandId, setBrandId] = useState(init?.brand_id ?? '');
+  const [showroomIds, setShowroomIds] = useState<string[]>(initShowroomIds);
+  const [brandIds, setBrandIds] = useState<string[]>(initBrandIds);
   const [teamId, setTeamId] = useState(init?.sales_team_id ?? '');
   const [isActive, setIsActive] = useState(init?.is_active ?? true);
   const [submitting, setSubmitting] = useState(false);
@@ -360,13 +370,18 @@ function EditModal({
   const needsShowroom = roleNeedsShowroom(role);
   const needsBrand = roleNeedsBrand(role);
 
+  const toggleShowroom = (id: string) =>
+    setShowroomIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  const toggleBrand = (id: string) =>
+    setBrandIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+
   const submit = async () => {
     setError(null);
     if (isNew && (!fullName.trim() || !email.trim())) { setError('Vui lòng nhập họ tên và tên đăng nhập.'); return; }
     if (!isNew && !fullName.trim()) { setError('Vui lòng nhập họ tên.'); return; }
     if (needsTeam && !teamId) { setError('Vai trò này bắt buộc gán 1 phòng bán hàng.'); return; }
-    if (needsShowroom && !showroomId) { setError('Vai trò này bắt buộc gán showroom.'); return; }
-    if (needsBrand && !brandId) { setError('Vai trò này bắt buộc gán thương hiệu.'); return; }
+    if (needsShowroom && showroomIds.length === 0) { setError('Vai trò này bắt buộc gán ≥1 showroom.'); return; }
+    if (needsBrand && brandIds.length === 0) { setError('Vai trò này bắt buộc gán ≥1 thương hiệu.'); return; }
     setSubmitting(true);
     try {
       if (isNew) {
@@ -375,8 +390,8 @@ function EditModal({
           body: JSON.stringify({
             email: usernameToEmail(email), full_name: fullName.trim(), role,
             company_id: companyId,
-            showroom_id: needsShowroom ? showroomId : null,
-            brand_id: needsBrand ? brandId : null,
+            showroom_ids: needsShowroom ? showroomIds : [],
+            brand_ids: needsBrand ? brandIds : [],
             sales_team_id: needsTeam ? teamId : null,
           }),
         });
@@ -388,8 +403,8 @@ function EditModal({
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             userId: (target as StaffRow).id, full_name: fullName.trim(), role,
-            showroom_id: needsShowroom ? showroomId : null,
-            brand_id: needsBrand ? brandId : null,
+            showroom_ids: needsShowroom ? showroomIds : [],
+            brand_ids: needsBrand ? brandIds : [],
             sales_team_id: needsTeam ? teamId : null,
             is_active: isActive,
           }),
@@ -434,7 +449,7 @@ function EditModal({
           <Field label="Vai trò">
             <select value={role} onChange={(e) => setRole(e.target.value as UserRole)}
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#004B9B] bg-white">
-              {ALL_ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+              {CREATABLE_ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
             </select>
             <p className="text-[11px] text-slate-400 mt-1">{ROLE_SCOPE[role]}</p>
           </Field>
@@ -452,21 +467,31 @@ function EditModal({
             </Field>
           )}
           {needsShowroom && (
-            <Field label="Showroom">
-              <select value={showroomId} onChange={(e) => setShowroomId(e.target.value)}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#004B9B] bg-white">
-                <option value="">— Chọn showroom —</option>
-                {showrooms.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
+            <Field label="Showroom phụ trách (chọn nhiều)">
+              <div className="border border-slate-200 rounded-lg p-2 max-h-44 overflow-y-auto flex flex-col gap-1">
+                {showrooms.map((s) => (
+                  <label key={s.id} className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer px-1.5 py-1 rounded hover:bg-slate-50">
+                    <input type="checkbox" checked={showroomIds.includes(s.id)} onChange={() => toggleShowroom(s.id)} className="accent-[#004B9B]" />
+                    {s.name}
+                  </label>
+                ))}
+                {showrooms.length === 0 && <p className="text-[11px] text-rose-500 px-1.5 py-1">Chưa có showroom nào.</p>}
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1">Đã chọn {showroomIds.length} showroom.</p>
             </Field>
           )}
           {needsBrand && (
-            <Field label="Thương hiệu">
-              <select value={brandId} onChange={(e) => setBrandId(e.target.value)}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#004B9B] bg-white">
-                <option value="">— Chọn thương hiệu —</option>
-                {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-              </select>
+            <Field label="Thương hiệu phụ trách (chọn nhiều)">
+              <div className="border border-slate-200 rounded-lg p-2 max-h-44 overflow-y-auto flex flex-col gap-1">
+                {brands.map((b) => (
+                  <label key={b.id} className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer px-1.5 py-1 rounded hover:bg-slate-50">
+                    <input type="checkbox" checked={brandIds.includes(b.id)} onChange={() => toggleBrand(b.id)} className="accent-[#004B9B]" />
+                    {b.name}
+                  </label>
+                ))}
+                {brands.length === 0 && <p className="text-[11px] text-rose-500 px-1.5 py-1">Chưa có thương hiệu nào.</p>}
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1">Đã chọn {brandIds.length} thương hiệu.</p>
             </Field>
           )}
           {!isNew && (
