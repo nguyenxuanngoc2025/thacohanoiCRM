@@ -11,6 +11,18 @@ const KEYFRAMES = `
   @keyframes smoothSlideUp { from { opacity:0; transform:translate3d(0,40px,0);} to { opacity:1; transform:translate3d(0,0,0);} }
   @keyframes fadeIn { from { opacity:0;} to { opacity:1;} }
   @keyframes spin { to { transform:rotate(360deg);} }
+  /* Nhãn nổi điều khiển bằng CSS để bắt được cả khi trình duyệt tự điền (autofill) */
+  .fi-input::placeholder { color: transparent; }
+  .fi-label {
+    position:absolute; left:16px; top:15px; font-size:15px; font-weight:400;
+    pointer-events:none;
+    transition: top 0.18s ease, font-size 0.18s ease, color 0.18s ease;
+  }
+  .fi-input:focus ~ .fi-label,
+  .fi-input:not(:placeholder-shown) ~ .fi-label,
+  .fi-input:-webkit-autofill ~ .fi-label {
+    top:7px; font-size:11px; font-weight:600;
+  }
 `;
 
 function TimeDisplay() {
@@ -188,7 +200,6 @@ function FloatInput({
   onChange: (v: string) => void; focused: boolean;
   onFocus: () => void; onBlur: () => void; autoComplete?: string; suffix?: string;
 }) {
-  const lifted = focused || value.length > 0;
   return (
     <div style={{
       position: 'relative', display: 'flex', alignItems: 'stretch', borderRadius: 12,
@@ -197,7 +208,7 @@ function FloatInput({
       transition: 'border-color 0.2s ease, box-shadow 0.2s ease', overflow: 'hidden',
     }}>
       <input id={id} name={name} type={type} value={value} onChange={(e) => onChange(e.target.value)} required
-        autoComplete={autoComplete} onFocus={onFocus} onBlur={onBlur}
+        autoComplete={autoComplete} onFocus={onFocus} onBlur={onBlur} placeholder=" " className="fi-input"
         style={{
           flex: 1, minWidth: 0, padding: '21px 16px 9px', border: 'none', fontSize: 15, fontWeight: 500,
           outline: 'none', background: 'transparent', color: '#0f172a',
@@ -209,11 +220,7 @@ function FloatInput({
           fontWeight: 400, color: '#94a3b8', whiteSpace: 'nowrap', userSelect: 'none', background: 'rgba(0,0,0,0.015)',
         }}>{suffix}</span>
       )}
-      <label htmlFor={id} style={{
-        position: 'absolute', left: 16, top: lifted ? 7 : 15, fontSize: lifted ? 11 : 15,
-        fontWeight: lifted ? 600 : 400, color: focused ? '#004B9B' : '#94a3b8', pointerEvents: 'none',
-        transition: 'top 0.18s ease, font-size 0.18s ease, color 0.18s ease',
-      }}>{label}</label>
+      <label htmlFor={id} className="fi-label" style={{ color: focused ? '#004B9B' : '#94a3b8' }}>{label}</label>
     </div>
   );
 }
