@@ -15,12 +15,15 @@ export async function login(formData: FormData) {
   // Chặn ngay tại bước đăng nhập để không tạo phiên cho công ty khác.
   const tenant = await getTenant();
   const { data: profile } = await supabase
-    .from('users').select('company_id').eq('id', auth.user.id).maybeSingle();
+    .from('users').select('company_id, role').eq('id', auth.user.id).maybeSingle();
   if (tenant && profile?.company_id && profile.company_id !== tenant.id) {
     await supabase.auth.signOut();
     redirect('/login?error=wrongtenant');
   }
-  redirect('/leads');
+  // Quản trị vào thẳng trang Cài đặt; các vai trò khác vào danh sách Lead.
+  const landing = profile?.role === 'admin' || profile?.role === 'platform_owner'
+    ? '/settings' : '/leads';
+  redirect(landing);
 }
 
 export async function logout() {
