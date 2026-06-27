@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient, createClient } from '@/lib/supabase/server';
 import type { UserRole } from '@/types/database';
-import { roleNeedsShowroom, roleNeedsBrand } from '@/lib/nav';
+import { roleNeedsShowroom, roleNeedsBrand, roleNeedsShowroomBrand } from '@/lib/nav';
 import { usernameToEmail } from '@/lib/account-email';
 
 // auth.users không truy vấn theo email trực tiếp qua admin SDK → phân trang listUsers.
@@ -33,10 +33,13 @@ export async function POST(request: NextRequest) {
     if (!email || !full_name || !role) {
       return NextResponse.json({ error: 'Thiếu thông tin bắt buộc' }, { status: 400 });
     }
+    // TVBH thuộc 1 phòng bán = (showroom + thương hiệu) → bắt buộc cả hai.
+    const isTvbh = roleNeedsShowroomBrand(role);
+    const needsBrand = roleNeedsBrand(role) || isTvbh;
     if (roleNeedsShowroom(role) && !showroom_id) {
       return NextResponse.json({ error: 'Vai trò này bắt buộc gán showroom.' }, { status: 400 });
     }
-    if (roleNeedsBrand(role) && !brand_id) {
+    if (needsBrand && !brand_id) {
       return NextResponse.json({ error: 'Vai trò này bắt buộc gán thương hiệu.' }, { status: 400 });
     }
 
@@ -55,6 +58,12 @@ export async function POST(request: NextRequest) {
     if (showroom_id) {
       const { data: sr } = await service.from('showrooms').select('id').eq('id', showroom_id).eq('company_id', company_id).maybeSingle();
       if (!sr) return NextResponse.json({ error: 'Showroom không thuộc công ty của bạn.' }, { status: 400 });
+    }
+    // TVBH: thương hiệu phải là phòng bán mà showroom đó thực sự kinh doanh.
+    if (isTvbh && showroom_id && brand_id) {
+      const { data: sb } = await service.from('showroom_brands')
+        .select('brand_id').eq('showroom_id', showroom_id).eq('brand_id', brand_id).maybeSingle();
+      if (!sb) return NextResponse.json({ error: 'Showroom này không kinh doanh thương hiệu đã chọn.' }, { status: 400 });
     }
 
     // Người dùng có thể nhập tên trơn (vd "nguyenvana") → tự ghép đuôi @thaco.com.vn.
@@ -96,7 +105,7 @@ export async function POST(request: NextRequest) {
       role,
       company_id,
       showroom_id: roleNeedsShowroom(role) ? (showroom_id ?? null) : null,
-      brand_id: roleNeedsBrand(role) ? (brand_id ?? null) : null,
+      brand_id: needsBrand ? (brand_id ?? null) : null,
       is_active: true,
     });
     if (profileError) {

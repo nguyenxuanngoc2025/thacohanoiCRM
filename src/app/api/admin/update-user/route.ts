@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient, createClient } from '@/lib/supabase/server';
 import type { UserRole } from '@/types/database';
-import { roleNeedsShowroom, roleNeedsBrand } from '@/lib/nav';
+import { roleNeedsShowroom, roleNeedsBrand, roleNeedsShowroomBrand } from '@/lib/nav';
 
 export async function POST(request: NextRequest) {
   try {
@@ -35,20 +35,28 @@ export async function POST(request: NextRequest) {
       const { data: sr } = await service.from('showrooms').select('id').eq('id', showroom_id).eq('company_id', caller.company_id).maybeSingle();
       if (!sr) return NextResponse.json({ error: 'Showroom không thuộc công ty của bạn.' }, { status: 400 });
     }
+    // TVBH: thương hiệu phải là phòng bán mà showroom đó thực sự kinh doanh.
+    if (role && roleNeedsShowroomBrand(role) && showroom_id && brand_id) {
+      const { data: sb } = await service.from('showroom_brands')
+        .select('brand_id').eq('showroom_id', showroom_id).eq('brand_id', brand_id).maybeSingle();
+      if (!sb) return NextResponse.json({ error: 'Showroom này không kinh doanh thương hiệu đã chọn.' }, { status: 400 });
+    }
 
     const updates: Record<string, unknown> = {};
     if (typeof full_name === 'string' && full_name.trim()) updates.full_name = full_name.trim();
     if (role) {
       updates.role = role;
+      // TVBH thuộc 1 phòng bán = (showroom + thương hiệu) → bắt buộc cả hai.
+      const needsBrand = roleNeedsBrand(role) || roleNeedsShowroomBrand(role);
       // Vai trò cấp công ty → không gán; cấp showroom → bắt buộc showroom; cấp thương hiệu → bắt buộc thương hiệu
       if (roleNeedsShowroom(role) && !showroom_id) {
         return NextResponse.json({ error: 'Vai trò này bắt buộc gán showroom.' }, { status: 400 });
       }
-      if (roleNeedsBrand(role) && !brand_id) {
+      if (needsBrand && !brand_id) {
         return NextResponse.json({ error: 'Vai trò này bắt buộc gán thương hiệu.' }, { status: 400 });
       }
       updates.showroom_id = roleNeedsShowroom(role) ? (showroom_id ?? null) : null;
-      updates.brand_id = roleNeedsBrand(role) ? (brand_id ?? null) : null;
+      updates.brand_id = needsBrand ? (brand_id ?? null) : null;
     } else {
       if (showroom_id !== undefined) updates.showroom_id = showroom_id;
       if (brand_id !== undefined) updates.brand_id = brand_id;

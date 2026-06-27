@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Shield, Plus, Search, Edit2, Trash2, X, Check, AlertTriangle, KeyRound, Loader2 } from 'lucide-react';
 import {
   ROLE_LABELS, ROLE_DESCRIPTIONS, ROLE_SCOPE, ROLE_CAN, ROLE_CANNOT, ROLE_NEEDS,
-  ROLE_COLOR, roleNeedsShowroom, roleNeedsBrand, ALL_ROLES,
+  ROLE_COLOR, roleNeedsShowroom, roleNeedsBrand, roleNeedsShowroomBrand, ALL_ROLES,
 } from '@/lib/nav';
 import { type UserRole } from '@/types/database';
 import { EMAIL_DOMAIN, usernameToEmail } from '@/lib/account-email';
@@ -24,6 +24,7 @@ export interface ShowroomOption {
   id: string;
   name: string;
   code?: string | null;
+  brand_ids?: string[];
 }
 
 export interface BrandOption {
@@ -161,7 +162,15 @@ export default function AccountsManager({
                       </span>
                     </td>
                     <td className="px-4 py-2.5 text-slate-600">
-                      {roleNeedsShowroom(u.role as UserRole)
+                      {roleNeedsShowroomBrand(u.role as UserRole)
+                        ? (
+                          <span>
+                            {showroomName(u.showroom_id) ?? <span className="text-rose-500 italic text-xs">Chưa gán SR</span>}
+                            {' · '}
+                            {brandName(u.brand_id) ?? <span className="text-rose-500 italic text-xs">Chưa gán TH</span>}
+                          </span>
+                        )
+                        : roleNeedsShowroom(u.role as UserRole)
                         ? (showroomName(u.showroom_id) ?? <span className="text-rose-500 italic text-xs">Chưa gán SR</span>)
                         : roleNeedsBrand(u.role as UserRole)
                         ? (brandName(u.brand_id) ?? <span className="text-rose-500 italic text-xs">Chưa gán TH</span>)
@@ -334,7 +343,25 @@ function EditModal({
   const [error, setError] = useState<string | null>(null);
 
   const needsShowroom = roleNeedsShowroom(role);
-  const needsBrand = roleNeedsBrand(role);
+  const isTvbh = roleNeedsShowroomBrand(role);
+  const needsBrand = roleNeedsBrand(role) || isTvbh;
+
+  // TVBH: 1 showroom có nhiều phòng bán theo thương hiệu → chỉ chọn được thương hiệu
+  // mà showroom đang chọn thực sự kinh doanh (showroom_brands). Vai trò cấp thương hiệu
+  // (gd_brand…) không gắn showroom nên được chọn toàn bộ thương hiệu.
+  const selectedShowroom = showrooms.find((s) => s.id === showroomId);
+  const brandOptions = isTvbh
+    ? brands.filter((b) => (selectedShowroom?.brand_ids ?? []).includes(b.id))
+    : brands;
+
+  const onShowroomChange = (id: string) => {
+    setShowroomId(id);
+    // Đổi showroom → reset thương hiệu nếu thương hiệu cũ không thuộc showroom mới.
+    if (isTvbh) {
+      const sr = showrooms.find((s) => s.id === id);
+      if (!sr || !(sr.brand_ids ?? []).includes(brandId)) setBrandId('');
+    }
+  };
 
   const submit = async () => {
     setError(null);
@@ -411,22 +438,26 @@ function EditModal({
             </select>
             <p className="text-[11px] text-slate-400 mt-1">{ROLE_SCOPE[role]}</p>
           </Field>
-          {needsBrand && (
-            <Field label="Thương hiệu">
-              <select value={brandId} onChange={(e) => setBrandId(e.target.value)}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#004B9B] bg-white">
-                <option value="">— Chọn thương hiệu —</option>
-                {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-              </select>
-            </Field>
-          )}
           {needsShowroom && (
             <Field label="Showroom">
-              <select value={showroomId} onChange={(e) => setShowroomId(e.target.value)}
+              <select value={showroomId} onChange={(e) => onShowroomChange(e.target.value)}
                 className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#004B9B] bg-white">
                 <option value="">— Chọn showroom —</option>
                 {showrooms.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
+            </Field>
+          )}
+          {needsBrand && (
+            <Field label={isTvbh ? 'Thương hiệu (phòng bán)' : 'Thương hiệu'}>
+              <select value={brandId} onChange={(e) => setBrandId(e.target.value)}
+                disabled={isTvbh && !showroomId}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#004B9B] bg-white disabled:bg-slate-50 disabled:text-slate-400">
+                <option value="">{isTvbh && !showroomId ? '— Chọn showroom trước —' : '— Chọn thương hiệu —'}</option>
+                {brandOptions.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+              {isTvbh && showroomId && brandOptions.length === 0 && (
+                <p className="text-[11px] text-rose-500 mt-1">Showroom này chưa gắn thương hiệu nào. Cấu hình tại tab Cơ cấu tổ chức.</p>
+              )}
             </Field>
           )}
           {!isNew && (

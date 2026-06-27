@@ -45,11 +45,12 @@ export interface NavItem {
   roles: UserRole[];
 }
 
-// Menu chính sidebar — công cụ Marketing theo dõi lead. Cài đặt nằm trong avatar.
+// Menu chính sidebar — công cụ Marketing theo dõi lead. Cài đặt chỉ admin/chủ nền tảng.
 export const NAV_ITEMS: NavItem[] = [
   { label: 'Lead', href: '/leads', icon: 'Users', roles: ALL },
   { label: 'Phân giao', href: '/assign', icon: 'UserCheck', roles: ASSIGN },
   { label: 'Báo cáo', href: '/reports', icon: 'BarChart3', roles: REPORTS },
+  { label: 'Cài đặt', href: '/settings', icon: 'Settings', roles: ['admin', 'platform_owner'] },
 ];
 
 // ─── Danh sách vai trò (đúng thứ tự sơ đồ tổ chức) ─────────────────────────────
@@ -140,7 +141,7 @@ export const ROLE_NEEDS: Record<UserRole, string> = {
   gd_showroom: 'Bắt buộc gán 1 showroom',
   mkt_showroom: 'Bắt buộc gán 1 showroom',
   tp_showroom: 'Bắt buộc gán 1 showroom',
-  tvbh: 'Bắt buộc gán 1 showroom',
+  tvbh: 'Bắt buộc gán 1 showroom + 1 thương hiệu (phòng bán)',
 };
 
 const C_ADMIN = { bg: '#fef3c7', text: '#92400e', border: '#fde68a' };
@@ -170,4 +171,12 @@ export function roleNeedsShowroom(role: UserRole): boolean {
 /** Vai trò cấp thương hiệu bắt buộc gán thương hiệu. */
 export function roleNeedsBrand(role: UserRole): boolean {
   return ROLE_SCOPE_KIND[role] === 'brand';
+}
+
+/**
+ * TVBH bắt buộc gán cả showroom lẫn thương hiệu: 1 showroom có nhiều phòng bán
+ * theo từng thương hiệu, nên TVBH thuộc đúng 1 phòng = (showroom + thương hiệu).
+ */
+export function roleNeedsShowroomBrand(role: UserRole): boolean {
+  return role === 'tvbh';
 }

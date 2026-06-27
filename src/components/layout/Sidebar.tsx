@@ -216,8 +216,8 @@ export default function Sidebar({
         title={collapsed ? 'Mở rộng sidebar' : 'Thu gọn sidebar'}
         style={{
           position: 'absolute',
-          top: '50%',
-          right: -12,
+          top: 64,
+          left: currentW - 12,
           transform: `translateY(-50%) ${toggleVisible ? 'scale(1)' : 'scale(0.7)'}`,
           opacity: toggleVisible ? 1 : 0,
           width: 24, height: 24, borderRadius: '50%',
@@ -280,9 +280,6 @@ function UserPanel({ userName, userCode, userRole, isOpen }: {
           </div>
           <MenuButton icon={<User size={13} />} label="Hồ sơ cá nhân" onClick={() => navigate('/settings/profile')} />
           <MenuButton icon={<Key size={13} />} label="Đổi mật khẩu" onClick={() => navigate('/settings/profile#password')} />
-          {userRole === 'admin' && (
-            <MenuButton icon={<Settings size={13} />} label="Cài đặt hệ thống" onClick={() => navigate('/settings')} />
-          )}
           <div style={{ height: 1, background: 'var(--color-border-light)', margin: '2px 0' }} />
           <MenuButton icon={<LogOut size={13} />} label="Đăng xuất" danger onClick={handleSignOut} />
         </div>
