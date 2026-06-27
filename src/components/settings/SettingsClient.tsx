@@ -128,7 +128,7 @@ export default function SettingsClient({
         {active === 'roles' && <RoleReference />}
         {active === 'org' && <OrgManager showrooms={showrooms} brands={brands} models={models} canEditCatalog={canEditCatalog} />}
         {active === 'teams' && (
-          <SalesTeamsManager salesTeams={salesTeams} showrooms={showrooms} brands={brands} staff={staff} channels={channels} />
+          <SalesTeamsManager salesTeams={salesTeams} showrooms={showrooms} brands={brands} staff={staff} />
         )}
         {active === 'integrations' && (
           <IntegrationsCatalog channels={channels} showrooms={showrooms} brands={brands} />

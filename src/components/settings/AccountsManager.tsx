@@ -352,6 +352,7 @@ function EditModal({
   const [brandId, setBrandId] = useState(init?.brand_id ?? '');
   const [teamId, setTeamId] = useState(init?.sales_team_id ?? '');
   const [isActive, setIsActive] = useState(init?.is_active ?? true);
+  const [sharePct, setSharePct] = useState(String(init?.assign_share_pct ?? 0));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -392,6 +393,7 @@ function EditModal({
             brand_id: needsBrand ? brandId : null,
             sales_team_id: needsTeam ? teamId : null,
             is_active: isActive,
+            assign_share_pct: role === 'tvbh' ? (Number(sharePct) || 0) : undefined,
           }),
         });
         const data = await res.json();
@@ -467,6 +469,13 @@ function EditModal({
                 <option value="">— Chọn thương hiệu —</option>
                 {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
+            </Field>
+          )}
+          {!isNew && role === 'tvbh' && (
+            <Field label="Tỷ lệ nhận lead trong phòng (%)">
+              <input type="number" min={0} value={sharePct} onChange={(e) => setSharePct(e.target.value)}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#004B9B]" />
+              <p className="text-[11px] text-slate-400 mt-1">Chỉ dùng khi phòng chia lead cho TVBH theo tỷ lệ. Tổng các TVBH cùng phòng nên bằng 100%.</p>
             </Field>
           )}
           {!isNew && (
