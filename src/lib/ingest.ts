@@ -1,7 +1,7 @@
 import { createServiceClient } from '@/lib/supabase/server';
 import { normalizePhone } from '@/lib/phone';
 import { looksLikePersonName } from '@/lib/person-name';
-import { pickNextAssignee, pickWeightedTeam, type AssigneeLoad, type WeightedLoad } from '@/lib/assign';
+import { pickByStrategy, type AssignStrategy, type StrategyCandidate } from '@/lib/assign';
 import type { IngestPayload, IngestResult } from '@/types/database';
 
 /** Cửa nạp lead chung — mọi kênh (FB webhook, n8n sau này) gọi vào đây. */
@@ -53,7 +53,7 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
     return { ok: true, leadId: existing.id, deduped: true };
   }
 
-  // Kênh chuẩn hoá (lowercase) — dùng để khớp tỷ trọng & đếm lead RIÊNG từng kênh.
+  // Kênh chuẩn hoá (lowercase) — lưu vào cột source để biết nguồn lead.
   const channelKey = (payload.source ?? 'facebook').trim().toLowerCase() || 'facebook';
 
   // Phòng bán hàng (sales_teams) của ĐÚNG thương hiệu fanpage, trong các showroom ứng viên.
@@ -90,23 +90,41 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
     tvbhByTeam.set(t.sales_team_id, arr);
   }
 
-  // CẤP 1 — chia đều cho showroom: chọn showroom ít lead đang mở nhất.
+  // CẤP 1 — chọn showroom theo chiến lược cấu hình ở công ty (ít lead / xoay vòng / theo tỷ lệ).
   // Chỉ xét showroom có ≥1 phòng-của-brand có ≥1 TVBH active; nếu không có thì xét hết.
   const showroomHasTvbh = (sid: string) =>
     (teamsByShowroom.get(sid) ?? []).some((tid) => (tvbhByTeam.get(tid)?.length ?? 0) > 0);
   const withTvbh = candidateShowroomIds.filter(showroomHasTvbh);
   const showroomPool = withTvbh.length > 0 ? withTvbh : candidateShowroomIds;
 
-  const showroomLoads: AssigneeLoad[] = [];
+  // Công ty của nhóm showroom ứng viên (mọi showroom của 1 kênh cùng công ty) → đọc chiến lược cấp 1.
+  const { data: anchorSr } = await db
+    .from('showrooms').select('company_id').in('id', candidateShowroomIds).limit(1).maybeSingle();
+  const companyId0 = anchorSr?.company_id ?? null;
+  const { data: companyCfg } = companyId0
+    ? await db.from('companies').select('showroom_assign_strategy').eq('id', companyId0).maybeSingle()
+    : { data: null };
+  const showroomStrategy = (companyCfg?.showroom_assign_strategy ?? 'least_loaded') as AssignStrategy;
+
+  // % share + lead gần nhất theo showroom (phục vụ weighted/round_robin).
+  const { data: srMeta } = await db
+    .from('showrooms').select('id, assign_share_pct').in('id', showroomPool);
+  const shareBySr = new Map<string, number>((srMeta ?? []).map((s) => [s.id, Number(s.assign_share_pct) || 0]));
+
+  const showroomCands: StrategyCandidate[] = [];
   for (const sid of showroomPool) {
-    const { count } = await db
-      .from('leads')
-      .select('id', { count: 'exact', head: true })
-      .eq('showroom_id', sid)
-      .or('status.is.null,status.neq.Fail');
-    showroomLoads.push({ id: sid, activeLeadCount: count ?? 0 });
+    const { count } = await db.from('leads').select('id', { count: 'exact', head: true })
+      .eq('showroom_id', sid).or('status.is.null,status.neq.Fail');
+    const { data: last } = await db.from('leads').select('created_at')
+      .eq('showroom_id', sid).order('created_at', { ascending: false }).limit(1).maybeSingle();
+    showroomCands.push({
+      id: sid,
+      activeLeadCount: count ?? 0,
+      sharePct: shareBySr.get(sid) ?? 0,
+      lastAssignedAt: last?.created_at ? new Date(last.created_at).getTime() : null,
+    });
   }
-  const chosenShowroomId = pickNextAssignee(showroomLoads) ?? candidateShowroomIds[0];
+  const chosenShowroomId = pickByStrategy(showroomStrategy, showroomCands) ?? candidateShowroomIds[0];
 
   // Công ty của showroom đã chọn
   const { data: showroom } = await db
@@ -146,55 +164,58 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
       .maybeSingle();
     chosenTeamId = u?.sales_team_id ?? null;
   } else {
-    // CẤP 2 — chọn phòng trong showroom theo tỷ trọng RIÊNG kênh (weighted round-robin theo thâm hụt).
+    // CẤP 2 — chọn phòng trong showroom theo chiến lược cấu hình ở showroom đã chọn.
     const teamsInShowroom = teamsByShowroom.get(chosenShowroomId) ?? [];
     const teamsWithTvbh = teamsInShowroom.filter((tid) => (tvbhByTeam.get(tid)?.length ?? 0) > 0);
     const teamPool = teamsWithTvbh.length > 0 ? teamsWithTvbh : teamsInShowroom;
 
-    if (teamPool.length > 0) {
-      // Trọng số theo kênh: khớp channel cụ thể → fallback '*' → mặc định 1.
-      const { data: allocs } = await db
-        .from('team_allocation')
-        .select('sales_team_id, channel, weight')
-        .in('sales_team_id', teamPool);
-      const weightOf = (tid: string): number => {
-        const exact = (allocs ?? []).find(
-          (a) => a.sales_team_id === tid && a.channel.toLowerCase() === channelKey
-        );
-        if (exact) return Number(exact.weight);
-        const star = (allocs ?? []).find((a) => a.sales_team_id === tid && a.channel === '*');
-        if (star) return Number(star.weight);
-        return 1;
-      };
+    const { data: srCfg } = await db
+      .from('showrooms').select('team_assign_strategy').eq('id', chosenShowroomId).maybeSingle();
+    const teamStrategy = (srCfg?.team_assign_strategy ?? 'weighted') as AssignStrategy;
 
-      const weightedLoads: WeightedLoad[] = [];
+    if (teamPool.length > 0) {
+      const { data: teamMeta } = await db
+        .from('sales_teams').select('id, assign_share_pct').in('id', teamPool);
+      const shareByTeam = new Map<string, number>((teamMeta ?? []).map((t) => [t.id, Number(t.assign_share_pct) || 0]));
+
+      const teamCands: StrategyCandidate[] = [];
       for (const tid of teamPool) {
-        // Đếm lead active CÙNG kênh của phòng này → tỷ lệ tính riêng từng kênh.
-        const { count } = await db
-          .from('leads')
-          .select('id', { count: 'exact', head: true })
-          .eq('sales_team_id', tid)
-          .eq('source', channelKey)
-          .or('status.is.null,status.neq.Fail');
-        weightedLoads.push({ id: tid, weight: weightOf(tid), activeLeadCount: count ?? 0 });
+        // Đếm lead active CHUNG (không tách theo kênh).
+        const { count } = await db.from('leads').select('id', { count: 'exact', head: true })
+          .eq('sales_team_id', tid).or('status.is.null,status.neq.Fail');
+        const { data: last } = await db.from('leads').select('created_at')
+          .eq('sales_team_id', tid).order('created_at', { ascending: false }).limit(1).maybeSingle();
+        teamCands.push({
+          id: tid, activeLeadCount: count ?? 0,
+          sharePct: shareByTeam.get(tid) ?? 0,
+          lastAssignedAt: last?.created_at ? new Date(last.created_at).getTime() : null,
+        });
       }
-      chosenTeamId = pickWeightedTeam(weightedLoads);
+      chosenTeamId = pickByStrategy(teamStrategy, teamCands);
     }
 
-    // CẤP 3 — least_loaded TVBH trong phòng đã chọn.
+    // CẤP 3 — chọn TVBH trong phòng theo chiến lược cấu hình ở phòng đã chọn.
     if (chosenTeamId) {
       const tvbhIds = tvbhByTeam.get(chosenTeamId) ?? [];
       if (tvbhIds.length > 0) {
-        const loads: AssigneeLoad[] = [];
+        const { data: teamCfg } = await db
+          .from('sales_teams').select('tvbh_assign_strategy').eq('id', chosenTeamId).maybeSingle();
+        const tvbhStrategy = (teamCfg?.tvbh_assign_strategy ?? 'least_loaded') as AssignStrategy;
+        const { data: uMeta } = await db.from('users').select('id, assign_share_pct').in('id', tvbhIds);
+        const shareByUser = new Map<string, number>((uMeta ?? []).map((u) => [u.id, Number(u.assign_share_pct) || 0]));
+        const tvbhCands: StrategyCandidate[] = [];
         for (const id of tvbhIds) {
-          const { count } = await db
-            .from('leads')
-            .select('id', { count: 'exact', head: true })
-            .eq('assigned_to', id)
-            .or('status.is.null,status.neq.Fail');
-          loads.push({ id, activeLeadCount: count ?? 0 });
+          const { count } = await db.from('leads').select('id', { count: 'exact', head: true })
+            .eq('assigned_to', id).or('status.is.null,status.neq.Fail');
+          const { data: last } = await db.from('leads').select('created_at')
+            .eq('assigned_to', id).order('created_at', { ascending: false }).limit(1).maybeSingle();
+          tvbhCands.push({
+            id, activeLeadCount: count ?? 0,
+            sharePct: shareByUser.get(id) ?? 0,
+            lastAssignedAt: last?.created_at ? new Date(last.created_at).getTime() : null,
+          });
         }
-        assignedTo = pickNextAssignee(loads);
+        assignedTo = pickByStrategy(tvbhStrategy, tvbhCands);
       }
     }
   }
