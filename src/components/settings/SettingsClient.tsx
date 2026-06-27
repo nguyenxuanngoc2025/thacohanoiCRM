@@ -13,7 +13,7 @@ import NotificationsManager from './NotificationsManager';
 import ActivityLog from './ActivityLog';
 import SalesTeamsManager from './SalesTeamsManager';
 import type {
-  ShowroomRow, BrandRow, ModelRow, ChannelRow, AssignmentRuleRow, SlaRow, NotifChannelRow, LeadLogRow, SalesTeamRow,
+  ShowroomRow, BrandRow, ModelRow, ChannelRow, AssignmentRuleRow, SlaRow, NotifChannelRow, LeadLogRow, SalesTeamRow, AssignStrategy,
 } from './types';
 
 export type { ChannelRow };
@@ -47,7 +47,7 @@ const NAV: NavGroup[] = [
     title: 'Cấu hình nghiệp vụ',
     items: [
       { key: 'pipeline', label: 'Trạng thái lead', icon: ListChecks },
-      { key: 'assignment', label: 'Phân giao · SLA', icon: GitBranch },
+      { key: 'assignment', label: 'Phân giao · Thời hạn liên hệ', icon: GitBranch },
     ],
   },
   {
@@ -61,7 +61,7 @@ const NAV: NavGroup[] = [
 
 export default function SettingsClient({
   staff, showrooms, brands, models, salesTeams, companyId, currentUserId, channels,
-  assignmentRules, slaConfig, notifChannels, recentLogs, statusCounts, canEditCatalog,
+  assignmentRules, companyShowroomStrategy, slaConfig, notifChannels, recentLogs, statusCounts, canEditCatalog,
 }: {
   staff: StaffRow[];
   showrooms: ShowroomRow[];
@@ -72,6 +72,7 @@ export default function SettingsClient({
   currentUserId: string;
   channels: ChannelRow[];
   assignmentRules: AssignmentRuleRow[];
+  companyShowroomStrategy: AssignStrategy;
   slaConfig: SlaRow[];
   notifChannels: NotifChannelRow[];
   recentLogs: LeadLogRow[];
@@ -134,7 +135,7 @@ export default function SettingsClient({
         )}
         {active === 'pipeline' && <PipelineReference counts={statusCounts} />}
         {active === 'assignment' && (
-          <AssignmentManager showrooms={showrooms} staff={staff} rules={assignmentRules} sla={slaConfig} companyId={companyId} />
+          <AssignmentManager showrooms={showrooms} staff={staff} rules={assignmentRules} sla={slaConfig} companyId={companyId} companyShowroomStrategy={companyShowroomStrategy} />
         )}
         {active === 'notifications' && <NotificationsManager channels={notifChannels} showrooms={showrooms} />}
         {active === 'audit' && <ActivityLog logs={recentLogs} staff={staff} />}

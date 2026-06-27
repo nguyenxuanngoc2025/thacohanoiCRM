@@ -1,11 +1,16 @@
 // Kiểu dữ liệu dùng chung cho các panel Cài đặt
 
+export type AssignStrategy = 'least_loaded' | 'round_robin' | 'weighted';
+
 export interface ShowroomRow {
   id: string;
   name: string;
   code: string | null;
   // Showroom là địa điểm bán nhiều thương hiệu → danh sách brand_id qua bảng junction showroom_brands.
   brand_ids: string[];
+  // Cách showroom chia lead vào các phòng + % share của showroom (dùng khi công ty chọn theo tỷ lệ).
+  team_assign_strategy: AssignStrategy;
+  assign_share_pct: number;
 }
 
 export interface BrandRow {
@@ -30,7 +35,10 @@ export interface SalesTeamRow {
   name: string;
   head_user_id: string | null;
   is_default: boolean;
-  // Trọng số phân bổ theo kênh: { facebook: 2, '*': 1, ... }
+  // Cách phòng chia lead cho TVBH + % share của phòng (dùng khi showroom chọn theo tỷ lệ).
+  tvbh_assign_strategy: AssignStrategy;
+  assign_share_pct: number;
+  // (Cũ) Trọng số phân bổ theo kênh — ngừng dùng, giữ để tránh vỡ dữ liệu cũ.
   allocations: Record<string, number>;
 }
 

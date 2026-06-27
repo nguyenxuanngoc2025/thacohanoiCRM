@@ -24,10 +24,12 @@ export default async function SettingsPage() {
   const NONE = '00000000-0000-0000-0000-000000000000';
 
   // Giai đoạn 1: nhân sự + showroom của ĐÚNG công ty này (làm gốc scope cho phần còn lại).
-  const [{ data: staff }, { data: showroomRows }] = await Promise.all([
-    service.from('users').select('id, full_name, email, role, showroom_id, brand_id, sales_team_id, is_active').eq('company_id', companyId).order('role'),
-    service.from('showrooms').select('id, name, code').eq('company_id', companyId).order('name'),
+  const [{ data: staff }, { data: showroomRows }, { data: companyRow }] = await Promise.all([
+    service.from('users').select('id, full_name, email, role, showroom_id, brand_id, sales_team_id, is_active, assign_share_pct').eq('company_id', companyId).order('role'),
+    service.from('showrooms').select('id, name, code, team_assign_strategy, assign_share_pct').eq('company_id', companyId).order('name'),
+    service.from('companies').select('showroom_assign_strategy').eq('id', companyId).maybeSingle(),
   ]);
+  const companyShowroomStrategy = (companyRow?.showroom_assign_strategy ?? 'least_loaded') as 'least_loaded' | 'round_robin' | 'weighted';
   const srIds = ((showroomRows ?? []) as { id: string }[]).map((s) => s.id);
   const srFilter = srIds.length ? srIds : [NONE];
   const userIds = ((staff ?? []) as { id: string }[]).map((u) => u.id);
@@ -57,7 +59,7 @@ export default async function SettingsPage() {
     service.from('notification_channels').select('id, channel, name, target, events, is_active, showroom_id, scope').eq('company_id', companyId).order('created_at', { ascending: false }),
     service.from('lead_logs').select('id, lead_id, user_id, type, content, old_status, new_status, created_at').in('user_id', userFilter).order('created_at', { ascending: false }).limit(50),
     service.from('leads').select('status').eq('company_id', companyId),
-    service.from('sales_teams').select('id, showroom_id, brand_id, name, head_user_id, is_default, sort_order').eq('company_id', companyId).order('sort_order'),
+    service.from('sales_teams').select('id, showroom_id, brand_id, name, head_user_id, is_default, sort_order, tvbh_assign_strategy, assign_share_pct').eq('company_id', companyId).order('sort_order'),
   ]);
 
   // Trọng số phân bổ theo kênh cho từng phòng (gom vào sales_teams)
@@ -71,7 +73,13 @@ export default async function SettingsPage() {
   }
   const salesTeams = ((salesTeamRows ?? []) as {
     id: string; showroom_id: string; brand_id: string; name: string; head_user_id: string | null; is_default: boolean;
-  }[]).map((t) => ({ ...t, allocations: allocByTeam[t.id] ?? {} }));
+    tvbh_assign_strategy?: string; assign_share_pct?: number;
+  }[]).map((t) => ({
+    ...t,
+    tvbh_assign_strategy: (t.tvbh_assign_strategy ?? 'least_loaded') as 'least_loaded' | 'round_robin' | 'weighted',
+    assign_share_pct: Number(t.assign_share_pct) || 0,
+    allocations: allocByTeam[t.id] ?? {},
+  }));
 
   // Đếm lead theo trạng thái (phục vụ trang Trạng thái lead)
   const statusCounts: Record<string, number> = {};
@@ -85,8 +93,14 @@ export default async function SettingsPage() {
   for (const r of (showroomBrandRows ?? []) as { showroom_id: string; brand_id: string }[]) {
     (brandIdsBySr[r.showroom_id] ??= []).push(r.brand_id);
   }
-  const showrooms = ((showroomRows ?? []) as { id: string; name: string; code: string | null }[])
-    .map((s) => ({ ...s, brand_ids: brandIdsBySr[s.id] ?? [] }));
+  const showrooms = ((showroomRows ?? []) as {
+    id: string; name: string; code: string | null; team_assign_strategy?: string; assign_share_pct?: number;
+  }[]).map((s) => ({
+    ...s,
+    brand_ids: brandIdsBySr[s.id] ?? [],
+    team_assign_strategy: (s.team_assign_strategy ?? 'weighted') as 'least_loaded' | 'round_robin' | 'weighted',
+    assign_share_pct: Number(s.assign_share_pct) || 0,
+  }));
 
   // Gom danh sách showroom cho mỗi kênh (bảng junction channel_account_showrooms)
   const showroomIdsByChannel: Record<string, string[]> = {};
@@ -113,6 +127,7 @@ export default async function SettingsPage() {
         currentUserId={user.id}
         channels={channelsWithShowrooms}
         assignmentRules={assignmentRules ?? []}
+        companyShowroomStrategy={companyShowroomStrategy}
         slaConfig={slaConfig ?? []}
         notifChannels={notifChannels ?? []}
         recentLogs={recentLogs ?? []}

@@ -19,6 +19,7 @@ export interface StaffRow {
   brand_id: string | null;
   sales_team_id: string | null;
   is_active: boolean;
+  assign_share_pct?: number;
 }
 
 export interface ShowroomOption {
