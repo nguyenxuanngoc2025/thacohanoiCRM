@@ -3,7 +3,8 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { EMAIL_DOMAIN } from '@/lib/account-email';
-import type { PlatformCompany, PlatformBrand } from './types';
+import { STATUS_LABEL, type LeadStatus } from '@/lib/lead-status';
+import type { PlatformCompany, PlatformBrand, CompanyViewData } from './types';
 
 async function patchCompany(body: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
   const res = await fetch('/api/platform/companies', {
@@ -30,6 +31,7 @@ export default function CompaniesManager({
 }: { companies: PlatformCompany[]; brands: PlatformBrand[] }) {
   const router = useRouter();
   const [edit, setEdit] = useState<PlatformCompany | null>(null);
+  const [viewing, setViewing] = useState<PlatformCompany | null>(null);
   const [adding, setAdding] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
   const flashMsg = (m: string) => { setFlash(m); setTimeout(() => setFlash(null), 4000); };
@@ -90,6 +92,8 @@ export default function CompaniesManager({
                   </td>
                   <td className="px-4 py-2.5">
                     <div className="flex items-center justify-end gap-1.5">
+                      <button onClick={() => setViewing(c)}
+                        className="text-xs font-medium px-2.5 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-slate-600">Xem</button>
                       <button onClick={() => setEdit(c)}
                         className="text-xs font-medium px-2.5 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-50"
                         style={{ color: '#004B9B' }}>Sửa</button>
@@ -116,11 +120,144 @@ export default function CompaniesManager({
           onDone={(m) => { setEdit(null); flashMsg(m); router.refresh(); }} />
       )}
 
+      {viewing && (
+        <CompanyViewModal company={viewing} onClose={() => setViewing(null)} />
+      )}
+
       {adding && (
         <AddCompanyModal brands={brands}
           onClose={() => setAdding(false)}
           onDone={(m) => { setAdding(false); flashMsg(m); router.refresh(); }} />
       )}
+    </div>
+  );
+}
+
+function CompanyViewModal({ company, onClose }: { company: PlatformCompany; onClose: () => void }) {
+  const [data, setData] = useState<CompanyViewData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    let active = true;
+    (async () => {
+      const res = await fetch(`/api/platform/companies/${company.id}/view`);
+      const json = await res.json().catch(() => ({}));
+      if (!active) return;
+      if (!res.ok) { setError(json?.error ?? 'Không tải được dữ liệu.'); return; }
+      setData(json as CompanyViewData);
+    })();
+    return () => { active = false; };
+  }, [company.id]);
+
+  const fmt = (n: number) => n.toLocaleString('vi-VN');
+
+  return (
+    <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium rounded-md px-2 py-0.5 bg-amber-50 text-amber-700">Chỉ xem</span>
+            <h3 className="font-bold text-slate-900">Đang xem {company.name}</h3>
+          </div>
+          <button onClick={onClose}
+            className="text-sm font-medium px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50">Thoát</button>
+        </div>
+
+        {error && <div className="p-5"><div className="text-sm bg-rose-50 text-rose-600 border border-rose-100 rounded-lg px-3 py-2">{error}</div></div>}
+        {!data && !error && <div className="p-8 text-center text-slate-400 text-sm">Đang tải…</div>}
+
+        {data && (
+          <div className="p-5 space-y-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <Stat label="Showroom" value={`${data.showrooms.length}/${data.company.max_showrooms}`} />
+              <Stat label="Nhân sự" value={fmt(data.users.length)} />
+              <Stat label="Tổng lead" value={fmt(data.leadTotal)} />
+              <Stat label="Trạng thái" value={data.company.plan_status === 'suspended' ? 'Tạm khóa' : 'Hoạt động'} />
+            </div>
+
+            <div>
+              <h4 className="text-sm font-semibold text-slate-800 mb-2">Lead theo trạng thái</h4>
+              <div className="flex flex-wrap gap-2">
+                {Object.keys(data.statusCount).length === 0 && <p className="text-sm text-slate-400">Chưa có lead.</p>}
+                {Object.entries(data.statusCount).map(([s, n]) => (
+                  <span key={s} className="text-xs rounded-md px-2.5 py-1 bg-slate-50 border border-slate-200 text-slate-600">
+                    {STATUS_LABEL[s as LeadStatus] ?? s}: <strong className="text-slate-800">{fmt(n)}</strong>
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <h4 className="text-sm font-semibold text-slate-800 mb-2">Showroom &amp; nhân sự</h4>
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="rounded-lg border border-slate-200 overflow-hidden">
+                  <div className="px-3 py-2 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wide">Showroom</div>
+                  <ul className="divide-y divide-slate-100">
+                    {data.showrooms.map((s) => (
+                      <li key={s.id} className="px-3 py-2 text-sm text-slate-700 flex justify-between">
+                        <span>{s.name}</span>{s.code && <span className="text-slate-400 font-mono text-xs">{s.code}</span>}
+                      </li>
+                    ))}
+                    {data.showrooms.length === 0 && <li className="px-3 py-3 text-sm text-slate-400">Chưa có showroom.</li>}
+                  </ul>
+                </div>
+                <div className="rounded-lg border border-slate-200 overflow-hidden">
+                  <div className="px-3 py-2 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wide">Nhân sự</div>
+                  <ul className="divide-y divide-slate-100">
+                    {data.users.map((u) => (
+                      <li key={u.id} className="px-3 py-2 text-sm flex justify-between items-center">
+                        <span className="text-slate-700">{u.full_name}<span className="text-slate-400"> · {u.role}</span></span>
+                        {!u.is_active && <span className="text-xs text-rose-500">khóa</span>}
+                      </li>
+                    ))}
+                    {data.users.length === 0 && <li className="px-3 py-3 text-sm text-slate-400">Chưa có nhân sự.</li>}
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h4 className="text-sm font-semibold text-slate-800 mb-2">Lead gần đây (tối đa 30)</h4>
+              <div className="rounded-lg border border-slate-200 overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 text-slate-500 text-left text-xs uppercase tracking-wide">
+                    <tr>
+                      <th className="px-3 py-2 font-semibold">Khách</th>
+                      <th className="px-3 py-2 font-semibold">SĐT</th>
+                      <th className="px-3 py-2 font-semibold">Trạng thái</th>
+                      <th className="px-3 py-2 font-semibold">Showroom</th>
+                      <th className="px-3 py-2 font-semibold">Ngày</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.recentLeads.map((l) => (
+                      <tr key={l.id} className="border-t border-slate-100">
+                        <td className="px-3 py-2 text-slate-700">{l.full_name ?? '—'}</td>
+                        <td className="px-3 py-2 font-mono text-xs text-slate-500">{l.phone}</td>
+                        <td className="px-3 py-2 text-slate-600">{STATUS_LABEL[l.status as LeadStatus] ?? l.status}</td>
+                        <td className="px-3 py-2 text-slate-600">{l.showroom_name ?? '—'}</td>
+                        <td className="px-3 py-2 text-slate-400 text-xs whitespace-nowrap">{new Date(l.created_at).toLocaleDateString('vi-VN')}</td>
+                      </tr>
+                    ))}
+                    {data.recentLeads.length === 0 && (
+                      <tr><td colSpan={5} className="px-3 py-6 text-center text-slate-400">Chưa có lead.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-slate-200 p-3">
+      <p className="text-xs text-slate-400">{label}</p>
+      <p className="text-lg font-bold text-slate-900 mt-0.5">{value}</p>
     </div>
   );
 }

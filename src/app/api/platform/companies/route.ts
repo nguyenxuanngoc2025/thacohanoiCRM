@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { requirePlatformOwner } from '@/lib/platform-guard';
 import { usernameToEmail } from '@/lib/account-email';
+import { writeAudit } from '@/lib/platform-audit';
 
 // GET /api/platform/companies — danh sách công ty + quota + usage + brand được cấp
 export async function GET() {
@@ -47,7 +48,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const guard = await requirePlatformOwner();
   if (guard.error) return guard.error;
-  const { service } = guard.ctx;
+  const { service, userId } = guard.ctx;
 
   try {
     const body = await request.json() as {
@@ -134,6 +135,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: pErr.message }, { status: 500 });
     }
 
+    await writeAudit(service, userId, 'company.create', 'company', companyId, {
+      name, subdomain, max_showrooms: maxSr, brand_count: brandIds.length, admin_email: adminEmail,
+    });
+
     return NextResponse.json({ success: true, companyId, adminEmail });
   } catch {
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
@@ -144,7 +149,7 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const guard = await requirePlatformOwner();
   if (guard.error) return guard.error;
-  const { service } = guard.ctx;
+  const { service, userId } = guard.ctx;
 
   try {
     const body = await request.json() as {
@@ -178,6 +183,15 @@ export async function PATCH(request: NextRequest) {
         if (error) return NextResponse.json({ error: error.message }, { status: 400 });
       }
     }
+
+    // Nhật ký: phân biệt khóa/mở với đổi quota để dễ đọc.
+    const action = body.plan_status === 'suspended' ? 'company.suspend'
+      : body.plan_status === 'active' ? 'company.activate'
+      : 'company.quota';
+    await writeAudit(service, userId, action, 'company', body.id, {
+      max_showrooms: patch.max_showrooms, plan_status: patch.plan_status,
+      brand_ids: Array.isArray(body.brand_ids) ? body.brand_ids.length : undefined,
+    });
 
     return NextResponse.json({ success: true });
   } catch {
