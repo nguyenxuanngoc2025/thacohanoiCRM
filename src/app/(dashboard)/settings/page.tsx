@@ -37,6 +37,7 @@ export default async function SettingsPage() {
   const [
     { data: showroomBrandRows },
     { data: brands },
+    { data: models },
     { data: channels },
     { data: channelShowroomRows },
     { data: assignmentRules },
@@ -48,6 +49,7 @@ export default async function SettingsPage() {
   ] = await Promise.all([
     service.from('showroom_brands').select('showroom_id, brand_id').in('showroom_id', srFilter),
     service.from('brands').select('id, name, slug').order('name'),
+    service.from('models').select('id, brand_id, name, sort_order, is_active').order('sort_order'),
     service.from('channel_accounts').select('id, page_name, platform, page_id, showroom_id, brand_id, campaign, is_active').in('showroom_id', srFilter).order('created_at', { ascending: false }),
     service.from('channel_account_showrooms').select('channel_account_id, showroom_id').in('showroom_id', srFilter),
     service.from('assignment_rules').select('id, showroom_id, strategy, specific_user_id, is_active, priority').eq('company_id', companyId).order('priority', { ascending: false }),
@@ -117,6 +119,7 @@ export default async function SettingsPage() {
         staff={staff ?? []}
         showrooms={showrooms ?? []}
         brands={brands ?? []}
+        models={models ?? []}
         salesTeams={salesTeams ?? []}
         companyId={companyId}
         currentUserId={user.id}
