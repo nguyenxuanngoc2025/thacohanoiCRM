@@ -12,8 +12,6 @@ export default async function SettingsPage() {
 
   const { data: me } = await supabase.from('users').select('role, company_id').eq('id', user.id).maybeSingle();
   if (me?.role !== 'admin' && me?.role !== 'platform_owner') redirect('/leads');
-  // Danh mục dùng chung (thương hiệu/dòng xe) chỉ Chủ nền tảng được sửa; admin công ty chỉ xem.
-  const canEditCatalog = me.role === 'platform_owner';
 
   // service_role: master catalog (brands/showrooms/channel_accounts) RLS OFF, đọc qua service cho chắc.
   // service_role BỎ QUA RLS → MỌI truy vấn dữ liệu thuộc-công-ty phải tự lọc theo company_id,
@@ -39,7 +37,6 @@ export default async function SettingsPage() {
   const [
     { data: showroomBrandRows },
     { data: brands },
-    { data: models },
     { data: channels },
     { data: channelShowroomRows },
     { data: assignmentRules },
@@ -51,7 +48,6 @@ export default async function SettingsPage() {
   ] = await Promise.all([
     service.from('showroom_brands').select('showroom_id, brand_id').in('showroom_id', srFilter),
     service.from('brands').select('id, name, slug').order('name'),
-    service.from('models').select('id, brand_id, name, sort_order, is_active').order('sort_order'),
     service.from('channel_accounts').select('id, page_name, platform, page_id, showroom_id, brand_id, campaign, is_active').in('showroom_id', srFilter).order('created_at', { ascending: false }),
     service.from('channel_account_showrooms').select('channel_account_id, showroom_id').in('showroom_id', srFilter),
     service.from('assignment_rules').select('id, showroom_id, strategy, specific_user_id, is_active, priority').eq('company_id', companyId).order('priority', { ascending: false }),
@@ -121,7 +117,6 @@ export default async function SettingsPage() {
         staff={staff ?? []}
         showrooms={showrooms ?? []}
         brands={brands ?? []}
-        models={models ?? []}
         salesTeams={salesTeams ?? []}
         companyId={companyId}
         currentUserId={user.id}
@@ -132,7 +127,6 @@ export default async function SettingsPage() {
         notifChannels={notifChannels ?? []}
         recentLogs={recentLogs ?? []}
         statusCounts={statusCounts}
-        canEditCatalog={canEditCatalog}
       />
     </div>
   );

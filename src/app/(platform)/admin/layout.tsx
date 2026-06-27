@@ -6,6 +6,7 @@ export const dynamic = 'force-dynamic';
 
 const TABS = [
   { href: '/admin/companies', label: 'Công ty' },
+  { href: '/admin/catalog', label: 'Thương hiệu & dòng xe' },
 ];
 
 export default async function PlatformAdminLayout({ children }: { children: React.ReactNode }) {

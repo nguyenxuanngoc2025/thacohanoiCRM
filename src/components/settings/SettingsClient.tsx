@@ -13,7 +13,7 @@ import NotificationsManager from './NotificationsManager';
 import ActivityLog from './ActivityLog';
 import SalesTeamsManager from './SalesTeamsManager';
 import type {
-  ShowroomRow, BrandRow, ModelRow, ChannelRow, AssignmentRuleRow, SlaRow, NotifChannelRow, LeadLogRow, SalesTeamRow, AssignStrategy,
+  ShowroomRow, BrandRow, ChannelRow, AssignmentRuleRow, SlaRow, NotifChannelRow, LeadLogRow, SalesTeamRow, AssignStrategy,
 } from './types';
 
 export type { ChannelRow };
@@ -60,13 +60,12 @@ const NAV: NavGroup[] = [
 ];
 
 export default function SettingsClient({
-  staff, showrooms, brands, models, salesTeams, companyId, currentUserId, channels,
-  assignmentRules, companyShowroomStrategy, slaConfig, notifChannels, recentLogs, statusCounts, canEditCatalog,
+  staff, showrooms, brands, salesTeams, companyId, currentUserId, channels,
+  assignmentRules, companyShowroomStrategy, slaConfig, notifChannels, recentLogs, statusCounts,
 }: {
   staff: StaffRow[];
   showrooms: ShowroomRow[];
   brands: BrandRow[];
-  models: ModelRow[];
   salesTeams: SalesTeamRow[];
   companyId: string;
   currentUserId: string;
@@ -77,7 +76,6 @@ export default function SettingsClient({
   notifChannels: NotifChannelRow[];
   recentLogs: LeadLogRow[];
   statusCounts: Record<string, number>;
-  canEditCatalog: boolean;
 }) {
   const [active, setActive] = useState<ItemKey>('accounts');
   const showroomOpts: ShowroomOption[] = showrooms;
@@ -126,7 +124,7 @@ export default function SettingsClient({
           <AccountsManager staff={staff} showrooms={showroomOpts} brands={brands} salesTeams={teamOpts} companyId={companyId} currentUserId={currentUserId} />
         )}
         {active === 'roles' && <RoleReference />}
-        {active === 'org' && <OrgManager showrooms={showrooms} brands={brands} models={models} canEditCatalog={canEditCatalog} />}
+        {active === 'org' && <OrgManager showrooms={showrooms} brands={brands} />}
         {active === 'teams' && (
           <SalesTeamsManager salesTeams={salesTeams} showrooms={showrooms} brands={brands} staff={staff} />
         )}
