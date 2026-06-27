@@ -9,7 +9,18 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const op = body.op as 'create' | 'update' | 'delete';
+    const op = body.op as 'create' | 'update' | 'delete' | 'set-company-strategy';
+
+    // Cấp 1 (công ty → showroom): ghi chiến lược chia lead vào showroom cho công ty.
+    if (op === 'set-company-strategy') {
+      if (!['least_loaded', 'round_robin', 'weighted'].includes(body.showroom_assign_strategy)) {
+        return NextResponse.json({ error: 'Chiến lược không hợp lệ.' }, { status: 400 });
+      }
+      const { error } = await service.from('companies')
+        .update({ showroom_assign_strategy: body.showroom_assign_strategy }).eq('id', companyId);
+      if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+      return NextResponse.json({ success: true });
+    }
 
     // Cô lập đa công ty: luật sửa/xoá phải thuộc CÙNG công ty với admin.
     if (op === 'update' || op === 'delete') {

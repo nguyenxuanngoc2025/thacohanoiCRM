@@ -1,8 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { requireAdmin } from '@/lib/admin-guard';
 
-// CRUD phòng bán hàng (sales_teams) + trọng số phân bổ theo kênh (team_allocation).
-// op: create | update | delete | set-allocation
+// CRUD phòng bán hàng (sales_teams) + chiến lược chia TVBH + % share phòng.
+// op: create | update | delete | set-allocation (cũ) | set-strategy
 export async function POST(request: NextRequest) {
   const guard = await requireAdmin();
   if (guard.error) return guard.error;
@@ -11,10 +11,10 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const op = body.op as 'create' | 'update' | 'delete' | 'set-allocation';
+    const op = body.op as 'create' | 'update' | 'delete' | 'set-allocation' | 'set-strategy';
 
     // Cô lập đa công ty: phòng sửa/xoá/đặt tỷ trọng phải thuộc CÙNG công ty với admin.
-    if (op === 'update' || op === 'delete' || op === 'set-allocation') {
+    if (op === 'update' || op === 'delete' || op === 'set-allocation' || op === 'set-strategy') {
       const { data: own } = await service.from('sales_teams')
         .select('id, is_default').eq('id', body.id ?? body.sales_team_id).eq('company_id', companyId).maybeSingle();
       if (!own) return NextResponse.json({ error: 'Phòng bán hàng không thuộc công ty của bạn.' }, { status: 404 });
@@ -38,6 +38,22 @@ export async function POST(request: NextRequest) {
         if (error) return NextResponse.json({ error: error.message }, { status: 400 });
         return NextResponse.json({ success: true });
       }
+    }
+
+    if (op === 'set-strategy') {
+      const updates: Record<string, unknown> = {};
+      if (['least_loaded', 'round_robin', 'weighted'].includes(body.tvbh_assign_strategy)) {
+        updates.tvbh_assign_strategy = body.tvbh_assign_strategy;
+      }
+      if (Number.isFinite(Number(body.assign_share_pct))) {
+        updates.assign_share_pct = Math.max(0, Number(body.assign_share_pct));
+      }
+      if (Object.keys(updates).length === 0) {
+        return NextResponse.json({ error: 'Không có thay đổi nào.' }, { status: 400 });
+      }
+      const { error } = await service.from('sales_teams').update(updates).eq('id', body.sales_team_id).eq('company_id', companyId);
+      if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+      return NextResponse.json({ success: true });
     }
 
     if (op === 'set-allocation') {

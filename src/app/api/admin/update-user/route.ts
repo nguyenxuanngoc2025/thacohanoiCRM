@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await request.json();
-    const { userId, full_name, role, showroom_id, brand_id, sales_team_id, is_active } = body as {
+    const { userId, full_name, role, showroom_id, brand_id, sales_team_id, is_active, assign_share_pct } = body as {
       userId: string;
       full_name?: string;
       role?: UserRole;
@@ -18,6 +18,7 @@ export async function POST(request: NextRequest) {
       brand_id?: string | null;
       sales_team_id?: string | null;
       is_active?: boolean;
+      assign_share_pct?: number;
     };
     if (!userId) return NextResponse.json({ error: 'Thiếu userId' }, { status: 400 });
 
@@ -80,6 +81,10 @@ export async function POST(request: NextRequest) {
       if (brand_id !== undefined) updates.brand_id = brand_id;
     }
     if (typeof is_active === 'boolean') updates.is_active = is_active;
+    // % chỉ tiêu nhận lead trong phòng (dùng khi phòng chia theo tỷ lệ).
+    if (Number.isFinite(Number(assign_share_pct))) {
+      updates.assign_share_pct = Math.max(0, Number(assign_share_pct));
+    }
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: 'Không có thay đổi nào.' }, { status: 400 });

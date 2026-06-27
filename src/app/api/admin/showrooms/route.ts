@@ -29,10 +29,17 @@ export async function POST(request: NextRequest) {
     const brandIds: string[] = Array.isArray(body.brand_ids)
       ? (body.brand_ids as unknown[]).map((x) => String(x)).filter(Boolean)
       : [];
-    const row = {
+    const row: Record<string, unknown> = {
       name,
       code: body.code ? String(body.code).trim() : null,
     };
+    // Chiến lược chia lead vào phòng + % share của showroom (chỉ ghi nếu hợp lệ).
+    if (['least_loaded', 'round_robin', 'weighted'].includes(body.team_assign_strategy)) {
+      row.team_assign_strategy = body.team_assign_strategy;
+    }
+    if (Number.isFinite(Number(body.assign_share_pct))) {
+      row.assign_share_pct = Math.max(0, Number(body.assign_share_pct));
+    }
 
     // Brand công ty được cấp (whitelist). Chỉ cho gán brand nằm trong danh sách.
     const { data: allowedRows } = await service
