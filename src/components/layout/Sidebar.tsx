@@ -122,6 +122,7 @@ export default function Sidebar({
         position: 'relative',
         flexShrink: 0,
         zIndex: 200,
+        background: 'var(--sidebar-bg)',
         transition: 'width 0.25s cubic-bezier(0.4,0,0.2,1), min-width 0.25s cubic-bezier(0.4,0,0.2,1)',
       }}
     >
@@ -129,7 +130,7 @@ export default function Sidebar({
         style={{
           background: 'var(--sidebar-bg)',
           position: collapsed && hoverExpanded ? 'absolute' : 'relative',
-          top: 0, left: 0,
+          top: 0, left: 0, bottom: 0,
           width: currentW,
           height: '100%',
           display: 'flex', flexDirection: 'column',
@@ -140,7 +141,6 @@ export default function Sidebar({
             ? '6px 0 28px rgba(0,0,0,0.22)'
             : !collapsed ? '2px 0 12px rgba(0,0,0,0.12)' : 'none',
           transition: 'width 0.25s cubic-bezier(0.4,0,0.2,1), box-shadow 0.25s ease',
-          willChange: 'width',
           zIndex: 201,
         }}
       >
@@ -226,7 +226,7 @@ export default function Sidebar({
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           cursor: 'pointer', color: '#ffffff',
           boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
-          transition: 'opacity 0.2s ease, transform 0.2s cubic-bezier(0.34,1.56,0.64,1), background 0.15s ease',
+          transition: 'left 0.25s cubic-bezier(0.4,0,0.2,1), opacity 0.2s ease, transform 0.2s cubic-bezier(0.34,1.56,0.64,1), background 0.15s ease',
           zIndex: 300,
           pointerEvents: toggleVisible ? 'auto' : 'none',
         }}
