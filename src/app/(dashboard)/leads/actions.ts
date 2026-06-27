@@ -110,7 +110,7 @@ export async function unmarkContacted(leadId: string) {
   if (!user) return;
 
   const { data: prev } = await db.from('leads').select('status').eq('id', leadId).maybeSingle();
-  const { error } = await db.from('leads').update({ last_contact_at: null, status: null, fail_reason: null, no_answer_count: 0 }).eq('id', leadId);
+  const { error } = await db.from('leads').update({ last_contact_at: null, status: null, fail_reason: null, no_answer_count: 0, overdue_reminder_count: 0 }).eq('id', leadId);
   if (error) return;
 
   await db.from('lead_logs').insert({
