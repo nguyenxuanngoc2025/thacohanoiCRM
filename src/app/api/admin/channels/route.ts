@@ -6,11 +6,23 @@ import { subscribePageWebhook } from '@/lib/facebook';
 export async function POST(request: NextRequest) {
   const guard = await requireAdmin();
   if (guard.error) return guard.error;
-  const { service } = guard.ctx;
+  const { service, companyId } = guard.ctx;
 
   try {
     const body = await request.json();
     const op = body.op as 'create' | 'update' | 'delete';
+
+    // channel_accounts không có company_id → cô lập qua showroom của công ty.
+    const { data: srRows } = await service.from('showrooms').select('id').eq('company_id', companyId);
+    const companySrIds = ((srRows ?? []) as { id: string }[]).map((r) => r.id);
+
+    // Kênh sửa/xoá phải gắn showroom thuộc công ty của admin.
+    if (op === 'update' || op === 'delete') {
+      const { data: existing } = await service.from('channel_accounts').select('showroom_id').eq('id', body.id).maybeSingle();
+      if (!existing || !companySrIds.includes(existing.showroom_id as string)) {
+        return NextResponse.json({ error: 'Kênh không thuộc công ty của bạn.' }, { status: 404 });
+      }
+    }
 
     if (op === 'delete') {
       const { error } = await service.from('channel_accounts').delete().eq('id', body.id);
@@ -28,6 +40,10 @@ export async function POST(request: NextRequest) {
     if (!page_id) return NextResponse.json({ error: 'Thiếu mã trang / biểu mẫu (page_id)' }, { status: 400 });
     if (showroom_ids.length === 0) return NextResponse.json({ error: 'Chọn ít nhất 1 showroom' }, { status: 400 });
     if (!brand_id) return NextResponse.json({ error: 'Chọn thương hiệu' }, { status: 400 });
+    // Mọi showroom gán cho kênh phải thuộc công ty của admin.
+    if (showroom_ids.some((sid) => !companySrIds.includes(sid))) {
+      return NextResponse.json({ error: 'Showroom không thuộc công ty của bạn.' }, { status: 400 });
+    }
     const row = {
       platform: String(body.platform ?? 'facebook').toLowerCase().trim() || 'facebook',
       page_id,

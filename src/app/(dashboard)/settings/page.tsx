@@ -13,13 +13,26 @@ export default async function SettingsPage() {
   const { data: me } = await supabase.from('users').select('role, company_id').eq('id', user.id).maybeSingle();
   if (me?.role !== 'admin') redirect('/leads');
 
-  // service_role: master catalog (brands/showrooms/channel_accounts) RLS OFF, đọc qua service cho chắc
+  // service_role: master catalog (brands/showrooms/channel_accounts) RLS OFF, đọc qua service cho chắc.
+  // service_role BỎ QUA RLS → MỌI truy vấn dữ liệu thuộc-công-ty phải tự lọc theo company_id,
+  // nếu không admin công ty này sẽ thấy dữ liệu công ty khác.
   const service = createServiceClient();
   const companyId = me.company_id ?? '';
+  // UUID không bao giờ trùng — dùng làm sentinel cho .in() khi mảng rỗng (PostgREST từ chối in.()).
+  const NONE = '00000000-0000-0000-0000-000000000000';
 
+  // Giai đoạn 1: nhân sự + showroom của ĐÚNG công ty này (làm gốc scope cho phần còn lại).
+  const [{ data: staff }, { data: showroomRows }] = await Promise.all([
+    service.from('users').select('id, full_name, email, role, showroom_id, brand_id, is_active').eq('company_id', companyId).order('role'),
+    service.from('showrooms').select('id, name, code').eq('company_id', companyId).order('name'),
+  ]);
+  const srIds = ((showroomRows ?? []) as { id: string }[]).map((s) => s.id);
+  const srFilter = srIds.length ? srIds : [NONE];
+  const userIds = ((staff ?? []) as { id: string }[]).map((u) => u.id);
+  const userFilter = userIds.length ? userIds : [NONE];
+
+  // Giai đoạn 2: phần còn lại — brand/models DÙNG CHUNG toàn cục; còn lại lọc theo showroom/user của công ty.
   const [
-    { data: staff },
-    { data: showroomRows },
     { data: showroomBrandRows },
     { data: brands },
     { data: models },
@@ -31,17 +44,15 @@ export default async function SettingsPage() {
     { data: recentLogs },
     { data: leadStatusRows },
   ] = await Promise.all([
-    service.from('users').select('id, full_name, email, role, showroom_id, brand_id, is_active').order('role'),
-    service.from('showrooms').select('id, name, code').order('name'),
-    service.from('showroom_brands').select('showroom_id, brand_id'),
+    service.from('showroom_brands').select('showroom_id, brand_id').in('showroom_id', srFilter),
     service.from('brands').select('id, name, slug').order('name'),
     service.from('models').select('id, brand_id, name, sort_order, is_active').order('sort_order'),
-    service.from('channel_accounts').select('id, page_name, platform, page_id, showroom_id, brand_id, campaign, is_active').order('created_at', { ascending: false }),
-    service.from('channel_account_showrooms').select('channel_account_id, showroom_id'),
-    service.from('assignment_rules').select('id, showroom_id, strategy, specific_user_id, is_active, priority').order('priority', { ascending: false }),
-    service.from('sla_config').select('id, round, first_response_hours, follow_up_hours, is_active').order('round'),
-    service.from('notification_channels').select('id, channel, name, target, events, is_active, showroom_id, scope').order('created_at', { ascending: false }),
-    service.from('lead_logs').select('id, lead_id, user_id, type, content, old_status, new_status, created_at').order('created_at', { ascending: false }).limit(50),
+    service.from('channel_accounts').select('id, page_name, platform, page_id, showroom_id, brand_id, campaign, is_active').in('showroom_id', srFilter).order('created_at', { ascending: false }),
+    service.from('channel_account_showrooms').select('channel_account_id, showroom_id').in('showroom_id', srFilter),
+    service.from('assignment_rules').select('id, showroom_id, strategy, specific_user_id, is_active, priority').eq('company_id', companyId).order('priority', { ascending: false }),
+    service.from('sla_config').select('id, round, first_response_hours, follow_up_hours, is_active').eq('company_id', companyId).order('round'),
+    service.from('notification_channels').select('id, channel, name, target, events, is_active, showroom_id, scope').eq('company_id', companyId).order('created_at', { ascending: false }),
+    service.from('lead_logs').select('id, lead_id, user_id, type, content, old_status, new_status, created_at').in('user_id', userFilter).order('created_at', { ascending: false }).limit(50),
     service.from('leads').select('status').eq('company_id', companyId),
   ]);
 

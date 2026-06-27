@@ -12,8 +12,14 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const op = body.op as 'create' | 'update' | 'delete';
 
+    // Cô lập đa công ty: showroom sửa/xoá phải thuộc CÙNG công ty với admin.
+    if (op === 'update' || op === 'delete') {
+      const { data: own } = await service.from('showrooms').select('id').eq('id', body.id).eq('company_id', companyId).maybeSingle();
+      if (!own) return NextResponse.json({ error: 'Showroom không thuộc công ty của bạn.' }, { status: 404 });
+    }
+
     if (op === 'delete') {
-      const { error } = await service.from('showrooms').delete().eq('id', body.id);
+      const { error } = await service.from('showrooms').delete().eq('id', body.id).eq('company_id', companyId);
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
       return NextResponse.json({ success: true });
     }
@@ -52,7 +58,7 @@ export async function POST(request: NextRequest) {
     };
 
     if (op === 'update') {
-      const { error } = await service.from('showrooms').update(row).eq('id', body.id);
+      const { error } = await service.from('showrooms').update(row).eq('id', body.id).eq('company_id', companyId);
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
       const e = await syncBrands(String(body.id));
       if (e) return NextResponse.json({ error: e }, { status: 400 });

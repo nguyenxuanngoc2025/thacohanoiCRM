@@ -26,11 +26,11 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await request.json();
-    const { email, full_name, role, company_id, showroom_id, brand_id } = body as {
+    const { email, full_name, role, showroom_id, brand_id } = body as {
       email: string; full_name: string; role: UserRole;
-      company_id: string; showroom_id?: string | null; brand_id?: string | null;
+      showroom_id?: string | null; brand_id?: string | null;
     };
-    if (!email || !full_name || !role || !company_id) {
+    if (!email || !full_name || !role) {
       return NextResponse.json({ error: 'Thiếu thông tin bắt buộc' }, { status: 400 });
     }
     if (roleNeedsShowroom(role) && !showroom_id) {
@@ -41,9 +41,20 @@ export async function POST(request: NextRequest) {
     }
 
     const service = createServiceClient();
-    const { data: caller } = await service.from('users').select('role').eq('id', user.id).maybeSingle();
+    const { data: caller } = await service.from('users').select('role, company_id').eq('id', user.id).maybeSingle();
     if (!caller || caller.role !== 'admin') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+    // Cô lập đa công ty: LUÔN gán user mới vào ĐÚNG công ty của admin đang thao tác.
+    // Bỏ qua company_id gửi từ client để admin không thể tạo tài khoản cho công ty khác.
+    const company_id = caller.company_id as string | null;
+    if (!company_id) {
+      return NextResponse.json({ error: 'Tài khoản admin chưa gắn công ty.' }, { status: 400 });
+    }
+    // Showroom (nếu có) phải thuộc công ty của admin.
+    if (showroom_id) {
+      const { data: sr } = await service.from('showrooms').select('id').eq('id', showroom_id).eq('company_id', company_id).maybeSingle();
+      if (!sr) return NextResponse.json({ error: 'Showroom không thuộc công ty của bạn.' }, { status: 400 });
     }
 
     // Người dùng có thể nhập tên trơn (vd "nguyenvana") → tự ghép đuôi @thaco.com.vn.

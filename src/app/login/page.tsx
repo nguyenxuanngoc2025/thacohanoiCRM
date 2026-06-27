@@ -64,7 +64,16 @@ function SubmitButton() {
 
 function LoginForm() {
   const params = useSearchParams();
-  const hasError = params.get('error');
+  const errorCode = params.get('error');
+  const tenantUnknown = params.get('tenant') === 'unknown';
+  // Thông báo phân biệt rõ: sai công ty / tên miền chưa kích hoạt / sai thông tin đăng nhập.
+  const errorMsg = errorCode === 'wrongtenant'
+    ? 'Tài khoản của bạn không thuộc đơn vị này. Vui lòng đăng nhập tại địa chỉ truy cập của đơn vị mình.'
+    : tenantUnknown
+    ? 'Tên miền truy cập chưa được kích hoạt. Vui lòng liên hệ quản trị hệ thống.'
+    : errorCode
+    ? 'Tài khoản hoặc mật khẩu không chính xác.'
+    : null;
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -132,15 +141,15 @@ function LoginForm() {
                 focused={focused === 'password'} onFocus={() => setFocused('password')} onBlur={() => setFocused(null)}
                 autoComplete="current-password" />
 
-              {hasError && (
+              {errorMsg && (
                 <div style={{
                   display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 10,
                   background: '#fef2f2', border: '1px solid #fecaca', fontSize: 13, fontWeight: 500, color: '#dc2626',
                 }}>
-                  <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                  <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
                     <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
                   </svg>
-                  Tài khoản hoặc mật khẩu không chính xác.
+                  {errorMsg}
                 </div>
               )}
 
@@ -157,7 +166,7 @@ function LoginForm() {
               <img src="https://thacoautohanoi.vn/storage/logo/header-website.webp" alt="Thaco Auto" style={{ height: 22, opacity: 0.35, filter: 'grayscale(1)' }} />
             </div>
           </div>
-          <div style={{ position: 'absolute', bottom: 16, fontSize: 10, color: '#cbd5e1' }}>© 2026 THACO AUTO Hà Nội</div>
+          <div style={{ position: 'absolute', bottom: 16, fontSize: 10, color: '#cbd5e1' }}>© 2026 Newtab Agency · Thiết kế &amp; phát triển hệ thống</div>
         </div>
       </div>
     </>
