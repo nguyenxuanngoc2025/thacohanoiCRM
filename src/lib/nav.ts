@@ -8,33 +8,34 @@ export const ROLE_SCOPE_KIND: Record<UserRole, ViewScope> = {
   admin: 'company',
   gd_cty: 'company',
   mkt_cty: 'company',
+  digital_mkt: 'company',
   gd_brand: 'brand',
   mkt_brand: 'brand',
   tp_brand: 'brand',
   gd_showroom: 'showroom',
   mkt_showroom: 'showroom',
-  tp_showroom: 'showroom',
   tp_phong: 'team',
   tvbh: 'assigned',
 };
 
 // Vai trò "điều hành": được phân giao & thêm lead thủ công (TP/Giám đốc/admin).
-// Marketing chỉ xem + báo cáo (không phân giao). TVBH chỉ chăm sóc lead của mình.
+// Marketing (kể cả Digital) chỉ xem + báo cáo (không phân giao). TVBH chỉ chăm sóc lead của mình.
 export const CAN_ASSIGN = new Set<UserRole>([
-  'admin', 'gd_cty', 'gd_brand', 'tp_brand', 'gd_showroom', 'tp_showroom', 'tp_phong',
+  'admin', 'gd_cty', 'gd_brand', 'tp_brand', 'gd_showroom', 'tp_phong',
 ]);
 export const CAN_CREATE_LEAD = CAN_ASSIGN;
 // Báo cáo: mọi vai trò trừ TVBH.
 export const CAN_VIEW_REPORTS = new Set<UserRole>([
-  'admin', 'gd_cty', 'mkt_cty', 'gd_brand', 'mkt_brand', 'tp_brand',
-  'gd_showroom', 'mkt_showroom', 'tp_showroom', 'tp_phong',
+  'admin', 'gd_cty', 'mkt_cty', 'digital_mkt', 'gd_brand', 'mkt_brand', 'tp_brand',
+  'gd_showroom', 'mkt_showroom', 'tp_phong',
 ]);
 // Quản trị tài khoản / kênh / cấu hình hệ thống.
 export const CAN_MANAGE_STAFF = new Set<UserRole>(['admin']);
 
 const ALL: UserRole[] = [
-  'platform_owner', 'admin', 'gd_cty', 'mkt_cty', 'gd_brand', 'mkt_brand', 'tp_brand',
-  'gd_showroom', 'mkt_showroom', 'tp_showroom', 'tp_phong', 'tvbh',
+  'platform_owner', 'admin', 'gd_cty', 'mkt_cty', 'digital_mkt',
+  'gd_brand', 'mkt_brand', 'tp_brand',
+  'gd_showroom', 'mkt_showroom', 'tp_phong', 'tvbh',
 ];
 const ASSIGN: UserRole[] = [...CAN_ASSIGN];
 const REPORTS: UserRole[] = [...CAN_VIEW_REPORTS];
@@ -57,18 +58,26 @@ export const NAV_ITEMS: NavItem[] = [
 // ─── Danh sách vai trò (đúng thứ tự sơ đồ tổ chức) ─────────────────────────────
 export const ALL_ROLES: UserRole[] = ALL;
 
+// Vai trò được phép TẠO qua UID (ẩn Chủ nền tảng — chỉ 1, không tạo thêm được).
+export const CREATABLE_ROLES: UserRole[] = ALL.filter((r) => r !== 'platform_owner');
+
+/** Chặn cứng phía route: chỉ nhận vai trò trong danh sách được phép tạo. */
+export function isCreatableRole(role: string): role is UserRole {
+  return (CREATABLE_ROLES as string[]).includes(role);
+}
+
 export const ROLE_LABELS: Record<UserRole, string> = {
   platform_owner: 'Chủ nền tảng',
   admin: 'Quản trị hệ thống',
   gd_cty: 'Tổng Giám đốc Công ty',
-  mkt_cty: 'Marketing Công ty',
+  mkt_cty: 'TP/PP Marketing Công ty',
+  digital_mkt: 'Digital Marketing',
   gd_brand: 'Giám đốc Thương hiệu',
   mkt_brand: 'Marketing Thương hiệu',
-  tp_brand: 'TP Kinh doanh Thương hiệu',
+  tp_brand: 'TP/PP Kinh doanh Thương hiệu',
   gd_showroom: 'Giám đốc Showroom',
   mkt_showroom: 'Marketing Showroom',
-  tp_showroom: 'TP Bán hàng (Showroom)',
-  tp_phong: 'TP Bán hàng (Phòng)',
+  tp_phong: 'Trưởng phòng bán hàng',
   tvbh: 'Tư vấn bán hàng',
 };
 
@@ -77,12 +86,12 @@ export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
   admin: 'Quản trị nền tảng — toàn quyền',
   gd_cty: 'Điều hành toàn công ty',
   mkt_cty: 'Marketing cấp công ty',
-  gd_brand: 'Điều hành 1 thương hiệu',
-  mkt_brand: 'Marketing 1 thương hiệu',
-  tp_brand: 'Trưởng phòng kinh doanh thương hiệu',
-  gd_showroom: 'Điều hành 1 showroom',
-  mkt_showroom: 'Marketing 1 showroom',
-  tp_showroom: 'Trưởng phòng bán hàng showroom',
+  digital_mkt: 'Digital Marketing — quyền tương đương TP/PP Marketing Công ty',
+  gd_brand: 'Điều hành các thương hiệu phụ trách',
+  mkt_brand: 'Marketing cho các thương hiệu phụ trách',
+  tp_brand: 'TP/PP Kinh doanh các thương hiệu phụ trách',
+  gd_showroom: 'Điều hành các showroom phụ trách',
+  mkt_showroom: 'Marketing cho các showroom phụ trách',
   tp_phong: 'Trưởng 1 phòng bán hàng trong showroom',
   tvbh: 'Tư vấn bán hàng',
 };
@@ -92,12 +101,12 @@ export const ROLE_SCOPE: Record<UserRole, string> = {
   admin: 'Toàn công ty — mọi showroom & lead',
   gd_cty: 'Toàn công ty — mọi showroom & lead',
   mkt_cty: 'Toàn công ty — chỉ xem & báo cáo',
-  gd_brand: 'Theo thương hiệu — mọi showroom có thương hiệu đó',
-  mkt_brand: 'Theo thương hiệu — chỉ xem & báo cáo',
-  tp_brand: 'Theo thương hiệu — mọi showroom có thương hiệu đó',
-  gd_showroom: 'Theo showroom — toàn bộ lead của showroom',
-  mkt_showroom: 'Theo showroom — chỉ xem & báo cáo',
-  tp_showroom: 'Theo showroom — toàn bộ lead của showroom',
+  digital_mkt: 'Toàn công ty — chỉ xem & báo cáo',
+  gd_brand: 'Theo các thương hiệu phụ trách — mọi showroom có thương hiệu đó',
+  mkt_brand: 'Theo các thương hiệu phụ trách — chỉ xem & báo cáo',
+  tp_brand: 'Theo các thương hiệu phụ trách — mọi showroom có thương hiệu đó',
+  gd_showroom: 'Theo các showroom phụ trách — toàn bộ lead của showroom',
+  mkt_showroom: 'Theo các showroom phụ trách — chỉ xem & báo cáo',
   tp_phong: 'Theo phòng — toàn bộ lead của phòng mình',
   tvbh: 'Cá nhân — chỉ lead được giao cho mình',
 };
@@ -111,12 +120,12 @@ export const ROLE_CAN: Record<UserRole, string[]> = {
   admin: ['Quản lý nhân sự (thêm/sửa/xoá)', 'Cấu hình kênh thu lead', VIEW_ALL, ASSIGN_TXT, REPORT],
   gd_cty: [VIEW_ALL + ' (toàn công ty)', ASSIGN_TXT, REPORT],
   mkt_cty: [VIEW_ALL + ' (toàn công ty)', REPORT],
-  gd_brand: [VIEW_ALL + ' (thương hiệu)', ASSIGN_TXT, REPORT],
-  mkt_brand: [VIEW_ALL + ' (thương hiệu)', REPORT],
-  tp_brand: [VIEW_ALL + ' (thương hiệu)', ASSIGN_TXT, REPORT],
-  gd_showroom: [VIEW_ALL + ' (showroom)', ASSIGN_TXT, REPORT],
-  mkt_showroom: [VIEW_ALL + ' (showroom)', REPORT],
-  tp_showroom: [VIEW_ALL + ' (showroom)', ASSIGN_TXT, REPORT],
+  digital_mkt: [VIEW_ALL + ' (toàn công ty)', REPORT],
+  gd_brand: [VIEW_ALL + ' (các thương hiệu phụ trách)', ASSIGN_TXT, REPORT],
+  mkt_brand: [VIEW_ALL + ' (các thương hiệu phụ trách)', REPORT],
+  tp_brand: [VIEW_ALL + ' (các thương hiệu phụ trách)', ASSIGN_TXT, REPORT],
+  gd_showroom: [VIEW_ALL + ' (các showroom phụ trách)', ASSIGN_TXT, REPORT],
+  mkt_showroom: [VIEW_ALL + ' (các showroom phụ trách)', REPORT],
   tp_phong: [VIEW_ALL + ' (phòng)', ASSIGN_TXT, REPORT],
   tvbh: ['Xem & chăm sóc lead được giao', 'Cập nhật trạng thái lead', 'Ghi nhật ký chăm sóc'],
 };
@@ -126,12 +135,12 @@ export const ROLE_CANNOT: Record<UserRole, string[]> = {
   admin: [],
   gd_cty: ['Quản lý nhân sự & cấu hình hệ thống'],
   mkt_cty: ['Phân giao lead', 'Quản lý nhân sự'],
+  digital_mkt: ['Phân giao lead', 'Quản lý nhân sự'],
   gd_brand: ['Xem lead thương hiệu khác', 'Quản lý nhân sự'],
   mkt_brand: ['Phân giao lead', 'Xem lead thương hiệu khác'],
   tp_brand: ['Xem lead thương hiệu khác', 'Quản lý nhân sự'],
   gd_showroom: ['Xem lead showroom khác', 'Quản lý nhân sự'],
   mkt_showroom: ['Phân giao lead', 'Xem lead showroom khác'],
-  tp_showroom: ['Xem lead showroom khác', 'Quản lý nhân sự'],
   tp_phong: ['Xem lead phòng khác', 'Quản lý nhân sự'],
   tvbh: ['Xem lead của người khác', 'Phân giao lead', 'Quản lý nhân sự'],
 };
@@ -141,12 +150,12 @@ export const ROLE_NEEDS: Record<UserRole, string> = {
   admin: 'Không cần gán (toàn công ty)',
   gd_cty: 'Không cần gán (toàn công ty)',
   mkt_cty: 'Không cần gán (toàn công ty)',
-  gd_brand: 'Bắt buộc gán 1 thương hiệu',
-  mkt_brand: 'Bắt buộc gán 1 thương hiệu',
-  tp_brand: 'Bắt buộc gán 1 thương hiệu',
-  gd_showroom: 'Bắt buộc gán 1 showroom',
-  mkt_showroom: 'Bắt buộc gán 1 showroom',
-  tp_showroom: 'Bắt buộc gán 1 showroom',
+  digital_mkt: 'Không cần gán (toàn công ty)',
+  gd_brand: 'Bắt buộc gán ≥1 thương hiệu',
+  mkt_brand: 'Bắt buộc gán ≥1 thương hiệu',
+  tp_brand: 'Bắt buộc gán ≥1 thương hiệu',
+  gd_showroom: 'Bắt buộc gán ≥1 showroom',
+  mkt_showroom: 'Bắt buộc gán ≥1 showroom',
   tp_phong: 'Bắt buộc gán 1 phòng bán hàng',
   tvbh: 'Bắt buộc gán 1 phòng bán hàng',
 };
@@ -161,12 +170,12 @@ export const ROLE_COLOR: Record<UserRole, { bg: string; text: string; border: st
   admin: C_ADMIN,
   gd_cty: C_ADMIN,
   mkt_cty: C_ADMIN,
+  digital_mkt: C_ADMIN,
   gd_brand: C_BRAND,
   mkt_brand: C_BRAND,
   tp_brand: C_BRAND,
   gd_showroom: C_SHOWROOM,
   mkt_showroom: C_SHOWROOM,
-  tp_showroom: C_SHOWROOM,
   tp_phong: C_SHOWROOM,
   tvbh: C_TVBH,
 };
