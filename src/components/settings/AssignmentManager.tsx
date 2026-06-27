@@ -33,6 +33,8 @@ export default function AssignmentManager({
   const [edit, setEdit] = useState<AssignmentRuleRow | 'new' | null>(null);
 
   const tvbhList = staff.filter((s) => s.role === 'tvbh');
+  // Chỉ hiện luật ghim TVBH thật sự; luật fallback mặc định (least_loaded, chưa gán TVBH) ẩn đi cho đỡ rối.
+  const pinRules = rules.filter((r) => r.strategy === 'specific_user' && r.specific_user_id);
   const showroomName = (id: string | null) => id ? (showrooms.find((s) => s.id === id)?.name ?? '—') : 'Toàn công ty (mặc định)';
   const userName = (id: string | null) => id ? (staff.find((s) => s.id === id)?.full_name ?? '—') : '—';
 
@@ -96,7 +98,7 @@ export default function AssignmentManager({
               </tr>
             </thead>
             <tbody>
-              {rules.map((r) => (
+              {pinRules.map((r) => (
                 <tr key={r.id} className="border-t border-slate-100">
                   <td className="px-4 py-2.5 font-medium text-slate-800 flex items-center gap-2">
                     <GitBranch size={14} style={{ color: '#004B9B' }} /> {showroomName(r.showroom_id)}
@@ -114,7 +116,7 @@ export default function AssignmentManager({
                   </td>
                 </tr>
               ))}
-              {rules.length === 0 && (
+              {pinRules.length === 0 && (
                 <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400">Chưa có luật ghim — lead chia theo cây phân giao ở trên.</td></tr>
               )}
             </tbody>
