@@ -76,9 +76,9 @@ export default function ZaloGuideModal({ onClose }: { onClose: () => void }) {
                 Bấm <b>Đăng nhập</b> (góc trên bên phải) bằng tài khoản Zalo quản lý OA.
               </Step>
               <Step n={2}>
-                Bấm menu <b>“Ứng dụng”</b> trên thanh trên cùng → bấm nút <b>“Tạo ứng dụng mới”</b>.
-                Đặt tên tuỳ ý (ví dụ: <i>CRM Lead</i>), chọn loại liên quan tới doanh nghiệp, rồi
-                bấm <b>Tạo</b>.
+                Bấm vào <b>ảnh đại diện</b> ở góc trên cùng bên phải màn hình → một menu sổ xuống,
+                chọn <b>“Thêm ứng dụng mới”</b>. Đặt tên tuỳ ý (ví dụ: <i>CRM Lead</i>), chọn loại
+                liên quan tới doanh nghiệp, rồi bấm <b>Tạo</b>.
               </Step>
               <Step n={3}>
                 Trong ứng dụng vừa tạo, ở menu bên trái chọn <b>“Official Account”</b> →

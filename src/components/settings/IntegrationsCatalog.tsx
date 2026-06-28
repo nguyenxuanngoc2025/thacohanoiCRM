@@ -11,6 +11,7 @@ import {
   PrimaryBtn, GhostBtn, Field, TextInput, Select, Toggle, StatusPill, FlashBar, postAdmin,
 } from './ui';
 import ZaloGuideModal from './ZaloGuideModal';
+import FacebookGuideModal from './FacebookGuideModal';
 
 export type { ChannelRow };
 
@@ -25,6 +26,7 @@ export default function IntegrationsCatalog({
   const [flash, setFlash] = useState<string | null>(null);
   const [modal, setModal] = useState<{ platform: string; row: ChannelRow | 'new' } | null>(null);
   const [showZaloGuide, setShowZaloGuide] = useState(false);
+  const [showFbGuide, setShowFbGuide] = useState(false);
   const flashMsg = (m: string) => { setFlash(m); setTimeout(() => setFlash(null), 3000); };
 
   const byPlatform = useMemo(() => {
@@ -100,11 +102,11 @@ export default function IntegrationsCatalog({
                       {count} {conn.unit} đã đăng ký
                     </div>
                     <div className="flex items-center gap-2">
-                      {conn.key === 'zalo' && (
+                      {(conn.key === 'zalo' || conn.key === 'facebook') && (
                         <button
-                          onClick={() => setShowZaloGuide(true)}
+                          onClick={() => (conn.key === 'zalo' ? setShowZaloGuide(true) : setShowFbGuide(true))}
                           className="inline-flex items-center gap-1 text-xs font-semibold rounded-lg px-2.5 py-1.5 border border-slate-200 bg-white hover:bg-slate-50 transition-colors"
-                          style={{ color: '#0068FF' }}>
+                          style={{ color: conn.color }}>
                           <HelpCircle size={13} /> Xem hướng dẫn
                         </button>
                       )}
@@ -135,6 +137,7 @@ export default function IntegrationsCatalog({
       )}
 
       {showZaloGuide && <ZaloGuideModal onClose={() => setShowZaloGuide(false)} />}
+      {showFbGuide && <FacebookGuideModal onClose={() => setShowFbGuide(false)} />}
     </div>
   );
 }
