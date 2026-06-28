@@ -2,7 +2,7 @@ import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import SettingsClient from '@/components/settings/SettingsClient';
 import type { ChannelRow } from '@/components/settings/types';
-import { getFbBusinessId } from '@/lib/platform-settings';
+import { getFbBusinessId, getPlatformSetting } from '@/lib/platform-settings';
 
 export const dynamic = 'force-dynamic';
 
@@ -130,6 +130,11 @@ export default async function SettingsPage() {
 
   // Business ID nền tảng (dùng chung) — hiển thị trong hướng dẫn kết nối Facebook.
   const fbBusinessId = (await getFbBusinessId()) ?? '';
+  // Google OAuth (dùng chung nền tảng) + trạng thái kết nối của công ty này.
+  const googleClientId = (await getPlatformSetting('google_oauth_client_id')) ?? '';
+  const googleApiKey = (await getPlatformSetting('google_api_key')) ?? '';
+  const { data: googleConn } = await service.from('google_connections').select('id').eq('company_id', companyId).maybeSingle();
+  const googleConnected = !!googleConn;
 
   return (
     <div className="p-6 space-y-6">
@@ -154,6 +159,9 @@ export default async function SettingsPage() {
         recentLogs={recentLogs ?? []}
         statusCounts={statusCounts}
         fbBusinessId={fbBusinessId}
+        googleClientId={googleClientId}
+        googleApiKey={googleApiKey}
+        googleConnected={googleConnected}
       />
     </div>
   );

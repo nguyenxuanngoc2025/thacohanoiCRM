@@ -12,6 +12,8 @@ import {
 } from './ui';
 import ZaloGuideModal from './ZaloGuideModal';
 import FacebookGuideModal from './FacebookGuideModal';
+import GoogleSheetConnect from './GoogleSheetConnect';
+import GoogleSheetGuideModal from './GoogleSheetGuideModal';
 
 export type { ChannelRow };
 
@@ -19,14 +21,18 @@ export type { ChannelRow };
 const CONNECTORS = PLATFORMS;
 
 export default function IntegrationsCatalog({
-  channels, showrooms, brands, fbBusinessId,
-}: { channels: ChannelRow[]; showrooms: ShowroomRow[]; brands: BrandRow[]; fbBusinessId?: string }) {
+  channels, showrooms, brands, fbBusinessId, googleClientId, googleApiKey, googleConnected,
+}: {
+  channels: ChannelRow[]; showrooms: ShowroomRow[]; brands: BrandRow[];
+  fbBusinessId?: string; googleClientId?: string; googleApiKey?: string; googleConnected?: boolean;
+}) {
   const router = useRouter();
   const [expanded, setExpanded] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
   const [modal, setModal] = useState<{ platform: string; row: ChannelRow | 'new' } | null>(null);
   const [showZaloGuide, setShowZaloGuide] = useState(false);
   const [showFbGuide, setShowFbGuide] = useState(false);
+  const [showGoogleGuide, setShowGoogleGuide] = useState(false);
   const flashMsg = (m: string) => { setFlash(m); setTimeout(() => setFlash(null), 3000); };
 
   const byPlatform = useMemo(() => {
@@ -102,26 +108,43 @@ export default function IntegrationsCatalog({
                       {count} {conn.unit} đã đăng ký
                     </div>
                     <div className="flex items-center gap-2">
-                      {(conn.key === 'zalo' || conn.key === 'facebook') && (
+                      {(conn.key === 'zalo' || conn.key === 'facebook' || conn.key === 'google_sheet') && (
                         <button
-                          onClick={() => (conn.key === 'zalo' ? setShowZaloGuide(true) : setShowFbGuide(true))}
+                          onClick={() => {
+                            if (conn.key === 'zalo') setShowZaloGuide(true);
+                            else if (conn.key === 'facebook') setShowFbGuide(true);
+                            else setShowGoogleGuide(true);
+                          }}
                           className="inline-flex items-center gap-1 text-xs font-semibold rounded-lg px-2.5 py-1.5 border border-slate-200 bg-white hover:bg-slate-50 transition-colors"
                           style={{ color: conn.color }}>
                           <HelpCircle size={13} /> Xem hướng dẫn
                         </button>
                       )}
-                      <PrimaryBtn onClick={() => setModal({ platform: conn.key, row: 'new' })}>
-                        <Plus size={13} /> Thêm {conn.unit}
-                      </PrimaryBtn>
+                      {conn.key !== 'google_sheet' && (
+                        <PrimaryBtn onClick={() => setModal({ platform: conn.key, row: 'new' })}>
+                          <Plus size={13} /> Thêm {conn.unit}
+                        </PrimaryBtn>
+                      )}
                     </div>
                   </div>
-                  <div className="space-y-1.5">
-                    {rows.map((c) => (
-                      <ChannelItem key={c.id} c={c} showrooms={showrooms} brands={brands}
-                        onEdit={() => setModal({ platform: conn.key, row: c })} onDelete={() => del(c)} />
-                    ))}
-                    {count === 0 && <div className="text-xs text-slate-400 py-3 text-center">Chưa có {conn.unit} nào. Bấm “Thêm {conn.unit}”.</div>}
-                  </div>
+                  {conn.key === 'google_sheet' ? (
+                    <GoogleSheetConnect
+                      connected={!!googleConnected}
+                      clientId={googleClientId ?? ''}
+                      apiKey={googleApiKey ?? ''}
+                      showrooms={showrooms}
+                      brands={brands}
+                      sheets={channels.filter((c) => c.platform === 'google_sheet')}
+                    />
+                  ) : (
+                    <div className="space-y-1.5">
+                      {rows.map((c) => (
+                        <ChannelItem key={c.id} c={c} showrooms={showrooms} brands={brands}
+                          onEdit={() => setModal({ platform: conn.key, row: c })} onDelete={() => del(c)} />
+                      ))}
+                      {count === 0 && <div className="text-xs text-slate-400 py-3 text-center">Chưa có {conn.unit} nào. Bấm “Thêm {conn.unit}”.</div>}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -138,6 +161,7 @@ export default function IntegrationsCatalog({
 
       {showZaloGuide && <ZaloGuideModal onClose={() => setShowZaloGuide(false)} />}
       {showFbGuide && <FacebookGuideModal onClose={() => setShowFbGuide(false)} businessId={fbBusinessId} />}
+      {showGoogleGuide && <GoogleSheetGuideModal onClose={() => setShowGoogleGuide(false)} />}
     </div>
   );
 }
