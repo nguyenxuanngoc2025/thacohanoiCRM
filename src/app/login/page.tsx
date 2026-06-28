@@ -122,6 +122,10 @@ function LoginForm() {
               letterSpacing: '0.28em', textTransform: 'uppercase', fontFamily: '"SF Pro Display", -apple-system, sans-serif',
               textShadow: '0 2px 20px rgba(0,0,0,0.25)', textAlign: 'center', padding: '0 24px',
             }}>Quản Lý Khách Hàng</h1>
+            <div style={{
+              marginTop: 14, fontSize: 'clamp(11px, 1vw, 14px)', fontWeight: 400, color: 'rgba(255,255,255,0.5)',
+              letterSpacing: '0.42em', textTransform: 'uppercase', fontFamily: '"SF Pro Display", -apple-system, sans-serif',
+            }}>Digital Platform</div>
             <div style={{ width: 120, height: 1, marginTop: 18, background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent)' }} />
           </div>
           <TimeDisplay />

@@ -38,7 +38,6 @@ export function renderNewLead(i: NewLeadInput): string {
   const tinhTrang = i.assignee?.trim() ? `Đã giao cho ${i.assignee.trim()}` : 'Chưa được phân giao';
   return [
     `<b>LEAD MỚI — ${i.showroom}</b>`,
-    `<i>Digital Platform · Lead trực tuyến</i>`,
     `KH: <b>${ten}</b> · ${maskPhone(i.phone)}`,
     `Nguồn: ${nguon}`,
     `Dòng xe quan tâm: ${xe}`,

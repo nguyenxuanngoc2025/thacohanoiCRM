@@ -32,13 +32,6 @@ describe('notify-templates', () => {
     expect(t).toContain('<b>Đã giao cho Trần B</b>');
   });
 
-  it('renderNewLead: có sub-title nghiêng "Digital Platform"', () => {
-    const t = renderNewLead({
-      showroom: 'KIA', fullName: 'A', phone: '+8490', source: 'facebook', model: 'Sonet', assignee: 'B',
-    });
-    expect(t).toContain('<i>Digital Platform · Lead trực tuyến</i>');
-  });
-
   it('renderNewLead: marker đậm dùng tag <b>, KHÔNG dùng ** (tránh va dấu * của SĐT che)', () => {
     // SĐT che dùng *** ở cuối; nếu marker đậm vẫn là **...** sẽ va vào *** → parser bot bôi nhầm.
     // Dùng tag <b>/<i> (không chứa dấu *) nên SĐT che an toàn.
