@@ -52,6 +52,9 @@ export default function GoogleSheetConnect({
   const openPicker = useCallback(async () => {
     if (!clientId || !apiKey) { setMsg('Nền tảng chưa cấu hình Google Client ID / API Key.'); return; }
     setMsg(null); setPicking(true);
+    // Mã project Google = phần trước dấu '-' của Client ID. Cần cho setAppId để
+    // file chọn qua Picker được liên kết với APP → server (refresh token) đọc được.
+    const projectNumber = clientId.split('-')[0];
     try {
       await Promise.all([loadScript(GSI_SRC), loadScript(GIS_SRC)]);
       await new Promise<void>((res) => window.gapi.load('picker', () => res()));
@@ -62,7 +65,7 @@ export default function GoogleSheetConnect({
           if (!resp.access_token) { setPicking(false); return; }
           const view = new window.google.picker.DocsView(window.google.picker.ViewId.SPREADSHEETS).setMode(window.google.picker.DocsViewMode.LIST);
           const picker = new window.google.picker.PickerBuilder()
-            .addView(view).setOAuthToken(resp.access_token).setDeveloperKey(apiKey)
+            .addView(view).setOAuthToken(resp.access_token).setDeveloperKey(apiKey).setAppId(projectNumber)
             .setCallback((d: any) => {
               if (d.action === window.google.picker.Action.PICKED) {
                 const doc = d.docs[0];
