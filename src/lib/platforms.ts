@@ -28,7 +28,7 @@ export const PLATFORMS: Platform[] = [
   { key: 'facebook', name: 'Facebook',          desc: 'Lead Ads · Messenger · bình luận',     icon: Megaphone,      color: '#1877F2', state: 'active', unit: 'fanpage',  digital: true },
   { key: 'website',  name: 'Website form',       desc: 'Form trên web · landing page',         icon: Globe,          color: '#004B9B', state: 'active', unit: 'biểu mẫu', digital: true },
   { key: 'zalo',     name: 'Zalo OA',            desc: 'Tin nhắn OA · quảng cáo Zalo Lead',    icon: MessageCircle,  color: '#0068FF', state: 'active', unit: 'OA',       digital: true },
-  { key: 'google',   name: 'Google form / Ads',  desc: 'Lead form Google Ads · Google Form',   icon: Search,         color: '#EA4335', state: 'soon',   unit: 'form',     digital: true },
+  { key: 'google_sheet', name: 'Google Sheet',     desc: 'Hút lead từ Google Sheet agency chia sẻ', icon: Search,         color: '#0F9D58', state: 'active', unit: 'sheet',    digital: true },
   { key: 'tiktok',   name: 'TikTok Lead',        desc: 'TikTok Lead Generation',               icon: Music2,         color: '#010101', state: 'soon',   unit: 'form',     digital: true },
   { key: 'email',    name: 'Email',              desc: 'Hộp thư thu lead',                     icon: Mail,           color: '#0EA5E9', state: 'soon',   unit: 'hộp thư',  digital: true },
   { key: 'livechat', name: 'Live chat',          desc: 'Chat trực tuyến trên web',             icon: MessagesSquare, color: '#8B5CF6', state: 'soon',   unit: 'widget',   digital: true },

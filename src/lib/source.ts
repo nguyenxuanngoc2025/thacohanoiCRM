@@ -33,6 +33,13 @@ const CHANNELS: ChannelDef[] = [
       { value: 'zalo_ads', label: 'Quảng cáo' },
     ],
   },
+  {
+    key: 'google_sheet',
+    platform: 'Google Sheet',
+    variants: [
+      { value: 'google_sheet', label: 'Google Sheet' },
+    ],
+  },
 ];
 
 /** Phân nhánh chi tiết kênh theo platform key — cho form thêm lead. */
