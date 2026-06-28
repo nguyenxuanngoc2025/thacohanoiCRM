@@ -135,7 +135,7 @@ export default function SettingsClient({
           <SalesTeamsManager salesTeams={salesTeams} showrooms={showrooms} brands={brands} staff={staff} />
         )}
         {active === 'integrations' && (
-          <IntegrationsCatalog channels={channels} showrooms={showrooms} brands={brands} fbBusinessId={fbBusinessId} googleClientId={googleClientId} googleApiKey={googleApiKey} googleConnected={googleConnected} />
+          <IntegrationsCatalog channels={channels} showrooms={showrooms} brands={brands} models={models} fbBusinessId={fbBusinessId} googleClientId={googleClientId} googleApiKey={googleApiKey} googleConnected={googleConnected} />
         )}
         {active === 'pipeline' && <PipelineReference counts={statusCounts} />}
         {active === 'assignment' && (

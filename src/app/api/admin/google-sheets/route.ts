@@ -48,14 +48,35 @@ export async function POST(request: NextRequest) {
     const nameCol = body.name_col == null || body.name_col === '' ? null : Number(body.name_col);
     const noteCols: number[] = Array.isArray(body.note_cols) ? body.note_cols.map(Number).filter(Number.isInteger) : [];
 
-    // Tab cần lấy lead: ưu tiên mảng `tabs` (chọn nhiều), fallback `tab` (1 tab, tương thích cũ).
-    const tabs: string[] = Array.isArray(body.tabs)
-      ? body.tabs.map((t: unknown) => String(t).trim()).filter(Boolean)
-      : (body.tab ? [String(body.tab).trim()] : []);
+    // Tab cần lấy lead: mảng object {title, source}. Tương thích cũ: mảng chuỗi / `tab` đơn.
+    const rawTabs: unknown[] = Array.isArray(body.tabs)
+      ? body.tabs
+      : (body.tab ? [String(body.tab)] : []);
+    const tabs = rawTabs
+      .map((t) => {
+        if (typeof t === 'string') return { title: t.trim(), source: null as string | null };
+        const o = t as { title?: unknown; source?: unknown };
+        return {
+          title: String(o.title ?? '').trim(),
+          source: o.source ? String(o.source).trim().toLowerCase() : null,
+        };
+      })
+      .filter((t) => t.title);
+
+    const sourceMode = body.source_mode === 'column' ? 'column' : 'fixed';
+    const sourceCol = body.source_col == null || body.source_col === '' ? null : Number(body.source_col);
+    const modelMode = body.model_mode === 'fixed' ? 'fixed' : body.model_mode === 'column' ? 'column' : 'auto';
+    const modelId = modelMode === 'fixed' && body.model_id ? String(body.model_id) : null;
+    const modelCol = modelMode === 'column' && body.model_col != null && body.model_col !== '' ? Number(body.model_col) : null;
 
     const config = {
       connection_id: conn.id,
       tabs,
+      source_mode: sourceMode,
+      source_col: sourceMode === 'column' ? sourceCol : null,
+      model_mode: modelMode,
+      model_id: modelId,
+      model_col: modelCol,
       phone_col: phoneCol,
       name_col: nameCol,
       note_cols: noteCols,

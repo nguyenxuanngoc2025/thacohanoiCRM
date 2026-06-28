@@ -21,6 +21,7 @@ export interface IngestPayload {
   fb_lead_id?: string | null;
   external_payload?: Record<string, unknown> | null;
   intent_text?: string; // văn bản gom để dò dòng xe (tuỳ kênh)
+  model_id?: string | null; // dòng xe chỉ định sẵn (Google Sheet gán cố định/theo cột) — ưu tiên hơn intent_text
 }
 
 export interface IngestResult {

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   ChevronDown, Plus, Edit2, Trash2, X, HelpCircle,
 } from 'lucide-react';
-import type { ChannelRow, ShowroomRow, BrandRow } from './types';
+import type { ChannelRow, ShowroomRow, BrandRow, ModelRow } from './types';
 import { PLATFORMS, type ConnectorState } from '@/lib/platforms';
 import {
   PrimaryBtn, GhostBtn, Field, TextInput, Select, Toggle, StatusPill, FlashBar, postAdmin,
@@ -21,9 +21,9 @@ export type { ChannelRow };
 const CONNECTORS = PLATFORMS;
 
 export default function IntegrationsCatalog({
-  channels, showrooms, brands, fbBusinessId, googleClientId, googleApiKey, googleConnected,
+  channels, showrooms, brands, models, fbBusinessId, googleClientId, googleApiKey, googleConnected,
 }: {
-  channels: ChannelRow[]; showrooms: ShowroomRow[]; brands: BrandRow[];
+  channels: ChannelRow[]; showrooms: ShowroomRow[]; brands: BrandRow[]; models: ModelRow[];
   fbBusinessId?: string; googleClientId?: string; googleApiKey?: string; googleConnected?: boolean;
 }) {
   const router = useRouter();
@@ -134,6 +134,7 @@ export default function IntegrationsCatalog({
                       apiKey={googleApiKey ?? ''}
                       showrooms={showrooms}
                       brands={brands}
+                      models={models}
                       sheets={channels.filter((c) => c.platform === 'google_sheet')}
                     />
                   ) : (

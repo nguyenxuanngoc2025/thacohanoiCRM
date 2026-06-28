@@ -57,17 +57,23 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
   // Kênh chuẩn hoá (lowercase) — lưu vào cột source để biết nguồn lead.
   const channelKey = (payload.source ?? 'facebook').trim().toLowerCase() || 'facebook';
 
-  // Tự động dò dòng xe khách quan tâm — scope theo brand của fanpage, chỉ điền khi trúng đúng 1 dòng.
+  // Dòng xe: ưu tiên model_id chỉ định sẵn (Google Sheet gán cố định/theo cột);
+  // nếu không có thì tự dò theo từ khoá — scope theo brand của fanpage, chỉ điền khi trúng đúng 1 dòng.
   let modelId: string | null = null;
   let modelName: string | null = null;
-  if (channel.brand_id && payload.intent_text) {
+  if (channel.brand_id && (payload.model_id || payload.intent_text)) {
     const { data: brandModels } = await db
       .from('models')
       .select('id, brand_id, name, keywords, is_active')
       .eq('brand_id', channel.brand_id)
       .eq('is_active', true);
     const models = (brandModels ?? []) as { id: string; brand_id: string; name: string; keywords: string[]; is_active: boolean }[];
-    modelId = detectModel({ brandId: channel.brand_id, text: payload.intent_text, models });
+    if (payload.model_id) {
+      // Chỉ nhận model_id nếu đúng là dòng xe active của brand fanpage này.
+      modelId = models.find((m) => m.id === payload.model_id)?.id ?? null;
+    } else if (payload.intent_text) {
+      modelId = detectModel({ brandId: channel.brand_id, text: payload.intent_text, models });
+    }
     if (modelId) modelName = models.find((m) => m.id === modelId)?.name ?? null;
   }
 
