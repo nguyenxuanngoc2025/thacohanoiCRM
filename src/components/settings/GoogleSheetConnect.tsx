@@ -49,6 +49,7 @@ export default function GoogleSheetConnect({
   const [picking, setPicking] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null); // null = thêm mới; có id = đang sửa
   const [picked, setPicked] = useState<{ id: string; name: string } | null>(null);
+  const [label, setLabel] = useState(''); // tên/nhãn hiển thị do người dùng đặt (mặc định = tên file)
   const [tabs, setTabs] = useState<string[]>([]);
   const [selectedTabs, setSelectedTabs] = useState<string[]>([]);
   const [preview, setPreview] = useState<PreviewData | null>(null);
@@ -81,7 +82,7 @@ export default function GoogleSheetConnect({
   );
 
   const resetForm = () => {
-    setEditingId(null); setPicked(null); setTabs([]); setSelectedTabs([]);
+    setEditingId(null); setPicked(null); setLabel(''); setTabs([]); setSelectedTabs([]);
     setPreview(null); setPreviewTab(null); setPhoneCol(null); setNameCol(null);
     setBrandId(''); setSrIds([]); setSourceMode('fixed'); setTabSources({});
     setSourceCol(null); setModelMode('auto'); setModelId(''); setModelCol(null);
@@ -125,6 +126,7 @@ export default function GoogleSheetConnect({
     const titles = cfgTabs.map((t) => t.title);
     setEditingId(sheet.id);
     setPicked({ id: sheet.page_id ?? '', name: sheet.page_name ?? sheet.page_id ?? '' });
+    setLabel(sheet.page_name ?? sheet.page_id ?? '');
     setSelectedTabs(titles);
     setTabSources(Object.fromEntries(cfgTabs.map((t) => [t.title, t.source ?? 'google_sheet'])));
     setPhoneCol(cfg.phone_col ?? null);
@@ -227,6 +229,7 @@ export default function GoogleSheetConnect({
       setPicking(false);
       setEditingId(null);
       setPicked({ id: d.id, name: d.name ?? d.id });
+      setLabel(d.name ?? d.id);
       setBrandId(''); setSrIds([]); setSourceMode('fixed'); setTabSources({});
       setSourceCol(null); setModelMode('auto'); setModelId(''); setModelCol(null);
       void loadTabs(d.id);
@@ -260,7 +263,7 @@ export default function GoogleSheetConnect({
         body: JSON.stringify({
           op: editingId ? 'update' : 'create',
           id: editingId ?? undefined,
-          spreadsheet_id: picked.id, page_name: picked.name,
+          spreadsheet_id: picked.id, page_name: label.trim() || picked.name,
           brand_id: brandId, showroom_ids: srIds,
           tabs: tabsPayload,
           source_mode: sourceMode,
@@ -343,6 +346,15 @@ export default function GoogleSheetConnect({
           <div>
             <div className="text-sm font-semibold text-slate-800">Cấu hình nạp lead — {picked.name}</div>
             <p className="text-xs text-slate-500 mt-0.5">Đọc cấu hình cột từ tab “{previewTab}”. Áp dụng cho tất cả {selectedTabs.length} tab đã chọn.</p>
+          </div>
+
+          {/* 0. Tên/nhãn hiển thị */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1">Tên hiển thị</label>
+            <input value={label} onChange={(e) => setLabel(e.target.value)}
+              placeholder={picked.name}
+              className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm" />
+            <p className="text-[11px] text-slate-400 mt-1">Đặt tên dễ nhớ cho kết nối này (vd “Lead Tải Bus HN”). Để trống = tên file Google.</p>
           </div>
 
           {/* 1. Cột dữ liệu */}

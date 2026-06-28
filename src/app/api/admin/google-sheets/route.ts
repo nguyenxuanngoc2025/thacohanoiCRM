@@ -28,6 +28,9 @@ export async function POST(request: NextRequest) {
     }
 
     if (op === 'delete') {
+      // Lead cũ vẫn giữ — chỉ gỡ tham chiếu tới sheet (FK leads.channel_account_id NO ACTION
+      // sẽ chặn xoá nếu còn lead trỏ tới). channel_account_showrooms tự CASCADE.
+      await service.from('leads').update({ channel_account_id: null }).eq('channel_account_id', body.id);
       const { error } = await service.from('channel_accounts').delete().eq('id', body.id);
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
       return NextResponse.json({ success: true });
