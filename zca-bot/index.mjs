@@ -108,22 +108,26 @@ async function maybeEnrich(api, n) {
   return text;
 }
 
-// Đổi marker **...** trong text thành chữ ĐẬM của Zalo. Trả về { msg sạch, styles[] }.
+// Đổi tag <b>...</b> → ĐẬM, <i>...</i> → NGHIÊNG của Zalo. Trả về { msg sạch, styles[] }.
+// Dùng tag (không phải **...**) để KHÔNG đụng dấu * trong SĐT che (vd 0901234*** → 3 dấu *).
 // Offset (start/len) tính theo độ dài chuỗi JS — đúng cách Zalo đếm vị trí ký tự.
 // Phải chạy SAU maybeEnrich để offset khớp text cuối (sau khi bù tên).
+const STYLE_TAGS = { '<b>': { close: '</b>', st: TextStyle.Bold }, '<i>': { close: '</i>', st: TextStyle.Italic } };
 function parseStyledText(input) {
   if (!input) return { msg: input ?? '', styles: [] };
   let msg = '';
   const styles = [];
   let i = 0;
   while (i < input.length) {
-    if (input[i] === '*' && input[i + 1] === '*') {
-      const end = input.indexOf('**', i + 2);
-      if (end === -1) { msg += input[i++]; continue; } // marker lẻ → giữ nguyên
-      const inner = input.slice(i + 2, end);
-      if (inner) styles.push({ start: msg.length, len: inner.length, st: TextStyle.Bold });
+    const open = input.startsWith('<b>', i) ? '<b>' : input.startsWith('<i>', i) ? '<i>' : null;
+    if (open) {
+      const { close, st } = STYLE_TAGS[open];
+      const end = input.indexOf(close, i + open.length);
+      if (end === -1) { msg += input[i++]; continue; } // tag lẻ → giữ nguyên ký tự
+      const inner = input.slice(i + open.length, end);
+      if (inner) styles.push({ start: msg.length, len: inner.length, st });
       msg += inner;
-      i = end + 2;
+      i = end + close.length;
     } else {
       msg += input[i++];
     }

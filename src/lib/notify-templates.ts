@@ -1,7 +1,8 @@
 // Hàm thuần render nội dung tin Zalo. KHÔNG emoji (preference user).
 // zca-bot chỉ gửi payload.text — mọi logic nội dung nằm ở đây.
-// Định dạng: bọc **...** = chữ ĐẬM; zca-bot đổi marker này thành style đậm của Zalo
-// (offset tính trên text cuối, sau khi bù tên). Marker chỉ phục vụ tin Zalo, không hiện trên app.
+// Định dạng: bọc <b>...</b> = chữ ĐẬM, <i>...</i> = chữ NGHIÊNG; zca-bot đổi tag này
+// thành style của Zalo (offset tính trên text cuối, sau khi bù tên). Tag chỉ phục vụ tin Zalo,
+// không hiện trên app. Dùng tag <b>/<i> (không phải **...**) để KHÔNG đụng dấu * trong SĐT che (***).
 
 import { formatPhoneDisplay } from './phone';
 import { sourcePlatform, sourceLabel } from './source';
@@ -36,11 +37,12 @@ export function renderNewLead(i: NewLeadInput): string {
   const xe = i.model?.trim() || 'chưa xác định';
   const tinhTrang = i.assignee?.trim() ? `Đã giao cho ${i.assignee.trim()}` : 'Chưa được phân giao';
   return [
-    `**LEAD MỚI — ${i.showroom}**`,
-    `KH: **${ten}** · ${maskPhone(i.phone)}`,
+    `<b>LEAD MỚI — ${i.showroom}</b>`,
+    `<i>Digital Platform · Lead trực tuyến</i>`,
+    `KH: <b>${ten}</b> · ${maskPhone(i.phone)}`,
     `Nguồn: ${nguon}`,
     `Dòng xe quan tâm: ${xe}`,
-    `Tình trạng: **${tinhTrang}**`,
+    `Tình trạng: <b>${tinhTrang}</b>`,
   ].join('\n');
 }
 

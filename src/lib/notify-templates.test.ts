@@ -23,13 +23,31 @@ describe('notify-templates', () => {
     expect(t).not.toMatch(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u); // không emoji
   });
 
-  it('renderNewLead: tên + tiêu đề + tình trạng được bọc đậm (**...**)', () => {
+  it('renderNewLead: tên + tiêu đề + tình trạng được bọc đậm (<b>...</b>)', () => {
     const t = renderNewLead({
       showroom: 'KIA', fullName: 'Nguyễn Văn A', phone: '+8490', source: 'facebook', model: 'Sonet', assignee: 'Trần B',
     });
-    expect(t).toContain('**LEAD MỚI — KIA**');
-    expect(t).toContain('**Nguyễn Văn A**');
-    expect(t).toContain('**Đã giao cho Trần B**');
+    expect(t).toContain('<b>LEAD MỚI — KIA</b>');
+    expect(t).toContain('<b>Nguyễn Văn A</b>');
+    expect(t).toContain('<b>Đã giao cho Trần B</b>');
+  });
+
+  it('renderNewLead: có sub-title nghiêng "Digital Platform"', () => {
+    const t = renderNewLead({
+      showroom: 'KIA', fullName: 'A', phone: '+8490', source: 'facebook', model: 'Sonet', assignee: 'B',
+    });
+    expect(t).toContain('<i>Digital Platform · Lead trực tuyến</i>');
+  });
+
+  it('renderNewLead: marker đậm dùng tag <b>, KHÔNG dùng ** (tránh va dấu * của SĐT che)', () => {
+    // SĐT che dùng *** ở cuối; nếu marker đậm vẫn là **...** sẽ va vào *** → parser bot bôi nhầm.
+    // Dùng tag <b>/<i> (không chứa dấu *) nên SĐT che an toàn.
+    const t = renderNewLead({
+      showroom: 'KIA', fullName: 'Nguyễn Văn A', phone: '+84901234567', source: 'facebook', model: 'Sonet', assignee: 'B',
+    });
+    expect(t).toContain('0901234***');     // SĐT che giữ nguyên 3 dấu *
+    expect(t).not.toContain('**LEAD');     // không còn marker ** trên tiêu đề
+    expect(t).not.toContain('**Nguyễn');   // không còn marker ** trên tên
   });
 
   it('renderNewLead: thiếu tên → "Khách lẻ"; chưa giao → "Chưa được phân giao"', () => {
