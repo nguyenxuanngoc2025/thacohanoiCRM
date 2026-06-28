@@ -85,7 +85,10 @@ export async function refreshAccessToken(params: {
     grant_type: 'refresh_token',
   });
   const res = await fetch(TOKEN_URL, { method: 'POST', body });
-  if (!res.ok) throw new Error(`token refresh failed: ${res.status}`);
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(`token refresh failed: ${res.status} ${detail}`);
+  }
   const json = await res.json() as { access_token?: string };
   if (!json.access_token) throw new Error('thiếu access_token');
   return json.access_token;
@@ -104,7 +107,10 @@ export async function readSheetValues(params: {
 }): Promise<string[][]> {
   const url = `${SHEETS_API}/${encodeURIComponent(params.spreadsheetId)}/values/${encodeURIComponent(params.range)}?majorDimension=ROWS`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${params.accessToken}` } });
-  if (!res.ok) throw new Error(`read sheet failed: ${res.status}`);
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(`read sheet failed: ${res.status} ${detail}`);
+  }
   const json = await res.json() as { values?: string[][] };
   return json.values ?? [];
 }

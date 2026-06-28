@@ -33,7 +33,8 @@ export async function GET(request: NextRequest) {
     const headers = rows[0] ?? [];
     const sample = rows.slice(1);
     return NextResponse.json({ headers, sample, guess: guessColumns(headers, sample) });
-  } catch {
+  } catch (err) {
+    console.error('[google/preview] đọc sheet thất bại', err);
     return NextResponse.json({ error: 'Không đọc được sheet. Kiểm tra quyền chia sẻ hoặc kết nối lại Google.' }, { status: 400 });
   }
 }
