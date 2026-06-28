@@ -62,6 +62,13 @@ export async function resolveCompanyFromHost(rawHost: string): Promise<TenantCom
   return (data as unknown as TenantCompany) ?? null;
 }
 
+/** Origin trung tâm của nền tảng (apex) — địa chỉ Google cố định cho MỌI công ty.
+ * Mọi luồng OAuth Google (redirect_uri + cửa sổ Picker) đi qua đây để Google Console
+ * chỉ phải khai 1 lần; thêm công ty mới (subdomain / tên miền riêng) không cần đụng Google. */
+export function platformOrigin(): string {
+  return `https://${PLATFORM_DOMAIN}`;
+}
+
 /** Origin công khai (https://host-that-tao) từ header request.
  * Sau reverse proxy (Caddy/Hostinger), `request.url` là địa chỉ bind nội bộ
  * (vd http://localhost:3007). Host + scheme thật do proxy chuyển qua

@@ -21,10 +21,10 @@ export type { ChannelRow };
 const CONNECTORS = PLATFORMS;
 
 export default function IntegrationsCatalog({
-  channels, showrooms, brands, models, fbBusinessId, googleClientId, googleApiKey, googleConnected,
+  channels, showrooms, brands, models, fbBusinessId, googleConnected,
 }: {
   channels: ChannelRow[]; showrooms: ShowroomRow[]; brands: BrandRow[]; models: ModelRow[];
-  fbBusinessId?: string; googleClientId?: string; googleApiKey?: string; googleConnected?: boolean;
+  fbBusinessId?: string; googleConnected?: boolean;
 }) {
   const router = useRouter();
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -130,8 +130,6 @@ export default function IntegrationsCatalog({
                   {conn.key === 'google_sheet' ? (
                     <GoogleSheetConnect
                       connected={!!googleConnected}
-                      clientId={googleClientId ?? ''}
-                      apiKey={googleApiKey ?? ''}
                       showrooms={showrooms}
                       brands={brands}
                       models={models}

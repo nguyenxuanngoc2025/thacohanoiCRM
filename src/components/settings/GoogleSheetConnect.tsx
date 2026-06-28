@@ -1,15 +1,12 @@
 'use client';
-/* eslint-disable @typescript-eslint/no-explicit-any */
-// gapi / google.picker là SDK ngoài không có type → buộc dùng any cho cửa sổ chọn file.
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { Plus, Edit2, Trash2, X, BarChart3, Eye, RefreshCw } from 'lucide-react';
 import type { ShowroomRow, BrandRow, ChannelRow, ModelRow } from './types';
 import { STATUS_LABEL } from '@/lib/lead-status';
 
-declare global { interface Window { gapi?: any; google?: any; } }
-
-const GSI_SRC = 'https://apis.google.com/js/api.js';
-const GIS_SRC = 'https://accounts.google.com/gsi/client';
+// Cửa sổ chọn Google Sheet (Picker) chạy ở apex trung tâm — origin đã khai Google 1 lần.
+// Mở popup tới đây, nhận id file qua postMessage. Thêm công ty mới không cần đụng Google Console.
+const PLATFORM_ORIGIN = `https://${process.env.NEXT_PUBLIC_PLATFORM_DOMAIN ?? 'crmthacoauto.com'}`;
 
 // Nguồn gán cố định cho từng tab (chế độ "Gán theo tab"). value = source lưu DB.
 const SOURCE_OPTIONS: { value: string; label: string }[] = [
@@ -24,15 +21,6 @@ const sourceLabel = (v: string) => SOURCE_OPTIONS.find((o) => o.value === v)?.la
 
 type SourceMode = 'fixed' | 'column';
 type ModelMode = 'auto' | 'fixed' | 'column';
-
-function loadScript(src: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (document.querySelector(`script[src="${src}"]`)) return resolve();
-    const s = document.createElement('script');
-    s.src = src; s.async = true; s.onload = () => resolve(); s.onerror = () => reject(new Error('load fail'));
-    document.head.appendChild(s);
-  });
-}
 
 interface PreviewData { headers: string[]; sample: string[][]; guess: { phoneCol: number | null; nameCol: number | null } }
 
@@ -53,9 +41,9 @@ const fmtDateTime = (s: string | null | undefined) =>
   s ? new Date(s).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
 
 export default function GoogleSheetConnect({
-  connected, clientId, apiKey, showrooms, brands, models, sheets,
+  connected, showrooms, brands, models, sheets,
 }: {
-  connected: boolean; clientId: string; apiKey: string;
+  connected: boolean;
   showrooms: ShowroomRow[]; brands: BrandRow[]; models: ModelRow[]; sheets: ChannelRow[];
 }) {
   const [picking, setPicking] = useState(false);
@@ -220,38 +208,32 @@ export default function GoogleSheetConnect({
     setSrIds((cur) => cur.includes(id) ? cur.filter((s) => s !== id) : [...cur, id]);
   };
 
-  const openPicker = useCallback(async () => {
-    if (!clientId || !apiKey) { setMsg('Nền tảng chưa cấu hình Google Client ID / API Key.'); return; }
-    setMsg(null); setPicking(true);
-    const projectNumber = clientId.split('-')[0];
-    try {
-      await Promise.all([loadScript(GSI_SRC), loadScript(GIS_SRC)]);
-      await new Promise<void>((res) => window.gapi.load('picker', () => res()));
-      const tokenClient = window.google.accounts.oauth2.initTokenClient({
-        client_id: clientId,
-        scope: 'https://www.googleapis.com/auth/drive.file',
-        callback: (resp: { access_token?: string }) => {
-          if (!resp.access_token) { setPicking(false); return; }
-          const view = new window.google.picker.DocsView(window.google.picker.ViewId.SPREADSHEETS).setMode(window.google.picker.DocsViewMode.LIST);
-          const picker = new window.google.picker.PickerBuilder()
-            .addView(view).setOAuthToken(resp.access_token).setDeveloperKey(apiKey).setAppId(projectNumber)
-            .setCallback((d: any) => {
-              if (d.action === window.google.picker.Action.PICKED) {
-                const doc = d.docs[0];
-                setEditingId(null);
-                setPicked({ id: doc.id, name: doc.name });
-                setBrandId(''); setSrIds([]); setSourceMode('fixed'); setTabSources({});
-                setSourceCol(null); setModelMode('auto'); setModelId(''); setModelCol(null);
-                void loadTabs(doc.id);
-              }
-              if (d.action !== window.google.picker.Action.LOADED) setPicking(false);
-            }).build();
-          picker.setVisible(true);
-        },
-      });
-      tokenClient.requestAccessToken({ prompt: '' });
-    } catch { setMsg('Không mở được cửa sổ chọn sheet.'); setPicking(false); }
-  }, [clientId, apiKey]);
+  // Mở cửa sổ chọn Google Sheet ở apex trung tâm (origin đã khai Google 1 lần). Popup tự
+  // xin quyền + Picker rồi gửi id file về qua postMessage (listener bên dưới nhận).
+  const openPicker = useCallback(() => {
+    setMsg(null);
+    const url = `${PLATFORM_ORIGIN}/connect/google-picker?return=${encodeURIComponent(window.location.origin)}`;
+    const win = window.open(url, 'gsheet-picker', 'width=900,height=650');
+    if (!win) { setMsg('Trình duyệt chặn cửa sổ bật lên. Hãy cho phép pop-up rồi thử lại.'); return; }
+    setPicking(true);
+  }, []);
+
+  // Nhận id file từ popup apex. Chỉ tin message đúng origin apex + đúng loại.
+  useEffect(() => {
+    const onMsg = (e: MessageEvent) => {
+      if (e.origin !== PLATFORM_ORIGIN) return;
+      const d = e.data as { type?: string; id?: string; name?: string };
+      if (d?.type !== 'gsheet-picked' || !d.id) return;
+      setPicking(false);
+      setEditingId(null);
+      setPicked({ id: d.id, name: d.name ?? d.id });
+      setBrandId(''); setSrIds([]); setSourceMode('fixed'); setTabSources({});
+      setSourceCol(null); setModelMode('auto'); setModelId(''); setModelCol(null);
+      void loadTabs(d.id);
+    };
+    window.addEventListener('message', onMsg);
+    return () => window.removeEventListener('message', onMsg);
+  }, []);
 
   // Kiểm tra hợp lệ rồi mở popup demo xác nhận (không lưu ngay — để soi map cột trước).
   const requestSave = () => {

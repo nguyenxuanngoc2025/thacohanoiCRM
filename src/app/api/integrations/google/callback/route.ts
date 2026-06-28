@@ -1,49 +1,44 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { cookies } from 'next/headers';
-import { requireAdmin } from '@/lib/admin-guard';
 import { getPlatformSetting } from '@/lib/platform-settings';
 import { exchangeCodeForTokens, getUserEmail } from '@/lib/google';
-import { publicOriginFromHeaders } from '@/lib/tenant';
+import { platformOrigin } from '@/lib/tenant';
+import { verifyState } from '@/lib/oauth-state';
+import { createServiceClient } from '@/lib/supabase/server';
 import { encrypt } from '@/lib/crypto';
 
 export const dynamic = 'force-dynamic';
 
+// Callback CHẠY Ở APEX trung tâm cho MỌI công ty → không có session/cookie của tenant.
+// Tin cậy state đã ký HMAC (không giả mạo được) để biết company + nơi quay lại.
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
-  const origin = publicOriginFromHeaders(request.headers);
-  const settingsUrl = new URL('/settings', origin);
-  const fail = () => { settingsUrl.searchParams.set('google', 'error'); return NextResponse.redirect(settingsUrl); };
-
   const code = url.searchParams.get('code');
-  const stateRaw = url.searchParams.get('state');
-  if (!code || !stateRaw) return fail();
+  const state = verifyState(url.searchParams.get('state'));
 
-  let state: { csrf: string; company: string };
-  try { state = JSON.parse(Buffer.from(stateRaw, 'base64url').toString('utf8')); } catch { return fail(); }
+  // Nơi đưa người dùng quay lại: origin tenant trong state; nếu state hỏng → apex.
+  const back = (status: 'connected' | 'error') => {
+    const dest = new URL('/settings', state?.r ?? platformOrigin());
+    dest.searchParams.set('google', status);
+    return NextResponse.redirect(dest);
+  };
 
-  const csrfCookie = (await cookies()).get('g_oauth_csrf')?.value;
-  if (!csrfCookie || csrfCookie !== state.csrf) return fail();
-
-  // User phải là admin của đúng công ty trong state.
-  const guard = await requireAdmin();
-  if (guard.error || guard.ctx.companyId !== state.company) return fail();
-  const { service } = guard.ctx;
+  if (!code || !state) return back('error');
 
   const clientId = await getPlatformSetting('google_oauth_client_id');
   const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
-  if (!clientId || !clientSecret) return fail();
+  if (!clientId || !clientSecret) return back('error');
 
   try {
-    const redirectUri = `${origin}/api/integrations/google/callback`;
+    const redirectUri = `${platformOrigin()}/api/integrations/google/callback`;
     const { refreshToken, accessToken } = await exchangeCodeForTokens({ code, clientId, clientSecret, redirectUri });
     const email = await getUserEmail(accessToken);
+    const service = createServiceClient();
     await service.from('google_connections').upsert({
-      company_id: state.company,
+      company_id: state.c,
       google_email: email || null,
       refresh_token_enc: encrypt(refreshToken),
       updated_at: new Date().toISOString(),
     }, { onConflict: 'company_id' });
-    settingsUrl.searchParams.set('google', 'connected');
-    return NextResponse.redirect(settingsUrl);
-  } catch { return fail(); }
+    return back('connected');
+  } catch { return back('error'); }
 }

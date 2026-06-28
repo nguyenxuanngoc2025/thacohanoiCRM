@@ -25,7 +25,10 @@ export async function updateSession(request: NextRequest) {
 
   const isAuthPage = request.nextUrl.pathname.startsWith('/login');
   const isApiRoute = request.nextUrl.pathname.startsWith('/api/');
-  const isDashboard = !isAuthPage && !isApiRoute;
+  // /connect/* = trang công khai (vd popup chọn Google Sheet chạy ở apex, người dùng
+  // không có session apex) → không tính là dashboard, không ép đăng nhập.
+  const isConnect = request.nextUrl.pathname.startsWith('/connect');
+  const isDashboard = !isAuthPage && !isApiRoute && !isConnect;
 
   // helper: redirect while preserving cookies refreshed/cleared on supabaseResponse
   const redirectTo = (pathname: string) => {

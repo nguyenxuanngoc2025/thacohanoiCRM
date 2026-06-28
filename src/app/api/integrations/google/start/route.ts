@@ -2,8 +2,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { requireAdmin } from '@/lib/admin-guard';
 import { getPlatformSetting } from '@/lib/platform-settings';
 import { buildConsentUrl } from '@/lib/google';
-import { publicOriginFromHeaders } from '@/lib/tenant';
-import { randomBytes } from 'node:crypto';
+import { publicOriginFromHeaders, platformOrigin } from '@/lib/tenant';
+import { signState } from '@/lib/oauth-state';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,13 +16,13 @@ export async function GET(request: NextRequest) {
   const clientId = await getPlatformSetting('google_oauth_client_id');
   if (!clientId) return NextResponse.json({ error: 'Nền tảng chưa cấu hình Google Client ID' }, { status: 400 });
 
-  const csrf = randomBytes(16).toString('hex');
-  const state = Buffer.from(JSON.stringify({ csrf, company: companyId })).toString('base64url');
-  const origin = publicOriginFromHeaders(request.headers);
-  const redirectUri = `${origin}/api/integrations/google/callback`;
+  // Redirect URI LUÔN là apex trung tâm (khai Google 1 lần). State ký HMAC mang
+  // company + origin tenant để callback (chạy ở apex, không có session/cookie tenant)
+  // biết lưu token cho công ty nào và đưa người dùng quay lại đâu.
+  const redirectUri = `${platformOrigin()}/api/integrations/google/callback`;
+  const returnOrigin = publicOriginFromHeaders(request.headers);
+  const state = signState({ c: companyId, r: returnOrigin });
   const url = buildConsentUrl({ clientId, redirectUri, state });
 
-  const res = NextResponse.redirect(url);
-  res.cookies.set('g_oauth_csrf', csrf, { httpOnly: true, secure: true, sameSite: 'lax', maxAge: 600, path: '/' });
-  return res;
+  return NextResponse.redirect(url);
 }
