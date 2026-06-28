@@ -3,13 +3,14 @@
 import React, { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  ChevronDown, Plus, Edit2, Trash2, X,
+  ChevronDown, Plus, Edit2, Trash2, X, HelpCircle,
 } from 'lucide-react';
 import type { ChannelRow, ShowroomRow, BrandRow } from './types';
 import { PLATFORMS, type ConnectorState } from '@/lib/platforms';
 import {
   PrimaryBtn, GhostBtn, Field, TextInput, Select, Toggle, StatusPill, FlashBar, postAdmin,
 } from './ui';
+import ZaloGuideModal from './ZaloGuideModal';
 
 export type { ChannelRow };
 
@@ -23,6 +24,7 @@ export default function IntegrationsCatalog({
   const [expanded, setExpanded] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
   const [modal, setModal] = useState<{ platform: string; row: ChannelRow | 'new' } | null>(null);
+  const [showZaloGuide, setShowZaloGuide] = useState(false);
   const flashMsg = (m: string) => { setFlash(m); setTimeout(() => setFlash(null), 3000); };
 
   const byPlatform = useMemo(() => {
@@ -97,9 +99,19 @@ export default function IntegrationsCatalog({
                     <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
                       {count} {conn.unit} đã đăng ký
                     </div>
-                    <PrimaryBtn onClick={() => setModal({ platform: conn.key, row: 'new' })}>
-                      <Plus size={13} /> Thêm {conn.unit}
-                    </PrimaryBtn>
+                    <div className="flex items-center gap-2">
+                      {conn.key === 'zalo' && (
+                        <button
+                          onClick={() => setShowZaloGuide(true)}
+                          className="inline-flex items-center gap-1 text-xs font-semibold rounded-lg px-2.5 py-1.5 border border-slate-200 bg-white hover:bg-slate-50 transition-colors"
+                          style={{ color: '#0068FF' }}>
+                          <HelpCircle size={13} /> Xem hướng dẫn
+                        </button>
+                      )}
+                      <PrimaryBtn onClick={() => setModal({ platform: conn.key, row: 'new' })}>
+                        <Plus size={13} /> Thêm {conn.unit}
+                      </PrimaryBtn>
+                    </div>
                   </div>
                   <div className="space-y-1.5">
                     {rows.map((c) => (
@@ -121,6 +133,8 @@ export default function IntegrationsCatalog({
           onClose={() => setModal(null)}
           onDone={(m) => { setModal(null); flashMsg(m); router.refresh(); }} />
       )}
+
+      {showZaloGuide && <ZaloGuideModal onClose={() => setShowZaloGuide(false)} />}
     </div>
   );
 }
