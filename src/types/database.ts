@@ -22,6 +22,7 @@ export interface IngestPayload {
   external_payload?: Record<string, unknown> | null;
   intent_text?: string; // văn bản gom để dò dòng xe (tuỳ kênh)
   model_id?: string | null; // dòng xe chỉ định sẵn (Google Sheet gán cố định/theo cột) — ưu tiên hơn intent_text
+  silent_dedup?: boolean; // true = không ghi lead_logs khi trùng (Google Sheet quét lại toàn bộ mỗi lần → tránh spam log)
 }
 
 export interface IngestResult {

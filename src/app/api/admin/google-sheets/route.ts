@@ -1,9 +1,13 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { requireAdmin } from '@/lib/admin-guard';
+import { getPlatformSetting } from '@/lib/platform-settings';
+import { refreshAccessToken } from '@/lib/google';
+import { decrypt } from '@/lib/crypto';
+import { syncSheetChannel, type SheetConfig } from '@/lib/google-sheet-sync';
 
 export const dynamic = 'force-dynamic';
 
-// Lưu / cập nhật / xoá 1 Google Sheet đã kết nối (channel_accounts platform='google_sheet').
+// Lưu / cập nhật / xoá / đồng-bộ-ngay 1 Google Sheet đã kết nối (channel_accounts platform='google_sheet').
 export async function POST(request: NextRequest) {
   const guard = await requireAdmin();
   if (guard.error) return guard.error;
@@ -11,12 +15,12 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const op = body.op as 'create' | 'update' | 'delete';
+    const op = body.op as 'create' | 'update' | 'delete' | 'sync';
 
     const { data: srRows } = await service.from('showrooms').select('id').eq('company_id', companyId);
     const companySrIds = ((srRows ?? []) as { id: string }[]).map((r) => r.id);
 
-    if (op === 'update' || op === 'delete') {
+    if (op === 'update' || op === 'delete' || op === 'sync') {
       const { data: existing } = await service.from('channel_accounts').select('showroom_id').eq('id', body.id).maybeSingle();
       if (!existing || !companySrIds.includes(existing.showroom_id as string)) {
         return NextResponse.json({ error: 'Sheet không thuộc công ty của bạn.' }, { status: 404 });
@@ -27,6 +31,26 @@ export async function POST(request: NextRequest) {
       const { error } = await service.from('channel_accounts').delete().eq('id', body.id);
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
       return NextResponse.json({ success: true });
+    }
+
+    // Đồng bộ ngay: quét sheet này lập tức (thay vì chờ cron 5 phút).
+    if (op === 'sync') {
+      const clientId = await getPlatformSetting('google_oauth_client_id');
+      const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+      if (!clientId || !clientSecret) return NextResponse.json({ error: 'Nền tảng chưa cấu hình Google' }, { status: 400 });
+      const { data: ch } = await service.from('channel_accounts').select('id, page_id, config').eq('id', body.id).maybeSingle();
+      if (!ch) return NextResponse.json({ error: 'Không tìm thấy sheet' }, { status: 404 });
+      const getToken = async (connectionId: string): Promise<string> => {
+        const { data: conn } = await service.from('google_connections').select('refresh_token_enc').eq('id', connectionId).maybeSingle();
+        if (!conn) throw new Error('connection-missing');
+        return refreshAccessToken({ refreshToken: decrypt(conn.refresh_token_enc as string), clientId, clientSecret });
+      };
+      const res = await syncSheetChannel(
+        service,
+        { id: ch.id as string, page_id: ch.page_id as string, config: (ch.config ?? null) as SheetConfig | null },
+        getToken,
+      );
+      return NextResponse.json({ success: true, ...res });
     }
 
     const spreadsheetId = body.spreadsheet_id ? String(body.spreadsheet_id).trim() : '';

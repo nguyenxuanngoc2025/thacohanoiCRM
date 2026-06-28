@@ -46,11 +46,15 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
     .maybeSingle();
 
   if (existing) {
-    await db.from('lead_logs').insert({
-      lead_id: existing.id,
-      type: 'system',
-      content: `Lead trùng SĐT từ kênh ${payload.source ?? 'facebook'} — giữ nguyên TVBH đang chăm.`,
-    });
+    // Google Sheet quét lại TOÀN BỘ sheet mỗi lần (5 phút/lần) → mọi lead cũ đều "trùng" mỗi lượt.
+    // silent_dedup=true để KHÔNG ghi lead_logs từng lượt (tránh spam); chỉ đếm số trùng ở tầng đồng bộ.
+    if (!payload.silent_dedup) {
+      await db.from('lead_logs').insert({
+        lead_id: existing.id,
+        type: 'system',
+        content: `Lead trùng SĐT từ kênh ${payload.source ?? 'facebook'} — giữ nguyên TVBH đang chăm.`,
+      });
+    }
     return { ok: true, leadId: existing.id, deduped: true };
   }
 

@@ -2,8 +2,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // gapi / google.picker là SDK ngoài không có type → buộc dùng any cho cửa sổ chọn file.
 import React, { useState, useCallback, useMemo } from 'react';
-import { Plus, Edit2, Trash2, X } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, BarChart3, Eye, RefreshCw } from 'lucide-react';
 import type { ShowroomRow, BrandRow, ChannelRow, ModelRow } from './types';
+import { STATUS_LABEL } from '@/lib/lead-status';
 
 declare global { interface Window { gapi?: any; google?: any; } }
 
@@ -35,6 +36,22 @@ function loadScript(src: string): Promise<void> {
 
 interface PreviewData { headers: string[]; sample: string[][]; guess: { phoneCol: number | null; nameCol: number | null } }
 
+interface LastSync { at: string; rows: number; fresh: number; dup: number; errors: string[] }
+interface StatsData {
+  page_name: string | null;
+  total: number;
+  byStatus: Record<string, number>;
+  byShowroom: Record<string, number>;
+  modelCovered: number;
+  modelUncovered: number;
+  lastLeadAt: string | null;
+  lastSync: LastSync | null;
+  warnings: string[];
+}
+
+const fmtDateTime = (s: string | null | undefined) =>
+  s ? new Date(s).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
+
 export default function GoogleSheetConnect({
   connected, clientId, apiKey, showrooms, brands, models, sheets,
 }: {
@@ -63,6 +80,11 @@ export default function GoogleSheetConnect({
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false); // popup demo xác nhận trước khi lưu
+  // Modal số liệu hệ thống của 1 sheet đã kết nối.
+  const [statsId, setStatsId] = useState<string | null>(null);
+  const [stats, setStats] = useState<StatsData | null>(null);
+  const [statsBusy, setStatsBusy] = useState(false);
+  const [statsMsg, setStatsMsg] = useState<string | null>(null);
 
   // Dòng xe lọc theo thương hiệu đã chọn (dropdown dòng xe phụ thuộc brand).
   const brandModels = useMemo(
@@ -148,6 +170,40 @@ export default function GoogleSheetConnect({
       if (!res.ok) throw new Error(json.error ?? 'Lỗi xoá');
       window.location.reload();
     } catch (e) { setMsg(e instanceof Error ? e.message : 'Lỗi'); setBusy(false); }
+  };
+
+  // Mở modal số liệu + tải thống kê của sheet.
+  const openStats = async (id: string) => {
+    setStatsId(id); setStats(null); setStatsMsg(null); setStatsBusy(true);
+    try {
+      const res = await fetch(`/api/admin/google-sheets/stats?id=${encodeURIComponent(id)}`);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? 'Lỗi tải số liệu');
+      setStats(json);
+    } catch (e) { setStatsMsg(e instanceof Error ? e.message : 'Lỗi'); } finally { setStatsBusy(false); }
+  };
+
+  // Đồng bộ ngay 1 sheet (thay vì chờ cron 5 phút) rồi tải lại số liệu.
+  const syncNow = async () => {
+    if (!statsId) return;
+    setStatsBusy(true); setStatsMsg(null);
+    try {
+      const res = await fetch('/api/admin/google-sheets', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ op: 'sync', id: statsId }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? 'Lỗi đồng bộ');
+      const r2 = await fetch(`/api/admin/google-sheets/stats?id=${encodeURIComponent(statsId)}`);
+      const j2 = await r2.json();
+      if (r2.ok) setStats(j2);
+    } catch (e) { setStatsMsg(e instanceof Error ? e.message : 'Lỗi'); } finally { setStatsBusy(false); }
+  };
+
+  // Xem demo 1 sheet đã kết nối: nạp lại cấu hình rồi mở popup map cột.
+  const showDemo = async (sheet: ChannelRow) => {
+    await startEdit(sheet);
+    setConfirmOpen(true);
   };
 
   const toggleTab = (tab: string) => {
@@ -412,6 +468,14 @@ export default function GoogleSheetConnect({
                 <span className="truncate">{s.page_name ?? s.page_id}</span>
               </span>
               <span className="flex items-center gap-1 shrink-0">
+                <button onClick={() => openStats(s.id)} disabled={busy}
+                  className="inline-flex items-center gap-1 text-xs font-semibold rounded-lg px-2 py-1 border border-slate-200 hover:bg-slate-50 disabled:opacity-50" style={{ color: '#0F9D58' }}>
+                  <BarChart3 size={12} /> Số liệu
+                </button>
+                <button onClick={() => showDemo(s)} disabled={busy}
+                  className="inline-flex items-center gap-1 text-xs font-semibold rounded-lg px-2 py-1 border border-slate-200 hover:bg-slate-50 disabled:opacity-50" style={{ color: '#7c3aed' }}>
+                  <Eye size={12} /> Xem demo
+                </button>
                 <button onClick={() => startEdit(s)} disabled={busy}
                   className="inline-flex items-center gap-1 text-xs font-semibold rounded-lg px-2 py-1 border border-slate-200 hover:bg-slate-50 disabled:opacity-50" style={{ color: '#004B9B' }}>
                   <Edit2 size={12} /> Sửa
@@ -480,6 +544,117 @@ export default function GoogleSheetConnect({
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Modal số liệu hệ thống của 1 sheet */}
+      {statsId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setStatsId(null)}>
+          <div className="w-full max-w-2xl rounded-2xl bg-white shadow-xl max-h-[88vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3 sticky top-0 bg-white">
+              <div>
+                <div className="text-sm font-bold text-slate-900">Số liệu hệ thống{stats?.page_name ? ` — ${stats.page_name}` : ''}</div>
+                <div className="text-xs text-slate-400 mt-0.5">Tự động quét lại 5 phút/lần. Trùng SĐT (theo thương hiệu) sẽ bị bỏ qua và ghi nhận.</div>
+              </div>
+              <button onClick={() => setStatsId(null)} className="text-slate-400 hover:text-slate-700"><X size={18} /></button>
+            </div>
+            <div className="px-5 py-4 space-y-4">
+              {statsBusy && !stats ? (
+                <p className="text-sm text-slate-500">Đang tải số liệu…</p>
+              ) : !stats ? (
+                <p className="text-sm text-red-600">{statsMsg ?? 'Không tải được số liệu.'}</p>
+              ) : (
+                <>
+                  {/* Hàng số liệu chính */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <StatCard label="Tổng lead đã lấy về" value={stats.total} hint="Toàn bộ lead còn trong CRM" />
+                    <StatCard label="Lead mới (lần đồng bộ gần nhất)" value={stats.lastSync?.fresh ?? 0} hint="Dòng mới thực sự được thêm" />
+                    <StatCard label="Trùng đã bỏ qua (gần nhất)" value={stats.lastSync?.dup ?? 0} hint="Dòng trùng SĐT, không thêm lại" />
+                  </div>
+
+                  {/* Lần đồng bộ gần nhất + Đồng bộ ngay */}
+                  <div className="rounded-xl border border-slate-200 p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-xs text-slate-500">
+                        {stats.lastSync ? (
+                          <>Đồng bộ gần nhất: <span className="font-semibold text-slate-700">{fmtDateTime(stats.lastSync.at)}</span> · quét {stats.lastSync.rows} dòng có SĐT</>
+                        ) : 'Chưa từng đồng bộ.'}
+                        {stats.lastSync && stats.lastSync.errors.length > 0 && (
+                          <span className="block text-red-600 mt-0.5">Lỗi: {stats.lastSync.errors.join(' · ')}</span>
+                        )}
+                      </div>
+                      <button onClick={syncNow} disabled={statsBusy}
+                        className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-white shrink-0 disabled:opacity-50" style={{ background: '#0F9D58' }}>
+                        <RefreshCw size={13} className={statsBusy ? 'animate-spin' : ''} /> {statsBusy ? 'Đang đồng bộ…' : 'Đồng bộ ngay'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Nhận diện dòng xe */}
+                  <div className="rounded-xl border border-slate-200 p-3">
+                    <div className="text-xs font-semibold text-slate-600 mb-1.5">Nhận diện dòng xe</div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-2 rounded-full bg-slate-100 overflow-hidden">
+                        <div className="h-full rounded-full" style={{ width: `${stats.total ? Math.round((stats.modelCovered / stats.total) * 100) : 0}%`, background: '#0F9D58' }} />
+                      </div>
+                      <span className="text-xs font-semibold text-slate-700 shrink-0">
+                        {stats.modelCovered}/{stats.total} ({stats.total ? Math.round((stats.modelCovered / stats.total) * 100) : 0}%)
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 mt-1">{stats.modelUncovered} lead chưa xác định được dòng xe.</p>
+                  </div>
+
+                  {/* Phân loại theo trạng thái */}
+                  <DistRow title="Phân loại theo trạng thái" data={stats.byStatus} label={(k) => STATUS_LABEL[k as keyof typeof STATUS_LABEL] ?? k} />
+
+                  {/* Chia về showroom */}
+                  <DistRow title="Lead chia về showroom" data={stats.byShowroom} label={(k) => k} />
+
+                  {/* Cảnh báo cấu hình */}
+                  {stats.warnings.length > 0 && (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-1">
+                      <div className="text-xs font-semibold text-amber-800">Cảnh báo cấu hình</div>
+                      {stats.warnings.map((w, i) => <p key={i} className="text-[11px] text-amber-700">• {w}</p>)}
+                    </div>
+                  )}
+
+                  {statsMsg && <p className="text-xs text-red-600">{statsMsg}</p>}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Ô số liệu nổi bật trong modal thống kê.
+function StatCard({ label, value, hint }: { label: string; value: number; hint?: string }) {
+  return (
+    <div className="rounded-xl border border-slate-200 p-3">
+      <div className="text-2xl font-bold text-slate-900">{value.toLocaleString('vi-VN')}</div>
+      <div className="text-[11px] font-semibold text-slate-600 mt-0.5">{label}</div>
+      {hint && <div className="text-[10px] text-slate-400 mt-0.5">{hint}</div>}
+    </div>
+  );
+}
+
+// Hàng phân bố (trạng thái / showroom) dạng danh sách nhãn + số đếm.
+function DistRow({ title, data, label }: { title: string; data: Record<string, number>; label: (k: string) => string }) {
+  const entries = Object.entries(data).sort((a, b) => b[1] - a[1]);
+  return (
+    <div className="rounded-xl border border-slate-200 p-3">
+      <div className="text-xs font-semibold text-slate-600 mb-1.5">{title}</div>
+      {entries.length === 0 ? (
+        <p className="text-[11px] text-slate-400">Chưa có dữ liệu.</p>
+      ) : (
+        <div className="flex flex-wrap gap-1.5">
+          {entries.map(([k, v]) => (
+            <span key={k} className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-700">
+              {label(k)} <span className="font-semibold text-slate-900">{v}</span>
+            </span>
+          ))}
         </div>
       )}
     </div>
