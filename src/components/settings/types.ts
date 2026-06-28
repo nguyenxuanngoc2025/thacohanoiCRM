@@ -56,6 +56,9 @@ export interface SheetConfig {
   model_mode?: 'auto' | 'fixed' | 'column';
   model_id?: string | null;
   model_col?: number | null;
+  // Mốc thời gian: cột chứa thời gian + ngày bắt đầu lấy lead (YYYY-MM-DD) — chống nạp lead cũ.
+  date_col?: number | null;
+  since?: string | null;
 }
 
 export interface ChannelRow {

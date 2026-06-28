@@ -1,6 +1,7 @@
 import type { createServiceClient } from '@/lib/supabase/server';
 import { readSheetValues } from '@/lib/google';
 import { ingestLead } from '@/lib/ingest';
+import { isOnOrAfter } from '@/lib/sheet-date';
 
 type Service = ReturnType<typeof createServiceClient>;
 
@@ -14,10 +15,13 @@ export interface SheetConfig {
   source_mode?: 'fixed' | 'column'; source_col?: number | null;
   // Dòng xe: 'auto' = dò từ khoá; 'fixed' = 1 dòng cố định; 'column' = đọc tên dòng từ 1 cột.
   model_mode?: 'auto' | 'fixed' | 'column'; model_id?: string | null; model_col?: number | null;
+  // Mốc thời gian: chỉ nạp dòng có thời gian (cột date_col) >= since ('YYYY-MM-DD').
+  // Tránh lần kết nối đầu nạp toàn bộ lead cũ → nổ thông báo. Bỏ trống = nạp tất cả (cũ).
+  date_col?: number | null; since?: string | null;
 }
 
-/** Kết quả 1 lần đồng bộ 1 sheet: rows=dòng có SĐT, fresh=lead mới, dup=dòng trùng (bỏ qua). */
-export interface SheetSyncResult { rows: number; fresh: number; dup: number; errors: string[] }
+/** Kết quả 1 lần đồng bộ 1 sheet: rows=dòng có SĐT, fresh=lead mới, dup=trùng, skipped=trước mốc/không ngày. */
+export interface SheetSyncResult { rows: number; fresh: number; dup: number; skipped: number; errors: string[] }
 
 // Chuẩn hoá danh sách tab về dạng object (tương thích cấu hình cũ: mảng chuỗi / `tab` đơn).
 export function normalizeTabs(cfg: SheetConfig): TabCfg[] {
@@ -38,7 +42,7 @@ export async function syncSheetChannel(
   channel: { id: string; page_id: string; config: SheetConfig | null },
   getToken: (connectionId: string) => Promise<string>,
 ): Promise<SheetSyncResult> {
-  const result: SheetSyncResult = { rows: 0, fresh: 0, dup: 0, errors: [] };
+  const result: SheetSyncResult = { rows: 0, fresh: 0, dup: 0, skipped: 0, errors: [] };
   const cfg = (channel.config ?? {}) as SheetConfig;
   if (!cfg.connection_id || cfg.phone_col == null) {
     result.errors.push('config-missing');
@@ -48,6 +52,8 @@ export async function syncSheetChannel(
   const tabList = normalizeTabs(cfg);
   const sourceMode = cfg.source_mode ?? 'fixed';
   const modelMode = cfg.model_mode ?? 'auto';
+  // Cắt theo mốc thời gian chỉ bật khi có CẢ cột thời gian LẪN mốc since.
+  const cutoffActive = cfg.date_col != null && !!cfg.since;
 
   try {
     const accessToken = await getToken(cfg.connection_id);
@@ -58,6 +64,14 @@ export async function syncSheetChannel(
         const phone = r[cfg.phone_col] ?? '';
         if (!phone.replace(/\D/g, '')) continue;
         result.rows++;
+
+        // Mốc thời gian: bỏ qua dòng có thời gian TRƯỚC mốc (lead cũ), hoặc ô thời gian
+        // trống/không đọc được (an toàn — lead mới từ pipeline agency luôn có timestamp).
+        if (cutoffActive && !isOnOrAfter(r[cfg.date_col!], cfg.since!)) {
+          result.skipped++;
+          continue;
+        }
+
         const name = cfg.name_col != null ? (r[cfg.name_col] ?? null) : null;
         const notes = (cfg.note_cols ?? []).map((c) => r[c]).filter(Boolean).join(' · ');
 
@@ -93,6 +107,6 @@ export async function syncSheetChannel(
 
 async function writeLastSync(service: Service, channelId: string, r: SheetSyncResult) {
   await service.from('channel_accounts')
-    .update({ last_sync: { at: new Date().toISOString(), rows: r.rows, fresh: r.fresh, dup: r.dup, errors: r.errors } })
+    .update({ last_sync: { at: new Date().toISOString(), rows: r.rows, fresh: r.fresh, dup: r.dup, skipped: r.skipped, errors: r.errors } })
     .eq('id', channelId);
 }

@@ -96,6 +96,11 @@ export async function POST(request: NextRequest) {
     const modelId = modelMode === 'fixed' && body.model_id ? String(body.model_id) : null;
     const modelCol = modelMode === 'column' && body.model_col != null && body.model_col !== '' ? Number(body.model_col) : null;
 
+    // Mốc thời gian: cột chứa thời gian + ngày bắt đầu lấy lead (YYYY-MM-DD).
+    // Chỉ nạp dòng có thời gian >= since → tránh kết nối lần đầu nạp toàn bộ lead cũ.
+    const dateCol = body.date_col == null || body.date_col === '' ? null : Number(body.date_col);
+    const since = typeof body.since === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.since) ? body.since : null;
+
     const config = {
       connection_id: conn.id,
       tabs,
@@ -107,6 +112,8 @@ export async function POST(request: NextRequest) {
       phone_col: phoneCol,
       name_col: nameCol,
       note_cols: noteCols,
+      date_col: dateCol,
+      since,
     };
     const row = {
       platform: 'google_sheet',

@@ -25,7 +25,7 @@ type ModelMode = 'auto' | 'fixed' | 'column';
 
 interface PreviewData { headers: string[]; sample: string[][]; guess: { phoneCol: number | null; nameCol: number | null } }
 
-interface LastSync { at: string; rows: number; fresh: number; dup: number; errors: string[] }
+interface LastSync { at: string; rows: number; fresh: number; dup: number; skipped?: number; errors: string[] }
 interface StatsData {
   page_name: string | null;
   total: number;
@@ -40,6 +40,12 @@ interface StatsData {
 
 const fmtDateTime = (s: string | null | undefined) =>
   s ? new Date(s).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
+
+// Ngày hôm nay dạng YYYY-MM-DD (giờ địa phương) — mặc định mốc "lấy lead từ ngày" khi kết nối mới.
+const todayISO = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 
 export default function GoogleSheetConnect({
   connected, showrooms, brands, models, sheets,
@@ -67,6 +73,9 @@ export default function GoogleSheetConnect({
   const [modelMode, setModelMode] = useState<ModelMode>('auto');
   const [modelId, setModelId] = useState('');
   const [modelCol, setModelCol] = useState<number | null>(null);
+  // Mốc thời gian: cột chứa thời gian + ngày bắt đầu lấy lead (chống nạp toàn bộ lead cũ).
+  const [dateCol, setDateCol] = useState<number | null>(null);
+  const [since, setSince] = useState<string>('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false); // popup demo xác nhận trước khi lưu
@@ -87,6 +96,7 @@ export default function GoogleSheetConnect({
     setPreview(null); setPreviewTab(null); setPhoneCol(null); setNameCol(null);
     setBrandId(''); setSrIds([]); setSourceMode('fixed'); setTabSources({});
     setSourceCol(null); setModelMode('auto'); setModelId(''); setModelCol(null);
+    setDateCol(null); setSince(todayISO()); // mặc định: chỉ lấy lead từ hôm nay trở đi
     setConfirmOpen(false); setMsg(null);
   };
 
@@ -137,6 +147,8 @@ export default function GoogleSheetConnect({
     setModelMode(cfg.model_mode === 'fixed' ? 'fixed' : cfg.model_mode === 'column' ? 'column' : 'auto');
     setModelId(cfg.model_id ?? '');
     setModelCol(cfg.model_col ?? null);
+    setDateCol(cfg.date_col ?? null);
+    setSince(cfg.since ?? ''); // sheet cũ chưa có mốc → để trống (giữ hành vi cũ, không lọc)
     setBrandId(sheet.brand_id ?? '');
     setSrIds(sheet.showroom_ids ?? []);
     setMsg(null); setBusy(true);
@@ -272,6 +284,7 @@ export default function GoogleSheetConnect({
           model_mode: modelMode,
           model_id: modelMode === 'fixed' ? modelId : null,
           model_col: modelMode === 'column' ? modelCol : null,
+          date_col: dateCol, since: since || null,
           phone_col: phoneCol, name_col: nameCol, note_cols: [],
         }),
       });
@@ -428,7 +441,23 @@ export default function GoogleSheetConnect({
             )}
           </div>
 
-          {/* 5. Showroom nhận lead */}
+          {/* 5. Mốc thời gian — chống nạp toàn bộ lead cũ khi kết nối sheet đã tích luỹ lâu */}
+          <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50/60 p-3">
+            <label className="block text-xs font-semibold text-slate-700">Mốc thời gian (chỉ lấy lead mới)</label>
+            <p className="text-[11px] text-slate-500">
+              Sheet thường tích luỹ nhiều lead cũ. Chọn cột thời gian + ngày bắt đầu để hệ thống
+              CHỈ nạp lead từ mốc đó trở đi — tránh nổ hàng loạt thông báo lead cũ. Bỏ trống cột = nạp tất cả (không khuyến nghị).
+            </p>
+            <ColSelect label="Cột chứa thời gian" headers={preview.headers} value={dateCol} onChange={setDateCol} />
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-600 w-32 shrink-0">Chỉ lấy lead từ ngày</span>
+              <input type="date" value={since} onChange={(e) => setSince(e.target.value)}
+                disabled={dateCol == null}
+                className="flex-1 rounded-lg border border-slate-200 px-2 py-1.5 text-sm bg-white disabled:bg-slate-100 disabled:text-slate-400" />
+            </div>
+          </div>
+
+          {/* 6. Showroom nhận lead */}
           <div className="space-y-2">
             <label className="block text-xs font-semibold text-slate-600">Showroom nhận lead</label>
             <div className="grid gap-1.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))' }}>
@@ -565,6 +594,7 @@ export default function GoogleSheetConnect({
                     <StatCard label="Tổng lead đã lấy về" value={stats.total} hint="Toàn bộ lead còn trong CRM" />
                     <StatCard label="Lead mới (lần đồng bộ gần nhất)" value={stats.lastSync?.fresh ?? 0} hint="Dòng mới thực sự được thêm" />
                     <StatCard label="Trùng đã bỏ qua (gần nhất)" value={stats.lastSync?.dup ?? 0} hint="Dòng trùng SĐT, không thêm lại" />
+                    <StatCard label="Lead cũ bỏ qua (trước mốc)" value={stats.lastSync?.skipped ?? 0} hint="Dòng có thời gian trước mốc đã chọn" />
                   </div>
 
                   {/* Lần đồng bộ gần nhất + Đồng bộ ngay */}
