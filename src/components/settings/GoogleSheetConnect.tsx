@@ -29,7 +29,10 @@ export default function GoogleSheetConnect({
 }) {
   const [picking, setPicking] = useState(false);
   const [picked, setPicked] = useState<{ id: string; name: string } | null>(null);
+  const [tabs, setTabs] = useState<string[]>([]);
+  const [selectedTabs, setSelectedTabs] = useState<string[]>([]);
   const [preview, setPreview] = useState<PreviewData | null>(null);
+  const [previewTab, setPreviewTab] = useState<string | null>(null);
   const [phoneCol, setPhoneCol] = useState<number | null>(null);
   const [nameCol, setNameCol] = useState<number | null>(null);
   const [brandId, setBrandId] = useState('');
@@ -37,16 +40,45 @@ export default function GoogleSheetConnect({
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
-  const runPreview = async (spreadsheetId: string) => {
+  const runPreview = async (spreadsheetId: string, tab: string) => {
     setBusy(true); setMsg(null);
     try {
-      const res = await fetch(`/api/integrations/google/preview?spreadsheetId=${encodeURIComponent(spreadsheetId)}`);
+      const res = await fetch(`/api/integrations/google/preview?spreadsheetId=${encodeURIComponent(spreadsheetId)}&tab=${encodeURIComponent(tab)}`);
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? 'Lỗi đọc sheet');
       setPreview(json);
+      setPreviewTab(tab);
       setPhoneCol(json.guess.phoneCol);
       setNameCol(json.guess.nameCol);
     } catch (e) { setMsg(e instanceof Error ? e.message : 'Lỗi'); } finally { setBusy(false); }
+  };
+
+  // Sau khi chọn file → liệt kê các tab (sheet con) để người dùng tick chọn.
+  const loadTabs = async (spreadsheetId: string) => {
+    setBusy(true); setMsg(null);
+    setTabs([]); setSelectedTabs([]); setPreview(null); setPreviewTab(null);
+    try {
+      const res = await fetch(`/api/integrations/google/tabs?spreadsheetId=${encodeURIComponent(spreadsheetId)}`);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? 'Lỗi đọc danh sách tab');
+      const list: string[] = json.tabs ?? [];
+      setTabs(list);
+      if (list.length === 1) { // file chỉ có 1 tab → chọn sẵn + xem trước cột luôn
+        setSelectedTabs(list);
+        void runPreview(spreadsheetId, list[0]);
+      }
+    } catch (e) { setMsg(e instanceof Error ? e.message : 'Lỗi'); } finally { setBusy(false); }
+  };
+
+  const toggleTab = (tab: string) => {
+    if (!picked) return;
+    const next = selectedTabs.includes(tab)
+      ? selectedTabs.filter((t) => t !== tab)
+      : [...selectedTabs, tab];
+    setSelectedTabs(next);
+    // Cấu hình cột đọc từ tab đầu tiên đã chọn — mọi tab dùng chung cấu hình.
+    if (next.length === 0) { setPreview(null); setPreviewTab(null); }
+    else if (next[0] !== previewTab) void runPreview(picked.id, next[0]);
   };
 
   const openPicker = useCallback(async () => {
@@ -70,7 +102,7 @@ export default function GoogleSheetConnect({
               if (d.action === window.google.picker.Action.PICKED) {
                 const doc = d.docs[0];
                 setPicked({ id: doc.id, name: doc.name });
-                void runPreview(doc.id);
+                void loadTabs(doc.id);
               }
               if (d.action !== window.google.picker.Action.LOADED) setPicking(false);
             }).build();
@@ -83,6 +115,7 @@ export default function GoogleSheetConnect({
 
   const save = async () => {
     if (!picked || phoneCol == null) { setMsg('Chọn cột Số điện thoại.'); return; }
+    if (selectedTabs.length === 0) { setMsg('Chọn ít nhất 1 tab.'); return; }
     if (!brandId) { setMsg('Chọn thương hiệu.'); return; }
     if (srIds.length === 0) { setMsg('Chọn ít nhất 1 showroom.'); return; }
     setBusy(true); setMsg(null);
@@ -92,6 +125,7 @@ export default function GoogleSheetConnect({
         body: JSON.stringify({
           op: 'create', spreadsheet_id: picked.id, page_name: picked.name,
           brand_id: brandId, showroom_ids: srIds,
+          tabs: selectedTabs,
           phone_col: phoneCol, name_col: nameCol, note_cols: [],
         }),
       });
@@ -120,9 +154,28 @@ export default function GoogleSheetConnect({
         <Plus size={14} /> Thêm sheet
       </button>
 
-      {preview && picked && (
+      {picked && tabs.length > 0 && (
+        <div className="rounded-xl border border-slate-200 p-4 space-y-2 bg-slate-50">
+          <div className="text-sm font-semibold text-slate-800">Chọn tab cần lấy lead — {picked.name}</div>
+          <p className="text-xs text-slate-500">File có {tabs.length} tab. Tick các tab muốn lấy lead (có thể chọn nhiều). Các tab dùng chung thương hiệu, showroom và cấu hình cột.</p>
+          <div className="flex flex-wrap gap-2">
+            {tabs.map((t) => {
+              const on = selectedTabs.includes(t);
+              return (
+                <button key={t} type="button" onClick={() => toggleTab(t)} disabled={busy}
+                  className={`rounded-lg border px-3 py-1.5 text-sm disabled:opacity-50 ${on ? 'border-[#004B9B] bg-[#004B9B] text-white' : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400'}`}>
+                  {t}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {preview && picked && selectedTabs.length > 0 && (
         <div className="rounded-xl border border-slate-200 p-4 space-y-3 bg-slate-50">
           <div className="text-sm font-semibold text-slate-800">Xác nhận cột — {picked.name}</div>
+          <p className="text-xs text-slate-500">Đọc cấu hình cột từ tab “{previewTab}”. Áp dụng cho tất cả {selectedTabs.length} tab đã chọn.</p>
           <div className="grid grid-cols-2 gap-3">
             <ColSelect label="Cột Số điện thoại" headers={preview.headers} value={phoneCol} onChange={setPhoneCol} />
             <ColSelect label="Cột Họ tên" headers={preview.headers} value={nameCol} onChange={setNameCol} allowNone />

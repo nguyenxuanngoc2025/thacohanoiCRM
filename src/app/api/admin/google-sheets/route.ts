@@ -48,9 +48,14 @@ export async function POST(request: NextRequest) {
     const nameCol = body.name_col == null || body.name_col === '' ? null : Number(body.name_col);
     const noteCols: number[] = Array.isArray(body.note_cols) ? body.note_cols.map(Number).filter(Number.isInteger) : [];
 
+    // Tab cần lấy lead: ưu tiên mảng `tabs` (chọn nhiều), fallback `tab` (1 tab, tương thích cũ).
+    const tabs: string[] = Array.isArray(body.tabs)
+      ? body.tabs.map((t: unknown) => String(t).trim()).filter(Boolean)
+      : (body.tab ? [String(body.tab).trim()] : []);
+
     const config = {
       connection_id: conn.id,
-      tab: body.tab ? String(body.tab).trim() : null,
+      tabs,
       phone_col: phoneCol,
       name_col: nameCol,
       note_cols: noteCols,

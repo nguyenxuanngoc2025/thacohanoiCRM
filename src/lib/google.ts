@@ -101,6 +101,20 @@ export async function getUserEmail(accessToken: string): Promise<string> {
   return json.email ?? '';
 }
 
+/** Liệt kê tên các tab (sheet con) trong 1 file Google Sheet. */
+export async function listSheetTabs(params: {
+  accessToken: string; spreadsheetId: string;
+}): Promise<string[]> {
+  const url = `${SHEETS_API}/${encodeURIComponent(params.spreadsheetId)}?fields=sheets.properties.title`;
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${params.accessToken}` } });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(`list tabs failed: ${res.status} ${detail}`);
+  }
+  const json = await res.json() as { sheets?: { properties?: { title?: string } }[] };
+  return (json.sheets ?? []).map((s) => s.properties?.title ?? '').filter(Boolean);
+}
+
 /** Đọc giá trị 1 vùng của sheet (mảng hàng × cột chuỗi). */
 export async function readSheetValues(params: {
   accessToken: string; spreadsheetId: string; range: string;

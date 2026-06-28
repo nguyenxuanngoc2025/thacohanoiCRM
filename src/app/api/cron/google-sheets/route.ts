@@ -9,7 +9,7 @@ import { ingestLead } from '@/lib/ingest';
 export const dynamic = 'force-dynamic';
 
 interface SheetConfig {
-  connection_id?: string; tab?: string | null;
+  connection_id?: string; tabs?: string[]; tab?: string | null;
   phone_col?: number; name_col?: number | null; note_cols?: number[];
 }
 
@@ -47,24 +47,32 @@ export async function POST(request: NextRequest) {
   for (const ch of channels ?? []) {
     const cfg = (ch.config ?? {}) as SheetConfig;
     if (!cfg.connection_id || cfg.phone_col == null) { errors.push({ sheet: ch.page_id, error: 'config-missing' }); continue; }
+    // Danh sách tab cần quét: ưu tiên mảng `tabs`, fallback `tab` đơn (tương thích cũ),
+    // cuối cùng quét tab mặc định (null) nếu chưa cấu hình tab nào.
+    const tabList: (string | null)[] = (cfg.tabs && cfg.tabs.length > 0)
+      ? cfg.tabs
+      : (cfg.tab ? [cfg.tab] : [null]);
     try {
       const accessToken = await getToken(cfg.connection_id);
-      const range = cfg.tab ? `${cfg.tab}!A1:Z5000` : 'A1:Z5000';
-      const rows = await readSheetValues({ accessToken, spreadsheetId: ch.page_id, range });
-      for (const r of rows.slice(1)) { // bỏ header
-        const phone = r[cfg.phone_col] ?? '';
-        if (!phone.replace(/\D/g, '')) continue;
-        const name = cfg.name_col != null ? (r[cfg.name_col] ?? null) : null;
-        const notes = (cfg.note_cols ?? []).map((c) => r[c]).filter(Boolean).join(' · ');
-        const res = await ingestLead({
-          page_id: ch.page_id,
-          phone_raw: phone,
-          full_name: name,
-          source: 'google_sheet',
-          intent_text: [name, notes].filter(Boolean).join(' '),
-          external_payload: { row: r },
-        });
-        if (res.ok) { if (res.deduped) deduped++; else ingested++; }
+      for (const tab of tabList) {
+        const range = tab ? `${tab}!A1:Z5000` : 'A1:Z5000';
+        const rows = await readSheetValues({ accessToken, spreadsheetId: ch.page_id, range });
+        for (const r of rows.slice(1)) { // bỏ header
+          const phone = r[cfg.phone_col] ?? '';
+          if (!phone.replace(/\D/g, '')) continue;
+          const name = cfg.name_col != null ? (r[cfg.name_col] ?? null) : null;
+          const notes = (cfg.note_cols ?? []).map((c) => r[c]).filter(Boolean).join(' · ');
+          const res = await ingestLead({
+            page_id: ch.page_id,
+            phone_raw: phone,
+            full_name: name,
+            source: 'google_sheet',
+            intent_text: [name, notes].filter(Boolean).join(' '),
+            // Lưu tên tab để truy nguồn lead (tab nào = chiến dịch/kênh nào).
+            external_payload: { row: r, tab },
+          });
+          if (res.ok) { if (res.deduped) deduped++; else ingested++; }
+        }
       }
     } catch (e) {
       errors.push({ sheet: ch.page_id, error: e instanceof Error ? e.message : 'unknown' });
