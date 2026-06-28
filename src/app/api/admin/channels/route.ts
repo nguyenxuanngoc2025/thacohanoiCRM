@@ -44,14 +44,18 @@ export async function POST(request: NextRequest) {
     if (showroom_ids.some((sid) => !companySrIds.includes(sid))) {
       return NextResponse.json({ error: 'Showroom không thuộc công ty của bạn.' }, { status: 400 });
     }
+    const platform = String(body.platform ?? 'facebook').toLowerCase().trim() || 'facebook';
+    // Secret OA (Zalo) để xác thực chữ ký webhook. Để trống khi sửa = giữ nguyên secret cũ.
+    const secret = typeof body.secret === 'string' ? body.secret.trim() : '';
     const row = {
-      platform: String(body.platform ?? 'facebook').toLowerCase().trim() || 'facebook',
+      platform,
       page_id,
       page_name: body.page_name ? String(body.page_name).trim() : null,
       showroom_id,
       brand_id,
       campaign: body.campaign ? String(body.campaign).trim() : null,
       is_active: body.is_active ?? true,
+      ...(secret ? { secret } : {}),
     };
 
     // Đồng bộ junction channel_account_showrooms: xoá cũ + chèn mới

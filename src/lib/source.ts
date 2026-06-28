@@ -25,6 +25,14 @@ const CHANNELS: ChannelDef[] = [
       { value: 'fb_comment', label: 'Bình luận' },
     ],
   },
+  {
+    key: 'zalo',
+    platform: 'Zalo OA',
+    variants: [
+      { value: 'zalo', label: 'Tin nhắn OA' },
+      { value: 'zalo_ads', label: 'Quảng cáo' },
+    ],
+  },
 ];
 
 /** Phân nhánh chi tiết kênh theo platform key — cho form thêm lead. */

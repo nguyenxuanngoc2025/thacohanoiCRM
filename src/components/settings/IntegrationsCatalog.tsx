@@ -171,12 +171,18 @@ function ChannelModal({
   );
   const [brandId, setBrandId] = useState(init?.brand_id ?? '');
   const [campaign, setCampaign] = useState(init?.campaign ?? '');
+  const [secret, setSecret] = useState('');
   const [isActive, setIsActive] = useState(init?.is_active ?? true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const isFb = platform === 'facebook';
-  const idLabel = isFb ? 'Page ID (Fanpage)' : 'Mã biểu mẫu / form key';
+  const isZalo = platform === 'zalo';
+  const idLabel = isFb
+    ? 'Page ID (Fanpage)'
+    : isZalo
+      ? 'OA ID (Zalo Official Account)'
+      : 'Mã biểu mẫu / form key';
 
   const toggleShowroom = (id: string) =>
     setShowroomIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -195,6 +201,7 @@ function ChannelModal({
       page_name: pageName.trim() || null,
       showroom_ids: showroomIds, brand_id: brandId,
       campaign: campaign.trim() || null,
+      ...(isZalo && secret.trim() ? { secret: secret.trim() } : {}),
       is_active: isActive,
     });
     setBusy(false);
@@ -204,6 +211,8 @@ function ChannelModal({
       onDone(`${base} ⚠ Webhook chưa tự đăng ký được: ${r.subscribe_error}`);
     } else if (isFb) {
       onDone(`${base} Đã tự đăng ký webhook — lead sẽ về tự động.`);
+    } else if (isZalo) {
+      onDone(`${base} Nhớ trỏ Webhook URL trong Zalo Developers về /api/webhook/zalo để nhận lead.`);
     } else {
       onDone(base);
     }
@@ -217,10 +226,15 @@ function ChannelModal({
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700"><X size={18} /></button>
         </div>
         <div className="p-5 space-y-4">
-          <Field label={idLabel} hint={isFb ? 'Lấy từ Meta: ID dạng số của fanpage.' : 'Khoá định danh form gửi kèm khi submit.'}>
-            <TextInput value={pageId} onChange={(e) => setPageId(e.target.value)} placeholder={isFb ? '1234567890' : 'form-landing-kia'} disabled={!isNew} />
+          <Field label={idLabel} hint={isFb ? 'Lấy từ Meta: ID dạng số của fanpage.' : isZalo ? 'OA ID lấy trong Zalo Official Account Manager.' : 'Khoá định danh form gửi kèm khi submit.'}>
+            <TextInput value={pageId} onChange={(e) => setPageId(e.target.value)} placeholder={isFb ? '1234567890' : isZalo ? '1234567890123456789' : 'form-landing-kia'} disabled={!isNew} />
           </Field>
-          <Field label="Tên hiển thị"><TextInput value={pageName} onChange={(e) => setPageName(e.target.value)} placeholder={isFb ? 'KIA Hà Nội Official' : 'Landing KIA Sonet'} /></Field>
+          <Field label="Tên hiển thị"><TextInput value={pageName} onChange={(e) => setPageName(e.target.value)} placeholder={isFb ? 'KIA Hà Nội Official' : isZalo ? 'KIA Hà Nội OA' : 'Landing KIA Sonet'} /></Field>
+          {isZalo && (
+            <Field label="OA Secret Key" hint={isNew ? 'Lấy trong Zalo Developers (App → Official Account) — dùng xác thực chữ ký webhook.' : 'Để trống nếu giữ nguyên secret cũ.'}>
+              <TextInput value={secret} onChange={(e) => setSecret(e.target.value)} placeholder={isNew ? 'Dán OA Secret Key' : '••••••••'} />
+            </Field>
+          )}
           <Field label="Showroom nhận lead" hint="Tick các showroom dùng chung kênh này. Lead sẽ được chia đều cho các showroom đã chọn.">
             <div className="space-y-1.5">
               {showrooms.map((s) => {
