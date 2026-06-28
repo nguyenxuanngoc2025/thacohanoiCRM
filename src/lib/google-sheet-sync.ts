@@ -61,9 +61,10 @@ export async function syncSheetChannel(
         const name = cfg.name_col != null ? (r[cfg.name_col] ?? null) : null;
         const notes = (cfg.note_cols ?? []).map((c) => r[c]).filter(Boolean).join(' · ');
 
-        // Nguồn: theo cột → ô tương ứng; theo tab → nhãn gán cho tab; mặc định 'google_sheet'.
+        // Nguồn: theo cột → ô tương ứng; theo tab → nhãn gán cho tab. Google Sheet chỉ là kênh
+        // trung chuyển → mặc định nguồn data thật là 'facebook' (đa số sheet agency chạy FB Ads).
         const colSrc = sourceMode === 'column' && cfg.source_col != null ? (r[cfg.source_col] ?? '').trim().toLowerCase() : '';
-        const source = sourceMode === 'column' ? (colSrc || 'google_sheet') : (tab.source || 'google_sheet');
+        const source = sourceMode === 'column' ? (colSrc || 'facebook') : (tab.source || 'facebook');
 
         // Dòng xe: cố định → model_id; theo cột → đưa ô dòng xe vào intent_text; auto → name+notes.
         const modelCell = modelMode === 'column' && cfg.model_col != null ? (r[cfg.model_col] ?? '') : '';

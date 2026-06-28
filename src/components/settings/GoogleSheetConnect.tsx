@@ -8,9 +8,10 @@ import { STATUS_LABEL } from '@/lib/lead-status';
 // Mở popup tới đây, nhận id file qua postMessage. Thêm công ty mới không cần đụng Google Console.
 const PLATFORM_ORIGIN = `https://${process.env.NEXT_PUBLIC_PLATFORM_DOMAIN ?? 'crmthacoauto.com'}`;
 
-// Nguồn gán cố định cho từng tab (chế độ "Gán theo tab"). value = source lưu DB.
+// Nguồn data THẬT gán cho từng tab (chế độ "Gán theo tab"). value = source lưu DB.
+// KHÔNG có Google Sheet ở đây — sheet chỉ là kênh trung chuyển, lead vẫn từ FB/Google/TikTok…
+const DEFAULT_SHEET_SOURCE = 'facebook';
 const SOURCE_OPTIONS: { value: string; label: string }[] = [
-  { value: 'google_sheet', label: 'Google Sheet' },
   { value: 'facebook', label: 'Facebook' },
   { value: 'zalo', label: 'Zalo' },
   { value: 'google', label: 'Google Ads' },
@@ -128,7 +129,7 @@ export default function GoogleSheetConnect({
     setPicked({ id: sheet.page_id ?? '', name: sheet.page_name ?? sheet.page_id ?? '' });
     setLabel(sheet.page_name ?? sheet.page_id ?? '');
     setSelectedTabs(titles);
-    setTabSources(Object.fromEntries(cfgTabs.map((t) => [t.title, t.source ?? 'google_sheet'])));
+    setTabSources(Object.fromEntries(cfgTabs.map((t) => [t.title, t.source ?? DEFAULT_SHEET_SOURCE])));
     setPhoneCol(cfg.phone_col ?? null);
     setNameCol(cfg.name_col ?? null);
     setSourceMode(cfg.source_mode === 'column' ? 'column' : 'fixed');
@@ -256,7 +257,7 @@ export default function GoogleSheetConnect({
     try {
       const tabsPayload = selectedTabs.map((t) => ({
         title: t,
-        source: sourceMode === 'fixed' ? (tabSources[t] || 'google_sheet') : null,
+        source: sourceMode === 'fixed' ? (tabSources[t] || DEFAULT_SHEET_SOURCE) : null,
       }));
       const res = await fetch('/api/admin/google-sheets', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -286,7 +287,7 @@ export default function GoogleSheetConnect({
     const name = nameCol != null ? (r[nameCol] ?? '') : '';
     const source = sourceMode === 'column'
       ? (sourceCol != null ? (r[sourceCol] ?? '') : '')
-      : sourceLabel(tabSources[previewTab ?? ''] || 'google_sheet');
+      : sourceLabel(tabSources[previewTab ?? ''] || DEFAULT_SHEET_SOURCE);
     let model = '(tự nhận diện)';
     if (modelMode === 'fixed') model = brandModels.find((m) => m.id === modelId)?.name ?? '—';
     else if (modelMode === 'column') model = modelCol != null ? (r[modelCol] ?? '') : '';
@@ -380,11 +381,11 @@ export default function GoogleSheetConnect({
               options={[{ value: 'fixed', label: 'Gán theo tab' }, { value: 'column', label: 'Lấy theo cột' }]} />
             {sourceMode === 'fixed' ? (
               <div className="space-y-1.5">
-                <p className="text-[11px] text-slate-400">Chọn nguồn cho từng tab. Để trống = Google Sheet.</p>
+                <p className="text-[11px] text-slate-400">Chọn nguồn data thật cho từng tab (Google Sheet chỉ là kênh trung chuyển). Mặc định = Facebook.</p>
                 {selectedTabs.map((t) => (
                   <div key={t} className="flex items-center gap-2">
                     <span className="text-xs text-slate-600 w-32 shrink-0 truncate" title={t}>{t}</span>
-                    <select value={tabSources[t] ?? 'google_sheet'}
+                    <select value={tabSources[t] ?? DEFAULT_SHEET_SOURCE}
                       onChange={(e) => setTabSources((cur) => ({ ...cur, [t]: e.target.value }))}
                       className="flex-1 rounded-lg border border-slate-200 px-2 py-1.5 text-sm bg-white">
                       {SOURCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}

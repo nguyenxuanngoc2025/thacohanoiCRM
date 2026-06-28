@@ -29,12 +29,19 @@ describe('notify-templates', () => {
     expect(t).toContain('Chưa được phân giao');
   });
 
-  it('renderNewLead: có model → hiện "Xe:"; không model → ẩn hẳn dòng xe', () => {
-    const co = renderNewLead({ showroom: 'KIA', fullName: 'A', phone: '+8490', source: 'fb', model: 'Sonet', assignee: 'B' });
+  it('renderNewLead: luôn hiện dòng xe; chưa dò ra → "chưa xác định"', () => {
+    const co = renderNewLead({ showroom: 'KIA', fullName: 'A', phone: '+8490', source: 'facebook', model: 'Sonet', assignee: 'B' });
     expect(co).toContain('Xe: Sonet');
-    const khong = renderNewLead({ showroom: 'KIA', fullName: 'A', phone: '+8490', source: 'fb', model: null, assignee: 'B' });
-    expect(khong).not.toContain('Xe:');
-    expect(khong).toContain('Nguồn: fb');
+    const khong = renderNewLead({ showroom: 'KIA', fullName: 'A', phone: '+8490', source: 'facebook', model: null, assignee: 'B' });
+    expect(khong).toContain('Xe: chưa xác định');
+  });
+
+  it('renderNewLead: nguồn hiển thị nền tảng gốc — google_sheet vẫn ra "Google Sheet" nếu lỡ truyền vào, source thật ưu tiên', () => {
+    // Google Sheet chỉ là kênh trung chuyển — nguồn thật (facebook/google/tiktok) phải hiện đúng nền tảng.
+    const fb = renderNewLead({ showroom: 'KIA', fullName: 'A', phone: '+8490', source: 'facebook', model: 'Sonet', assignee: 'B' });
+    expect(fb).toContain('Nguồn: Facebook');
+    const gg = renderNewLead({ showroom: 'KIA', fullName: 'A', phone: '+8490', source: 'google', model: 'Sonet', assignee: 'B' });
+    expect(gg).toContain('Nguồn: Google');
   });
 
   it('renderOverdue: tiêu đề có số lead, dòng có KH + TVBH + giờ, SĐT che, chưa giao ghi rõ', () => {

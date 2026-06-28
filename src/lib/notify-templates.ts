@@ -2,6 +2,7 @@
 // zca-bot chỉ gửi payload.text — mọi logic nội dung nằm ở đây.
 
 import { formatPhoneDisplay } from './phone';
+import { sourcePlatform } from './source';
 
 // Che 3 số cuối SĐT khi gửi vào nhóm chung: chống TVBH xem trọn SĐT KH của TVBH khác.
 // TVBH phụ trách vẫn xem SĐT đầy đủ trong app (lead của mình).
@@ -23,13 +24,16 @@ export interface NewLeadInput {
 
 export function renderNewLead(i: NewLeadInput): string {
   const ten = i.fullName?.trim() || 'Khách lẻ';
-  const nguon = i.source?.trim() || 'không rõ';
-  const xe = i.model?.trim();
+  // Nguồn data thật (Facebook/Google/TikTok…) — Google Sheet chỉ là kênh trung chuyển,
+  // nguồn đã được gán khi cấu hình sheet nên hiển thị đúng nền tảng gốc.
+  const nguon = sourcePlatform(i.source);
+  // Luôn hiển thị dòng xe; chưa dò ra thì ghi rõ "chưa xác định".
+  const xe = i.model?.trim() || 'chưa xác định';
   const tvbh = i.assignee?.trim() || 'Chưa được phân giao';
   return [
     `LEAD MỚI — ${i.showroom}`,
     `KH: ${ten} · ${maskPhone(i.phone)}`,
-    xe ? `Nguồn: ${nguon} · Xe: ${xe}` : `Nguồn: ${nguon}`,
+    `Nguồn: ${nguon} · Xe: ${xe}`,
     `Giao cho: ${tvbh}`,
   ].join('\n');
 }
