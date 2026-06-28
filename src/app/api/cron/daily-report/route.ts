@@ -33,6 +33,11 @@ export async function POST(request: NextRequest) {
     startVn = new Date(todayVn.getTime() - 6 * 86400000); // 7 ngày gần nhất (gồm hôm nay)
     dateLabel = `TUẦN ${dm(startVn)}–${dm(todayVn)}`;
   } else if (period === 'monthly') {
+    // Timer chạy ngày 28-31; chỉ phát báo cáo vào ĐÚNG ngày cuối tháng (hôm sau sang tháng khác).
+    const tomorrow = new Date(todayVn.getTime() + 86400000);
+    if (tomorrow.getUTCMonth() === todayVn.getUTCMonth()) {
+      return NextResponse.json({ ok: true, period, sent: 0, skipped: 'not_month_end' });
+    }
     startVn = new Date(Date.UTC(todayVn.getUTCFullYear(), todayVn.getUTCMonth(), 1));
     dateLabel = `THÁNG ${String(todayVn.getUTCMonth() + 1).padStart(2, '0')}/${todayVn.getUTCFullYear()}`;
   } else {
