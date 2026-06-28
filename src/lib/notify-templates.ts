@@ -96,9 +96,10 @@ function renderNonCompliant(list: NonCompliant[]): string {
   return `Chưa tuân thủ: ${[...top, extra].filter(Boolean).join(', ')}`;
 }
 
+// dateLabel đã gồm từ chỉ kỳ: 'NGÀY 24/06' | 'TUẦN 23/06–29/06' | 'THÁNG 06/2026'.
 export function renderDailySr(showroom: string, dateLabel: string, s: DailySrStats, nonCompliant: NonCompliant[]): string {
   return [
-    `BÁO CÁO NGÀY ${dateLabel} — ${showroom}`,
+    `BÁO CÁO ${dateLabel} — ${showroom}`,
     `Tổng lead: ${s.total} · Đã LH: ${s.contacted} (${pct(s.contacted, s.total)}%) · Chưa LH: ${s.pending} · Quá hạn: ${s.overdue}`,
     `Phân loại: KHQT ${s.KHQT} · GDTD ${s.GDTD} · Ký HĐ ${s.KyHD} · Loại ${s.Fail}`,
     renderNonCompliant(nonCompliant),
@@ -121,7 +122,7 @@ export interface MgmtTotals {
 }
 
 export function renderDailyMgmt(dateLabel: string, rows: MgmtRow[], totals: MgmtTotals): string {
-  const head = `BÁO CÁO NGÀY ${dateLabel} — TỔNG HỢP BLĐ`;
+  const head = `BÁO CÁO ${dateLabel} — TỔNG HỢP BLĐ`;
   const totalLine = `TỔNG: ${totals.total} lead · Đã LH ${totals.contacted} (${pct(totals.contacted, totals.total)}%) · Quá hạn ${totals.overdue}`;
   const sorted = [...rows].sort((a, b) => b.contactRate - a.contactRate);
   const body = sorted.map((r) => {

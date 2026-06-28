@@ -282,19 +282,22 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
 
   if (error || !inserted) return { ok: false, reason: error?.message ?? 'insert_failed' };
 
-  // Đẩy thông báo Zalo: CHỈ nhóm của showroom đã chọn + có sự kiện 'new_lead'.
-  // Nhóm BLĐ (scope='management') KHÔNG nhận từng lead — chỉ nhận báo cáo ngày.
-  const { data: notifChannels } = await db
-    .from('notification_channels')
-    .select('id, channel, target, events, showroom_id, scope')
-    .eq('company_id', showroom.company_id)
-    .eq('is_active', true);
+  // Đẩy thông báo Zalo: CHỈ group của ĐÚNG PHÒNG đã chọn + có sự kiện 'new_lead'.
+  // Nhóm BLĐ (scope='management') KHÔNG nhận từng lead — chỉ nhận báo cáo. Lead chưa thuộc
+  // phòng nào (chosenTeamId null) → không có group để báo → bỏ qua.
+  const { data: notifChannels } = chosenTeamId
+    ? await db
+        .from('notification_channels')
+        .select('id, channel, target, events, sales_team_id, scope')
+        .eq('company_id', showroom.company_id)
+        .eq('is_active', true)
+    : { data: [] };
 
   const targets = (notifChannels ?? []).filter(
     (c) =>
       (c.events ?? []).includes('new_lead') &&
-      c.scope === 'showroom' &&
-      c.showroom_id === chosenShowroomId
+      c.scope === 'sales' &&
+      c.sales_team_id === chosenTeamId
   );
 
   if (targets.length > 0) {

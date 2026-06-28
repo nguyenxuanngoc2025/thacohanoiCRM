@@ -98,7 +98,7 @@ describe('notify-templates', () => {
   });
 
   it('renderDailySr: tổng lead, tỷ lệ LH, phân loại, dòng chưa tuân thủ', () => {
-    const t = renderDailySr('KIA Hà Nội', '24/06', {
+    const t = renderDailySr('KIA Hà Nội', 'NGÀY 24/06', {
       total: 10, contacted: 6, pending: 4, overdue: 2,
       KHQT: 3, GDTD: 2, KyHD: 1, Fail: 1,
     }, [{ name: 'Trần B', overdue: 2 }]);
@@ -111,14 +111,14 @@ describe('notify-templates', () => {
   });
 
   it('renderDailySr: không ai quá hạn → "Chưa tuân thủ: không có"', () => {
-    const t = renderDailySr('KIA HN', '24/06', {
+    const t = renderDailySr('KIA HN', 'NGÀY 24/06', {
       total: 5, contacted: 5, pending: 0, overdue: 0, KHQT: 0, GDTD: 0, KyHD: 0, Fail: 0,
     }, []);
     expect(t).toContain('Chưa tuân thủ: không có');
   });
 
   it('renderDailyMgmt: dòng TỔNG + tỷ lệ LH + đánh dấu SR cần chú ý', () => {
-    const t = renderDailyMgmt('24/06', [
+    const t = renderDailyMgmt('NGÀY 24/06', [
       { showroom: 'KIA HN', total: 10, contacted: 9, pending: 1, overdue: 0, contactRate: 90 },
       { showroom: 'Mazda HN', total: 8, contacted: 2, pending: 6, overdue: 4, contactRate: 25 },
     ], { total: 18, contacted: 11, overdue: 4 });

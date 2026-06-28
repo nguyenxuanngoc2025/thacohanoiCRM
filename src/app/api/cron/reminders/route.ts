@@ -23,11 +23,11 @@ export async function POST(request: NextRequest) {
   // và chưa nhắc đủ 2 lần.
   const { data: leads, error } = await db
     .from('leads')
-    .select('id, showroom_id, full_name, phone, assigned_to, next_contact_at, overdue_reminder_count, last_overdue_notified_at, showrooms(name), users!assigned_to(full_name)')
+    .select('id, sales_team_id, full_name, phone, assigned_to, next_contact_at, overdue_reminder_count, last_overdue_notified_at, sales_teams(name), users!assigned_to(full_name)')
     .lte('next_contact_at', now.toISOString())
     .is('last_contact_at', null)
     .or('status.is.null,status.not.in.("KHĐ","Fail")')
-    .not('showroom_id', 'is', null)
+    .not('sales_team_id', 'is', null)
     .lt('overdue_reminder_count', 2);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -40,14 +40,14 @@ export async function POST(request: NextRequest) {
   }, now).notify);
 
   const mapped: OverdueLead[] = due.map((l) => {
-    const sr = l as unknown as { showrooms: { name: string } | null; users: { full_name: string } | null };
+    const j = l as unknown as { sales_teams: { name: string } | null; users: { full_name: string } | null };
     return {
       id: l.id,
-      showroom_id: l.showroom_id as string,
-      showroom_name: sr.showrooms?.name ?? 'Showroom',
+      sales_team_id: (l.sales_team_id as string | null) ?? null,
+      team_name: j.sales_teams?.name ?? null,
       full_name: l.full_name ?? null,
       phone: l.phone,
-      assignee_name: sr.users?.full_name ?? null,
+      assignee_name: j.users?.full_name ?? null,
       next_contact_at: l.next_contact_at as string,
     };
   });
@@ -55,17 +55,17 @@ export async function POST(request: NextRequest) {
   const messages = buildOverdueMessages(mapped, now);
   if (messages.length === 0) return NextResponse.json({ ok: true, sent: 0 });
 
-  // Kênh showroom có sự kiện 'overdue'
+  // Kênh nhóm bán hàng (theo phòng) có sự kiện 'overdue'
   const { data: channels } = await db
     .from('notification_channels')
-    .select('id, channel, target, events, showroom_id, scope')
+    .select('id, channel, target, events, sales_team_id, scope')
     .eq('is_active', true);
 
   const inserts: Record<string, unknown>[] = [];
   const notifiedLeadIds: string[] = [];
   for (const m of messages) {
     const targets = (channels ?? []).filter(
-      (c) => (c.events ?? []).includes('overdue') && c.scope === 'showroom' && c.showroom_id === m.showroomId
+      (c) => (c.events ?? []).includes('overdue') && c.scope === 'sales' && c.sales_team_id === m.teamId
     );
     if (targets.length === 0) continue;
     for (const c of targets) {

@@ -2,8 +2,9 @@ import { renderOverdue, type OverdueItem } from './notify-templates';
 
 export interface OverdueLead {
   id: string;
-  showroom_id: string;
-  showroom_name: string;
+  // Phòng bán hàng phụ trách lead. Lead không thuộc phòng nào (null) → không có group để nhắc → bỏ qua.
+  sales_team_id: string | null;
+  team_name: string | null;
   full_name: string | null;
   phone: string;
   assignee_name: string | null;
@@ -11,23 +12,25 @@ export interface OverdueLead {
 }
 
 export interface OverdueMessage {
-  showroomId: string;
-  showroomName: string;
+  teamId: string;
+  teamName: string;
   leadIds: string[];
   text: string;
 }
 
-/** Gom lead quá hạn theo showroom → 1 message mỗi SR. */
+/** Gom lead quá hạn theo phòng bán hàng → 1 message mỗi phòng (gửi vào group của phòng). */
 export function buildOverdueMessages(leads: OverdueLead[], now: Date): OverdueMessage[] {
-  const byShowroom = new Map<string, OverdueLead[]>();
+  const byTeam = new Map<string, OverdueLead[]>();
   for (const l of leads) {
-    const arr = byShowroom.get(l.showroom_id) ?? [];
+    if (!l.sales_team_id) continue; // không có phòng → không có group nhận
+    const arr = byTeam.get(l.sales_team_id) ?? [];
     arr.push(l);
-    byShowroom.set(l.showroom_id, arr);
+    byTeam.set(l.sales_team_id, arr);
   }
 
   const out: OverdueMessage[] = [];
-  for (const [showroomId, group] of byShowroom) {
+  for (const [teamId, group] of byTeam) {
+    const teamName = group[0].team_name?.trim() || 'Phòng bán hàng';
     const items: OverdueItem[] = group.map((l) => ({
       fullName: l.full_name,
       phone: l.phone,
@@ -35,10 +38,10 @@ export function buildOverdueMessages(leads: OverdueLead[], now: Date): OverdueMe
       overdueHours: Math.max(0, Math.round((now.getTime() - new Date(l.next_contact_at).getTime()) / 3600000)),
     }));
     out.push({
-      showroomId,
-      showroomName: group[0].showroom_name,
+      teamId,
+      teamName,
       leadIds: group.map((l) => l.id),
-      text: renderOverdue(group[0].showroom_name, items),
+      text: renderOverdue(teamName, items),
     });
   }
   return out;

@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { requireAdmin } from '@/lib/admin-guard';
 
-const VALID_EVENTS = ['new_lead', 'overdue', 'daily_report'];
+const VALID_EVENTS = ['new_lead', 'overdue', 'daily_report', 'weekly_report', 'monthly_report'];
 
 // CRUD notification_channels (kênh Zalo / Telegram nhận thông báo)
 export async function POST(request: NextRequest) {
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     if (op === 'test') {
       const { data: ch, error: chErr } = await service
         .from('notification_channels')
-        .select('id, channel, target, name, scope, showroom_id')
+        .select('id, channel, target, name, scope, showroom_id, sales_team_id')
         .eq('id', body.id)
         .eq('company_id', companyId)
         .maybeSingle();
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
     const events = Array.isArray(body.events)
       ? body.events.filter((e: string) => VALID_EVENTS.includes(e))
       : ['new_lead'];
-    const scope = body.scope === 'management' ? 'management' : 'showroom';
+    const scope = body.scope === 'management' ? 'management' : 'sales';
     const row = {
       channel,
       name,
@@ -52,8 +52,9 @@ export async function POST(request: NextRequest) {
       events: events.length ? events : ['new_lead'],
       is_active: body.is_active ?? true,
       scope,
-      // Nhóm BLĐ không gắn showroom; nhóm showroom phải có showroom_id
-      showroom_id: scope === 'management' ? null : (body.showroom_id || null),
+      // Nhóm bán hàng gắn 1 phòng (sales_team_id); nhóm BLĐ gắn showroom (hoặc null = toàn công ty).
+      sales_team_id: scope === 'sales' ? (body.sales_team_id || null) : null,
+      showroom_id: scope === 'management' ? (body.showroom_id || null) : null,
     };
 
     if (op === 'update') {

@@ -99,8 +99,11 @@ export interface NotifChannelRow {
   target: string | null;
   events: string[];
   is_active: boolean;
+  // scope='sales' → kênh của 1 phòng bán hàng (sales_team_id). scope='management' → nhóm BLĐ
+  // theo showroom (showroom_id) hoặc toàn công ty (showroom_id = null).
   showroom_id: string | null;
-  scope: 'showroom' | 'management';
+  sales_team_id: string | null;
+  scope: 'sales' | 'management';
 }
 
 export interface LeadLogRow {
