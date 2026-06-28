@@ -135,6 +135,18 @@ export default async function SettingsPage() {
   const { data: googleConn } = await service.from('google_connections').select('id').eq('company_id', companyId).maybeSingle();
   const googleConnected = !!googleConn;
 
+  // Trạng thái con bot Zalo (gửi thông báo) của công ty này.
+  const { data: zaloBotRow } = await service
+    .from('zalo_bot_sessions')
+    .select('status, display_name, last_error')
+    .eq('company_id', companyId)
+    .maybeSingle();
+  const zaloBotSession = {
+    status: (zaloBotRow?.status ?? 'disconnected') as 'connected' | 'disconnected',
+    displayName: zaloBotRow?.display_name ?? null,
+    lastError: zaloBotRow?.last_error ?? null,
+  };
+
   return (
     <div className="p-6 space-y-6">
       <div>
@@ -159,6 +171,7 @@ export default async function SettingsPage() {
         statusCounts={statusCounts}
         fbBusinessId={fbBusinessId}
         googleConnected={googleConnected}
+        zaloBotSession={zaloBotSession}
       />
     </div>
   );

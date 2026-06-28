@@ -62,7 +62,7 @@ const NAV: NavGroup[] = [
 export default function SettingsClient({
   staff, showrooms, brands, models, salesTeams, companyId, currentUserId, channels,
   assignmentRules, companyShowroomStrategy, slaConfig, notifChannels, recentLogs, statusCounts,
-  fbBusinessId, googleConnected,
+  fbBusinessId, googleConnected, zaloBotSession,
 }: {
   staff: StaffRow[];
   showrooms: ShowroomRow[];
@@ -80,6 +80,7 @@ export default function SettingsClient({
   statusCounts: Record<string, number>;
   fbBusinessId: string;
   googleConnected: boolean;
+  zaloBotSession: { status: 'connected' | 'disconnected'; displayName: string | null; lastError: string | null };
 }) {
   const [active, setActive] = useState<ItemKey>('accounts');
   const showroomOpts: ShowroomOption[] = showrooms;
@@ -133,7 +134,7 @@ export default function SettingsClient({
           <SalesTeamsManager salesTeams={salesTeams} showrooms={showrooms} brands={brands} staff={staff} />
         )}
         {active === 'integrations' && (
-          <IntegrationsCatalog channels={channels} showrooms={showrooms} brands={brands} models={models} fbBusinessId={fbBusinessId} googleConnected={googleConnected} />
+          <IntegrationsCatalog channels={channels} showrooms={showrooms} brands={brands} models={models} fbBusinessId={fbBusinessId} googleConnected={googleConnected} zaloBotSession={zaloBotSession} />
         )}
         {active === 'pipeline' && <PipelineReference counts={statusCounts} />}
         {active === 'assignment' && (
