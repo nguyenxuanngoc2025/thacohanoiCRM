@@ -7,12 +7,13 @@ import { X, ExternalLink, Copy, Check } from 'lucide-react';
  * Trang hướng dẫn kết nối Facebook fanpage — viết cho người KHÔNG rành kỹ thuật.
  * Hiện dạng pop-up khi bấm "Xem hướng dẫn" ở ô kết nối Facebook.
  *
- * Cơ chế: CRM dùng một "tài khoản hệ thống" tập trung của nền tảng để nhận lead.
- * Khách chỉ cần (1) lấy Page ID, (2) cấp quyền fanpage cho doanh nghiệp của nền tảng,
- * (3) nhập Page ID vào CRM → hệ thống tự đăng ký nhận lead.
+ * Cơ chế (Cách A — khách KHÔNG cần tạo Business Manager): nền tảng chủ động gửi
+ * "Yêu cầu quyền truy cập Trang" tới fanpage của khách; khách chỉ cần bấm DUYỆT.
+ * Sau đó nền tảng gán tài khoản hệ thống vào fanpage để nhận lead.
+ * Khách chỉ phải: (1) lấy Page ID, (2) duyệt yêu cầu, (3) nhập Page ID vào CRM.
  *
  * businessId = Business ID của BM nền tảng (chủ nền tảng đặt ở Admin → Cấu hình).
- * Có mã thì hiển thị kèm nút copy; chưa có thì nhắc liên hệ hỗ trợ.
+ * Dùng trong khối "Dành cho người quản trị nền tảng" ở Phần 2 (kèm nút copy).
  */
 export default function FacebookGuideModal({ onClose, businessId }: { onClose: () => void; businessId?: string }) {
   const bizId = (businessId ?? '').trim();
@@ -64,8 +65,8 @@ export default function FacebookGuideModal({ onClose, businessId }: { onClose: (
               <li>Một <b>fanpage Facebook</b> của doanh nghiệp.</li>
               <li>Tài khoản Facebook của bạn là <b>quản trị viên</b> của fanpage đó.</li>
               <li>
-                <b>Mã doanh nghiệp (Business ID) của nền tảng</b> để cấp quyền —{' '}
-                {bizId ? 'mã có sẵn ở Phần 2 bên dưới.' : 'liên hệ bộ phận hỗ trợ để nhận dãy số này.'}
+                <b>Bạn KHÔNG cần tạo Business Manager.</b> Nền tảng sẽ gửi một yêu cầu xin quyền
+                truy cập fanpage — bạn chỉ cần bấm <b>Duyệt</b>.
               </li>
             </ul>
           </Section>
@@ -95,49 +96,63 @@ export default function FacebookGuideModal({ onClose, businessId }: { onClose: (
             </p>
           </Section>
 
-          {/* Phần 2: cấp quyền cho nền tảng */}
+          {/* Phần 2: cấp quyền cho nền tảng — Cách A (khách chỉ DUYỆT) */}
           <Section title="Phần 2 — Cấp quyền fanpage cho nền tảng">
-            <p className="text-xs text-slate-500 -mt-1">
-              Bước này để hệ thống của nền tảng được phép nhận lead thay bạn. Chỉ làm <b>một lần</b>.
-            </p>
+            <div className="rounded-xl bg-emerald-50 border border-emerald-100 px-4 py-3 text-[13px] text-emerald-800 -mt-1">
+              <b>Cách dễ nhất:</b> bạn <b>không phải tạo gì cả</b>. Nền tảng sẽ gửi một <b>yêu cầu
+              xin quyền truy cập</b> tới fanpage của bạn — việc của bạn chỉ là vào fanpage và bấm
+              <b> Duyệt</b>. Chỉ làm <b>một lần</b>.
+            </div>
             <Steps>
               <Step n={5}>
-                Vẫn trong <b>Cài đặt doanh nghiệp</b> → <b>Tài khoản</b> → <b>Trang</b>, chọn fanpage
-                của bạn (như Phần 1).
+                <b>Gửi cho bộ phận hỗ trợ của nền tảng</b> hai thông tin: <b>tên fanpage</b> và
+                <b> ID Trang</b> (dãy số bạn vừa copy ở Bước 4). Nền tảng sẽ dùng thông tin này để
+                gửi yêu cầu xin quyền tới đúng fanpage của bạn.
               </Step>
               <Step n={6}>
-                Bấm nút <b>“Gán đối tác”</b> (Assign Partner) → chọn cách thêm bằng
-                <b> “Mã doanh nghiệp”</b> (Business ID).
+                Sau khi nền tảng gửi, bạn sẽ nhận được thông báo. Mở fanpage của bạn →
+                <b> Cài đặt</b> (Settings) → tìm mục <b>“Quyền truy cập vào Trang”</b> (Page access)
+                hoặc <b>“Đối tác kinh doanh”</b> (Business partners). Tại đây sẽ thấy một
+                <b> yêu cầu đang chờ</b> từ doanh nghiệp của nền tảng.
               </Step>
               <Step n={7}>
-                Dán <b>Mã doanh nghiệp của nền tảng</b> (ngay bên dưới) vào ô, ở phần quyền hãy bật
-                <b> “Quản lý Trang”</b> (hoặc “Toàn quyền”), rồi bấm <b>Gán</b> / <b>Lưu</b>.
-                {bizId && (
-                  <div className="mt-2">
-                    <div className="text-xs font-semibold text-slate-500 mb-1">Mã doanh nghiệp của nền tảng:</div>
-                    <div className="flex items-stretch gap-2">
-                      <code className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-[13px] text-slate-800 break-all font-mono">
-                        {bizId}
-                      </code>
-                      <button
-                        onClick={copy}
-                        className="shrink-0 inline-flex items-center gap-1.5 rounded-lg px-3 text-xs font-semibold text-white"
-                        style={{ background: copied ? '#16a34a' : '#1877F2' }}
-                      >
-                        {copied ? <Check size={14} /> : <Copy size={14} />}
-                        {copied ? 'Đã copy' : 'Copy'}
-                      </button>
-                    </div>
-                  </div>
-                )}
+                Bấm <b>Duyệt</b> / <b>Chấp nhận</b> yêu cầu đó. Xong — bạn <b>không cần làm gì thêm</b>.
+                Báo lại cho nền tảng là đã duyệt để bên kỹ thuật hoàn tất kết nối.
               </Step>
             </Steps>
-            {!bizId && (
-              <div className="rounded-xl bg-sky-50 border border-sky-100 px-4 py-3 text-[13px] text-sky-800">
-                Chưa có Mã doanh nghiệp của nền tảng? Hãy liên hệ bộ phận hỗ trợ để nhận trước khi
-                làm bước này. Không có mã thì hệ thống chưa nhận được lead.
+
+            {/* Khối kỹ thuật dành cho người quản trị nền tảng */}
+            <div className="rounded-xl bg-slate-50 border border-slate-200 px-4 py-3 space-y-2">
+              <div className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                Dành cho người quản trị nền tảng
               </div>
-            )}
+              <p className="text-[13px] text-slate-600">
+                Vào <Link href="https://business.facebook.com/settings">business.facebook.com/settings</Link> →
+                <b> Tài khoản</b> → <b>Trang</b> → <b>Thêm</b> → <b>“Yêu cầu quyền truy cập vào Trang”</b>
+                (Request access to a Page). Nhập <b>tên hoặc ID Trang</b> của khách rồi gửi yêu cầu.
+                Sau khi khách <b>Duyệt</b>: vào <b>Người dùng</b> → <b>Người dùng hệ thống</b> → chọn
+                tài khoản hệ thống → <b>Gán tài sản</b> → chọn fanpage → bật <b>“Quản lý Trang”</b>.
+                (Bước gán này bắt buộc, nếu thiếu hệ thống sẽ báo “không lấy được page token”.)
+              </p>
+              {bizId && (
+                <div>
+                  <div className="text-xs font-semibold text-slate-500 mb-1">Mã doanh nghiệp của nền tảng (Business ID):</div>
+                  <div className="flex items-stretch gap-2">
+                    <code className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-2 text-[13px] text-slate-800 break-all font-mono">
+                      {bizId}
+                    </code>
+                    <button
+                      onClick={copy}
+                      className="shrink-0 inline-flex items-center gap-1.5 rounded-lg px-3 text-xs font-semibold text-white"
+                      style={{ background: copied ? '#16a34a' : '#1877F2' }}
+                    >
+                      {copied ? <Check size={14} /> : <Copy size={14} />}
+                      {copied ? 'Đã copy' : 'Copy'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </Section>
 
           {/* Phần 3: nhập vào CRM */}
@@ -157,8 +172,8 @@ export default function FacebookGuideModal({ onClose, businessId }: { onClose: (
               </Step>
               <Step n={10}>
                 Nếu sau khi lưu thấy báo <b>“Đã tự đăng ký webhook”</b> là thành công. Nếu báo lỗi
-                (thường do fanpage chưa được cấp quyền ở Phần 2), hãy kiểm tra lại Bước 5–7 hoặc liên
-                hệ hỗ trợ.
+                (thường do bạn <b>chưa Duyệt</b> yêu cầu ở Phần 2, hoặc nền tảng chưa gán xong tài
+                khoản hệ thống), hãy kiểm tra lại Bước 5–7 hoặc liên hệ hỗ trợ.
               </Step>
             </Steps>
           </Section>
