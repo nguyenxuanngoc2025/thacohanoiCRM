@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import fs from 'node:fs';
 import { createClient } from '@supabase/supabase-js';
-import { Zalo } from 'zca-js';
+import { Zalo, TextStyle } from 'zca-js';
 
 const {
   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
@@ -83,9 +83,11 @@ async function maybeEnrich(api, n) {
     const found = await api.findUser(localPhone);
     const zaloName = pickZaloName(found);
     if (zaloName) {
-      // Chỉ ghi đè nếu tên hiện tại VẪN = badName (tránh đè tên người vừa sửa tay).
+      // Ghi đè khi tên DB vẫn là tên rác (== badName) HOẶC còn trống (null/rỗng) — vì badName
+      // mặc định là 'Khách lẻ' khi DB lưu null, nên null cũng là trường hợp an toàn để bù tên.
+      // (Tránh đè tên người vừa sửa tay: chỉ đè khi chưa có tên thật.)
       const { data: lead } = await db.from('leads').select('full_name').eq('id', e.leadId).maybeSingle();
-      if (lead && lead.full_name === e.badName) {
+      if (lead && (lead.full_name === e.badName || !lead.full_name?.trim())) {
         await db.from('leads').update({ full_name: zaloName }).eq('id', e.leadId);
         await db.from('lead_logs').insert({
           lead_id: e.leadId, type: 'system',
@@ -104,6 +106,29 @@ async function maybeEnrich(api, n) {
     console.error('[zca-bot] findUser lỗi', e.leadId, err?.message);
   }
   return text;
+}
+
+// Đổi marker **...** trong text thành chữ ĐẬM của Zalo. Trả về { msg sạch, styles[] }.
+// Offset (start/len) tính theo độ dài chuỗi JS — đúng cách Zalo đếm vị trí ký tự.
+// Phải chạy SAU maybeEnrich để offset khớp text cuối (sau khi bù tên).
+function parseStyledText(input) {
+  if (!input) return { msg: input ?? '', styles: [] };
+  let msg = '';
+  const styles = [];
+  let i = 0;
+  while (i < input.length) {
+    if (input[i] === '*' && input[i + 1] === '*') {
+      const end = input.indexOf('**', i + 2);
+      if (end === -1) { msg += input[i++]; continue; } // marker lẻ → giữ nguyên
+      const inner = input.slice(i + 2, end);
+      if (inner) styles.push({ start: msg.length, len: inner.length, st: TextStyle.Bold });
+      msg += inner;
+      i = end + 2;
+    } else {
+      msg += input[i++];
+    }
+  }
+  return { msg, styles };
 }
 
 async function tick(api) {
@@ -133,8 +158,10 @@ async function tick(api) {
     }
     // Bù tên Zalo nếu là tin new_lead có enrich (tra trước, gửi tên thật).
     text = await maybeEnrich(api, n);
+    // Đổi marker **đậm** → style đậm Zalo (sau bù tên để offset khớp text cuối).
+    const { msg, styles } = parseStyledText(text);
     try {
-      await api.sendMessage({ msg: text }, groupId, 1); // 1 = ThreadType.Group
+      await api.sendMessage(styles.length ? { msg, styles } : { msg }, groupId, 1); // 1 = ThreadType.Group
       await db.from('notifications').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', n.id);
       console.log('[zca-bot] gửi OK', n.id, '→', groupId);
     } catch (e) {

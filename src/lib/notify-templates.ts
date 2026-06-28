@@ -1,8 +1,10 @@
 // Hàm thuần render nội dung tin Zalo. KHÔNG emoji (preference user).
 // zca-bot chỉ gửi payload.text — mọi logic nội dung nằm ở đây.
+// Định dạng: bọc **...** = chữ ĐẬM; zca-bot đổi marker này thành style đậm của Zalo
+// (offset tính trên text cuối, sau khi bù tên). Marker chỉ phục vụ tin Zalo, không hiện trên app.
 
 import { formatPhoneDisplay } from './phone';
-import { sourcePlatform } from './source';
+import { sourcePlatform, sourceLabel } from './source';
 
 // Che 3 số cuối SĐT khi gửi vào nhóm chung: chống TVBH xem trọn SĐT KH của TVBH khác.
 // TVBH phụ trách vẫn xem SĐT đầy đủ trong app (lead của mình).
@@ -26,15 +28,19 @@ export function renderNewLead(i: NewLeadInput): string {
   const ten = i.fullName?.trim() || 'Khách lẻ';
   // Nguồn data thật (Facebook/Google/TikTok…) — Google Sheet chỉ là kênh trung chuyển,
   // nguồn đã được gán khi cấu hình sheet nên hiển thị đúng nền tảng gốc.
-  const nguon = sourcePlatform(i.source);
+  // Kèm chi tiết kênh nếu có (Lead Ads / Tin nhắn / Bình luận…) để biết lead đến từ đâu.
+  const platform = sourcePlatform(i.source);
+  const detail = sourceLabel(i.source);
+  const nguon = detail !== '—' ? `${platform} · ${detail}` : platform;
   // Luôn hiển thị dòng xe; chưa dò ra thì ghi rõ "chưa xác định".
   const xe = i.model?.trim() || 'chưa xác định';
-  const tvbh = i.assignee?.trim() || 'Chưa được phân giao';
+  const tinhTrang = i.assignee?.trim() ? `Đã giao cho ${i.assignee.trim()}` : 'Chưa được phân giao';
   return [
-    `LEAD MỚI — ${i.showroom}`,
-    `KH: ${ten} · ${maskPhone(i.phone)}`,
-    `Nguồn: ${nguon} · Xe: ${xe}`,
-    `Giao cho: ${tvbh}`,
+    `**LEAD MỚI — ${i.showroom}**`,
+    `KH: **${ten}** · ${maskPhone(i.phone)}`,
+    `Nguồn: ${nguon}`,
+    `Dòng xe quan tâm: ${xe}`,
+    `Tình trạng: **${tinhTrang}**`,
   ].join('\n');
 }
 

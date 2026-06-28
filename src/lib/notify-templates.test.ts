@@ -8,7 +8,7 @@ describe('notify-templates', () => {
     expect(maskPhone('123')).toBe('***');
   });
 
-  it('renderNewLead: gồm showroom, tên, sđt CHE 3 số cuối, nguồn, xe, TVBH — không emoji', () => {
+  it('renderNewLead: gồm showroom, tên, sđt CHE 3 số cuối, nguồn, xe, tình trạng — không emoji', () => {
     const t = renderNewLead({
       showroom: 'KIA Hà Nội', fullName: 'Nguyễn Văn A', phone: '+84901234567',
       source: 'facebook', model: 'Sonet', assignee: 'Trần B',
@@ -19,8 +19,17 @@ describe('notify-templates', () => {
     expect(t).toContain('0901234***');        // SĐT dạng 10 chữ số, che 3 số cuối
     expect(t).not.toContain('+84');           // KHÔNG dùng +84
     expect(t).not.toContain('0901234567');    // KHÔNG lộ SĐT đầy đủ
-    expect(t).toContain('Trần B');
+    expect(t).toContain('Đã giao cho Trần B'); // có TVBH → trạng thái đã giao
     expect(t).not.toMatch(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u); // không emoji
+  });
+
+  it('renderNewLead: tên + tiêu đề + tình trạng được bọc đậm (**...**)', () => {
+    const t = renderNewLead({
+      showroom: 'KIA', fullName: 'Nguyễn Văn A', phone: '+8490', source: 'facebook', model: 'Sonet', assignee: 'Trần B',
+    });
+    expect(t).toContain('**LEAD MỚI — KIA**');
+    expect(t).toContain('**Nguyễn Văn A**');
+    expect(t).toContain('**Đã giao cho Trần B**');
   });
 
   it('renderNewLead: thiếu tên → "Khách lẻ"; chưa giao → "Chưa được phân giao"', () => {
@@ -29,19 +38,25 @@ describe('notify-templates', () => {
     expect(t).toContain('Chưa được phân giao');
   });
 
-  it('renderNewLead: luôn hiện dòng xe; chưa dò ra → "chưa xác định"', () => {
+  it('renderNewLead: luôn hiện dòng xe quan tâm; chưa dò ra → "chưa xác định"', () => {
     const co = renderNewLead({ showroom: 'KIA', fullName: 'A', phone: '+8490', source: 'facebook', model: 'Sonet', assignee: 'B' });
-    expect(co).toContain('Xe: Sonet');
+    expect(co).toContain('Dòng xe quan tâm: Sonet');
     const khong = renderNewLead({ showroom: 'KIA', fullName: 'A', phone: '+8490', source: 'facebook', model: null, assignee: 'B' });
-    expect(khong).toContain('Xe: chưa xác định');
+    expect(khong).toContain('Dòng xe quan tâm: chưa xác định');
   });
 
-  it('renderNewLead: nguồn hiển thị nền tảng gốc — google_sheet vẫn ra "Google Sheet" nếu lỡ truyền vào, source thật ưu tiên', () => {
-    // Google Sheet chỉ là kênh trung chuyển — nguồn thật (facebook/google/tiktok) phải hiện đúng nền tảng.
-    const fb = renderNewLead({ showroom: 'KIA', fullName: 'A', phone: '+8490', source: 'facebook', model: 'Sonet', assignee: 'B' });
-    expect(fb).toContain('Nguồn: Facebook');
+  it('renderNewLead: nguồn hiện nền tảng + chi tiết kênh (Lead Ads / Tin nhắn / Bình luận)', () => {
+    // Facebook tách 3 nhánh — tin báo phải ghi rõ lead đến từ Lead Ads / Tin nhắn / Bình luận.
+    const ads = renderNewLead({ showroom: 'KIA', fullName: 'A', phone: '+8490', source: 'facebook', model: 'Sonet', assignee: 'B' });
+    expect(ads).toContain('Nguồn: Facebook · Lead Ads');
+    const msg = renderNewLead({ showroom: 'KIA', fullName: 'A', phone: '+8490', source: 'fb_message', model: 'Sonet', assignee: 'B' });
+    expect(msg).toContain('Nguồn: Facebook · Tin nhắn');
+    const cmt = renderNewLead({ showroom: 'KIA', fullName: 'A', phone: '+8490', source: 'fb_comment', model: 'Sonet', assignee: 'B' });
+    expect(cmt).toContain('Nguồn: Facebook · Bình luận');
+    // Nguồn không có nhánh chi tiết → chỉ hiện nền tảng, không có dấu "·" thừa.
     const gg = renderNewLead({ showroom: 'KIA', fullName: 'A', phone: '+8490', source: 'google', model: 'Sonet', assignee: 'B' });
     expect(gg).toContain('Nguồn: Google');
+    expect(gg).not.toContain('Nguồn: Google ·');
   });
 
   it('renderOverdue: tiêu đề có số lead, dòng có KH + TVBH + giờ, SĐT che, chưa giao ghi rõ', () => {
