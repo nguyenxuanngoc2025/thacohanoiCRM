@@ -7,6 +7,7 @@ import type { NotifChannelRow, ShowroomRow, SalesTeamRow } from './types';
 import {
   PanelHeader, PrimaryBtn, GhostBtn, Field, TextInput, Select, Toggle, StatusPill, FlashBar, Panel, postAdmin,
 } from './ui';
+import GroupPicker from './GroupPicker';
 
 const EVENT_LABELS: Record<string, string> = {
   new_lead: 'Data mới',
@@ -226,9 +227,15 @@ function NotifModal(
             </Field>
           )}
           <Field label="Tên hiển thị"><TextInput value={name} onChange={(e) => setName(e.target.value)} placeholder="Group Phòng KIA 1" /></Field>
-          <Field label="Đích gửi (group/chat id)" hint="ID nhóm Zalo hoặc chat_id Telegram nhận thông báo.">
-            <TextInput value={tgt} onChange={(e) => setTgt(e.target.value)} placeholder="-1001234567890" />
-          </Field>
+          {channel === 'zalo' ? (
+            <Field label="Group Zalo nhận thông báo" hint="Chọn từ các group con bot đang tham gia. Bấm làm mới nếu vừa thêm bot vào group mới.">
+              <GroupPicker value={tgt} onChange={setTgt} />
+            </Field>
+          ) : (
+            <Field label="Chat ID Telegram" hint="chat_id của nhóm/kênh Telegram nhận thông báo.">
+              <TextInput value={tgt} onChange={(e) => setTgt(e.target.value)} placeholder="-1001234567890" />
+            </Field>
+          )}
           <Field label="Kích hoạt khi">
             <div className="flex flex-wrap gap-2">
               {allowedEvents.map((e) => {
