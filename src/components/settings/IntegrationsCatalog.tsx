@@ -19,8 +19,8 @@ export type { ChannelRow };
 const CONNECTORS = PLATFORMS;
 
 export default function IntegrationsCatalog({
-  channels, showrooms, brands,
-}: { channels: ChannelRow[]; showrooms: ShowroomRow[]; brands: BrandRow[] }) {
+  channels, showrooms, brands, fbBusinessId,
+}: { channels: ChannelRow[]; showrooms: ShowroomRow[]; brands: BrandRow[]; fbBusinessId?: string }) {
   const router = useRouter();
   const [expanded, setExpanded] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
@@ -137,7 +137,7 @@ export default function IntegrationsCatalog({
       )}
 
       {showZaloGuide && <ZaloGuideModal onClose={() => setShowZaloGuide(false)} />}
-      {showFbGuide && <FacebookGuideModal onClose={() => setShowFbGuide(false)} />}
+      {showFbGuide && <FacebookGuideModal onClose={() => setShowFbGuide(false)} businessId={fbBusinessId} />}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 'use client';
 
-import React from 'react';
-import { X, ExternalLink } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, ExternalLink, Copy, Check } from 'lucide-react';
 
 /**
  * Trang hướng dẫn kết nối Facebook fanpage — viết cho người KHÔNG rành kỹ thuật.
@@ -10,8 +10,24 @@ import { X, ExternalLink } from 'lucide-react';
  * Cơ chế: CRM dùng một "tài khoản hệ thống" tập trung của nền tảng để nhận lead.
  * Khách chỉ cần (1) lấy Page ID, (2) cấp quyền fanpage cho doanh nghiệp của nền tảng,
  * (3) nhập Page ID vào CRM → hệ thống tự đăng ký nhận lead.
+ *
+ * businessId = Business ID của BM nền tảng (chủ nền tảng đặt ở Admin → Cấu hình).
+ * Có mã thì hiển thị kèm nút copy; chưa có thì nhắc liên hệ hỗ trợ.
  */
-export default function FacebookGuideModal({ onClose }: { onClose: () => void }) {
+export default function FacebookGuideModal({ onClose, businessId }: { onClose: () => void; businessId?: string }) {
+  const bizId = (businessId ?? '').trim();
+  const [copied, setCopied] = useState(false);
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(bizId);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* clipboard bị chặn — bỏ qua, user copy tay */
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[500] flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
       <div
@@ -48,8 +64,8 @@ export default function FacebookGuideModal({ onClose }: { onClose: () => void })
               <li>Một <b>fanpage Facebook</b> của doanh nghiệp.</li>
               <li>Tài khoản Facebook của bạn là <b>quản trị viên</b> của fanpage đó.</li>
               <li>
-                <b>Mã doanh nghiệp (Business ID) của nền tảng</b> để cấp quyền — bộ phận hỗ trợ sẽ
-                gửi cho bạn dãy số này.
+                <b>Mã doanh nghiệp (Business ID) của nền tảng</b> để cấp quyền —{' '}
+                {bizId ? 'mã có sẵn ở Phần 2 bên dưới.' : 'liên hệ bộ phận hỗ trợ để nhận dãy số này.'}
               </li>
             </ul>
           </Section>
@@ -94,15 +110,34 @@ export default function FacebookGuideModal({ onClose }: { onClose: () => void })
                 <b> “Mã doanh nghiệp”</b> (Business ID).
               </Step>
               <Step n={7}>
-                Dán <b>Mã doanh nghiệp của nền tảng</b> (bộ phận hỗ trợ đã gửi cho bạn) vào ô,
-                ở phần quyền hãy bật <b>“Quản lý Trang”</b> (hoặc “Toàn quyền”), rồi bấm <b>Gán</b> /
-                <b> Lưu</b>.
+                Dán <b>Mã doanh nghiệp của nền tảng</b> (ngay bên dưới) vào ô, ở phần quyền hãy bật
+                <b> “Quản lý Trang”</b> (hoặc “Toàn quyền”), rồi bấm <b>Gán</b> / <b>Lưu</b>.
+                {bizId && (
+                  <div className="mt-2">
+                    <div className="text-xs font-semibold text-slate-500 mb-1">Mã doanh nghiệp của nền tảng:</div>
+                    <div className="flex items-stretch gap-2">
+                      <code className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-[13px] text-slate-800 break-all font-mono">
+                        {bizId}
+                      </code>
+                      <button
+                        onClick={copy}
+                        className="shrink-0 inline-flex items-center gap-1.5 rounded-lg px-3 text-xs font-semibold text-white"
+                        style={{ background: copied ? '#16a34a' : '#1877F2' }}
+                      >
+                        {copied ? <Check size={14} /> : <Copy size={14} />}
+                        {copied ? 'Đã copy' : 'Copy'}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </Step>
             </Steps>
-            <div className="rounded-xl bg-sky-50 border border-sky-100 px-4 py-3 text-[13px] text-sky-800">
-              Chưa có Mã doanh nghiệp của nền tảng? Hãy liên hệ bộ phận hỗ trợ để nhận trước khi làm
-              bước này. Không có mã thì hệ thống chưa nhận được lead.
-            </div>
+            {!bizId && (
+              <div className="rounded-xl bg-sky-50 border border-sky-100 px-4 py-3 text-[13px] text-sky-800">
+                Chưa có Mã doanh nghiệp của nền tảng? Hãy liên hệ bộ phận hỗ trợ để nhận trước khi
+                làm bước này. Không có mã thì hệ thống chưa nhận được lead.
+              </div>
+            )}
           </Section>
 
           {/* Phần 3: nhập vào CRM */}

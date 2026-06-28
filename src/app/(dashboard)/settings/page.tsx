@@ -2,6 +2,7 @@ import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import SettingsClient from '@/components/settings/SettingsClient';
 import type { ChannelRow } from '@/components/settings/types';
+import { getFbBusinessId } from '@/lib/platform-settings';
 
 export const dynamic = 'force-dynamic';
 
@@ -127,6 +128,9 @@ export default async function SettingsPage() {
   const channelsWithShowrooms: ChannelRow[] = ((channels ?? []) as Omit<ChannelRow, 'showroom_ids'>[])
     .map((c) => ({ ...c, showroom_ids: showroomIdsByChannel[c.id] ?? (c.showroom_id ? [c.showroom_id] : []) }));
 
+  // Business ID nền tảng (dùng chung) — hiển thị trong hướng dẫn kết nối Facebook.
+  const fbBusinessId = (await getFbBusinessId()) ?? '';
+
   return (
     <div className="p-6 space-y-6">
       <div>
@@ -149,6 +153,7 @@ export default async function SettingsPage() {
         notifChannels={notifChannels ?? []}
         recentLogs={recentLogs ?? []}
         statusCounts={statusCounts}
+        fbBusinessId={fbBusinessId}
       />
     </div>
   );

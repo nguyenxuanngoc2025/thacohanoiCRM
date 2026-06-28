@@ -62,6 +62,7 @@ const NAV: NavGroup[] = [
 export default function SettingsClient({
   staff, showrooms, brands, models, salesTeams, companyId, currentUserId, channels,
   assignmentRules, companyShowroomStrategy, slaConfig, notifChannels, recentLogs, statusCounts,
+  fbBusinessId,
 }: {
   staff: StaffRow[];
   showrooms: ShowroomRow[];
@@ -77,6 +78,7 @@ export default function SettingsClient({
   notifChannels: NotifChannelRow[];
   recentLogs: LeadLogRow[];
   statusCounts: Record<string, number>;
+  fbBusinessId: string;
 }) {
   const [active, setActive] = useState<ItemKey>('accounts');
   const showroomOpts: ShowroomOption[] = showrooms;
@@ -130,7 +132,7 @@ export default function SettingsClient({
           <SalesTeamsManager salesTeams={salesTeams} showrooms={showrooms} brands={brands} staff={staff} />
         )}
         {active === 'integrations' && (
-          <IntegrationsCatalog channels={channels} showrooms={showrooms} brands={brands} />
+          <IntegrationsCatalog channels={channels} showrooms={showrooms} brands={brands} fbBusinessId={fbBusinessId} />
         )}
         {active === 'pipeline' && <PipelineReference counts={statusCounts} />}
         {active === 'assignment' && (

@@ -11,6 +11,7 @@ const TABS = [
   { href: '/admin/usage', label: 'Sử dụng' },
   { href: '/admin/audit', label: 'Nhật ký' },
   { href: '/admin/catalog', label: 'Thương hiệu & dòng xe' },
+  { href: '/admin/settings', label: 'Cấu hình' },
 ];
 
 export default async function PlatformAdminLayout({ children }: { children: React.ReactNode }) {
