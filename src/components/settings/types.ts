@@ -43,6 +43,21 @@ export interface SalesTeamRow {
   allocations: Record<string, number>;
 }
 
+// Cấu hình Google Sheet (jsonb channel_accounts.config). Các kênh khác để null.
+export interface SheetConfig {
+  connection_id?: string;
+  tabs?: { title: string; source?: string | null }[];
+  tab?: string | null;
+  phone_col?: number;
+  name_col?: number | null;
+  note_cols?: number[];
+  source_mode?: 'fixed' | 'column';
+  source_col?: number | null;
+  model_mode?: 'auto' | 'fixed' | 'column';
+  model_id?: string | null;
+  model_col?: number | null;
+}
+
 export interface ChannelRow {
   id: string;
   page_name: string | null;
@@ -54,6 +69,7 @@ export interface ChannelRow {
   brand_id: string | null;
   campaign: string | null;
   is_active: boolean;
+  config?: SheetConfig | null;
 }
 
 export interface AssignmentRuleRow {
