@@ -3,13 +3,15 @@ import { cookies } from 'next/headers';
 import { requireAdmin } from '@/lib/admin-guard';
 import { getPlatformSetting } from '@/lib/platform-settings';
 import { exchangeCodeForTokens, getUserEmail } from '@/lib/google';
+import { publicOriginFromHeaders } from '@/lib/tenant';
 import { encrypt } from '@/lib/crypto';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
-  const settingsUrl = new URL('/settings', url.origin);
+  const origin = publicOriginFromHeaders(request.headers);
+  const settingsUrl = new URL('/settings', origin);
   const fail = () => { settingsUrl.searchParams.set('google', 'error'); return NextResponse.redirect(settingsUrl); };
 
   const code = url.searchParams.get('code');
@@ -32,7 +34,7 @@ export async function GET(request: NextRequest) {
   if (!clientId || !clientSecret) return fail();
 
   try {
-    const redirectUri = `${url.origin}/api/integrations/google/callback`;
+    const redirectUri = `${origin}/api/integrations/google/callback`;
     const { refreshToken, accessToken } = await exchangeCodeForTokens({ code, clientId, clientSecret, redirectUri });
     const email = await getUserEmail(accessToken);
     await service.from('google_connections').upsert({

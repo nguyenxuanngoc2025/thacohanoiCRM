@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { requireAdmin } from '@/lib/admin-guard';
 import { getPlatformSetting } from '@/lib/platform-settings';
 import { buildConsentUrl } from '@/lib/google';
+import { publicOriginFromHeaders } from '@/lib/tenant';
 import { randomBytes } from 'node:crypto';
 
 export const dynamic = 'force-dynamic';
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest) {
 
   const csrf = randomBytes(16).toString('hex');
   const state = Buffer.from(JSON.stringify({ csrf, company: companyId })).toString('base64url');
-  const origin = new URL(request.url).origin;
+  const origin = publicOriginFromHeaders(request.headers);
   const redirectUri = `${origin}/api/integrations/google/callback`;
   const url = buildConsentUrl({ clientId, redirectUri, state });
 

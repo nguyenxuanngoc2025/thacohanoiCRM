@@ -62,6 +62,16 @@ export async function resolveCompanyFromHost(rawHost: string): Promise<TenantCom
   return (data as unknown as TenantCompany) ?? null;
 }
 
+/** Origin công khai (https://host-that-tao) từ header request.
+ * Sau reverse proxy (Caddy/Hostinger), `request.url` là địa chỉ bind nội bộ
+ * (vd http://localhost:3007). Host + scheme thật do proxy chuyển qua
+ * `x-forwarded-host` / `x-forwarded-proto`. Dùng cho OAuth redirect URI. */
+export function publicOriginFromHeaders(h: Headers): string {
+  const proto = h.get('x-forwarded-proto') ?? 'https';
+  const host = h.get('x-forwarded-host') ?? h.get('host') ?? '';
+  return `${proto}://${host}`;
+}
+
 /** Đọc Host của request hiện tại (server component / route) → tenant.
  * Ưu tiên `x-forwarded-host`: khi Next render trang đích trong luồng Server Action
  * redirect, `host` là địa chỉ bind nội bộ (vd localhost:3007), còn host thật do
