@@ -14,7 +14,7 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['src/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'zca-bot/**/*.test.mjs'],
     // Mock các module server-only (next/headers, @supabase/ssr) không chạy được
     // trong môi trường vitest thuần node. tenant.ts dùng chúng nhưng các test
     // chỉ test parseHost — không gọi resolveCompanyFromHost hay getTenant.
