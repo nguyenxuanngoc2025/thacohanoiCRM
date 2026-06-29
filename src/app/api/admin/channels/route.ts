@@ -16,11 +16,18 @@ export async function POST(request: NextRequest) {
     const { data: srRows } = await service.from('showrooms').select('id').eq('company_id', companyId);
     const companySrIds = ((srRows ?? []) as { id: string }[]).map((r) => r.id);
 
-    // Kênh sửa/xoá phải gắn showroom thuộc công ty của admin.
+    // Kênh sửa/xoá phải gắn showroom thuộc công ty của admin. Giữ lại cấu hình chia cũ để so sánh.
+    let existingStrategy: string | null = null;
+    const existingShareMap: Record<string, number> = {};
     if (op === 'update' || op === 'delete') {
-      const { data: existing } = await service.from('channel_accounts').select('showroom_id').eq('id', body.id).maybeSingle();
+      const { data: existing } = await service.from('channel_accounts').select('showroom_id, showroom_assign_strategy').eq('id', body.id).maybeSingle();
       if (!existing || !companySrIds.includes(existing.showroom_id as string)) {
         return NextResponse.json({ error: 'Kênh không thuộc công ty của bạn.' }, { status: 404 });
+      }
+      existingStrategy = (existing.showroom_assign_strategy as string) ?? null;
+      const { data: oldJunction } = await service.from('channel_account_showrooms').select('showroom_id, share_pct').eq('channel_account_id', body.id);
+      for (const j of (oldJunction ?? []) as { showroom_id: string; share_pct: number }[]) {
+        existingShareMap[j.showroom_id] = Number(j.share_pct) || 0;
       }
     }
 
@@ -54,6 +61,22 @@ export async function POST(request: NextRequest) {
       : 'least_loaded';
     const shares: Record<string, number> =
       body.showroom_shares && typeof body.showroom_shares === 'object' ? body.showroom_shares : {};
+
+    // Map % mới (chỉ cho showroom đang chọn) để so với cấu hình cũ → quyết định có đặt lại mốc hiệu lực.
+    const newShareMap: Record<string, number> = {};
+    for (const sid of showroom_ids) newShareMap[sid] = Number(shares[sid]) || 0;
+    const sameShares = (a: Record<string, number>, b: Record<string, number>) => {
+      const ak = Object.keys(a), bk = Object.keys(b);
+      if (ak.length !== bk.length) return false;
+      return ak.every((k) => a[k] === b[k]);
+    };
+    // Đổi cách chia / tỷ lệ % / danh sách showroom → phân bổ "hiệu lực kể từ thời điểm thay đổi":
+    // đặt lại mốc = bây giờ để ingest chỉ đếm lead phát sinh sau đó. Tạo kênh mới cũng tính từ bây giờ.
+    const distChanged =
+      op !== 'update' ||
+      showroom_assign_strategy !== existingStrategy ||
+      !sameShares(newShareMap, existingShareMap);
+
     const row = {
       platform,
       page_id,
@@ -63,6 +86,7 @@ export async function POST(request: NextRequest) {
       campaign: body.campaign ? String(body.campaign).trim() : null,
       showroom_assign_strategy,
       is_active: body.is_active ?? true,
+      ...(distChanged ? { assign_effective_from: new Date().toISOString() } : {}),
       ...(secret ? { secret } : {}),
     };
 

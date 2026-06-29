@@ -15,7 +15,7 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
   // Tra nguồn theo page_id
   const { data: channel } = await db
     .from('channel_accounts')
-    .select('id, showroom_id, brand_id, campaign, showroom_assign_strategy')
+    .select('id, showroom_id, brand_id, campaign, showroom_assign_strategy, assign_effective_from')
     .eq('page_id', payload.page_id)
     .eq('is_active', true)
     .maybeSingle();
@@ -139,14 +139,22 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
     (junction ?? []).map((j) => [j.showroom_id, Number(j.share_pct) || 0])
   );
 
+  // Mốc hiệu lực: chỉ đếm lead phát sinh SAU lần đổi cấu hình chia gần nhất ("hiệu lực kể từ thời điểm
+  // thay đổi"). NULL = đếm toàn thời gian. Áp cho cả tải (weighted/least_loaded) lẫn mốc xoay vòng.
+  const effectiveFrom = channel.assign_effective_from ?? null;
+
   const showroomCands: StrategyCandidate[] = [];
   for (const sid of showroomPool) {
     // Đếm tải + lead gần nhất CHỈ của kênh này (channel_account_id) → tỷ lệ % của kênh không bị
     // nhiễu bởi lead từ kênh/thương hiệu khác cùng đổ vào showroom.
-    const { count } = await db.from('leads').select('id', { count: 'exact', head: true })
+    let countQ = db.from('leads').select('id', { count: 'exact', head: true })
       .eq('showroom_id', sid).eq('channel_account_id', channel.id).or('status.is.null,status.neq.Fail');
-    const { data: last } = await db.from('leads').select('created_at')
-      .eq('showroom_id', sid).eq('channel_account_id', channel.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
+    if (effectiveFrom) countQ = countQ.gte('created_at', effectiveFrom);
+    const { count } = await countQ;
+    let lastQ = db.from('leads').select('created_at')
+      .eq('showroom_id', sid).eq('channel_account_id', channel.id).order('created_at', { ascending: false }).limit(1);
+    if (effectiveFrom) lastQ = lastQ.gte('created_at', effectiveFrom);
+    const { data: last } = await lastQ.maybeSingle();
     showroomCands.push({
       id: sid,
       activeLeadCount: count ?? 0,
