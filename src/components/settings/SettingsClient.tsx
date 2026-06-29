@@ -92,10 +92,38 @@ export default function SettingsClient({
     return { id: t.id, showroom_id: t.showroom_id, brand_id: t.brand_id, label: `${sr} · ${br} · ${t.name}` };
   });
 
+  const allItems = NAV.flatMap((g) => g.items);
+
   return (
-    <div className="flex gap-6 items-start">
-      {/* Menu dọc */}
-      <nav className="w-60 shrink-0 bg-white rounded-xl border border-slate-200 shadow-sm p-2 sticky top-6">
+    <div className="flex flex-col lg:flex-row gap-3 lg:gap-6 items-start">
+      {/* Mobile: thanh tab ngang cuộn ngang được (menu dọc không vừa màn hình điện thoại) */}
+      <nav
+        className="lg:hidden w-full flex gap-2 overflow-x-auto pb-1"
+        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+      >
+        {allItems.map(({ key, label, icon: Icon }) => {
+          const isActive = active === key;
+          return (
+            <button
+              key={key}
+              onClick={() => setActive(key)}
+              className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm whitespace-nowrap border transition-colors"
+              style={{
+                fontWeight: isActive ? 600 : 500,
+                color: isActive ? '#004B9B' : '#475569',
+                background: isActive ? '#e6f0fa' : '#fff',
+                borderColor: isActive ? '#bfdbfe' : '#e2e8f0',
+              }}
+            >
+              <Icon size={15} className="shrink-0" />
+              {label}
+            </button>
+          );
+        })}
+      </nav>
+
+      {/* Desktop: menu dọc */}
+      <nav className="hidden lg:block w-60 shrink-0 bg-white rounded-xl border border-slate-200 shadow-sm p-2 sticky top-6">
         {NAV.map((group) => (
           <div key={group.title} className="mb-1.5 last:mb-0">
             <div className="px-3 pt-2.5 pb-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">
@@ -124,7 +152,7 @@ export default function SettingsClient({
       </nav>
 
       {/* Nội dung */}
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 w-full">
         {active === 'accounts' && (
           <AccountsManager staff={staff} showrooms={showroomOpts} brands={brands} salesTeams={teamOpts} companyId={companyId} currentUserId={currentUserId} />
         )}

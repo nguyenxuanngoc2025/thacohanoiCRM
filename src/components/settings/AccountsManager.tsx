@@ -119,7 +119,7 @@ export default function AccountsManager({
 
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3 px-5 py-3 border-b border-slate-100 bg-slate-50/60">
-            <div className="relative w-64">
+            <div className="relative w-full sm:w-64">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 value={search}
@@ -131,7 +131,7 @@ export default function AccountsManager({
             <select
               value={filterRole}
               onChange={(e) => setFilterRole(e.target.value)}
-              className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[#004B9B] bg-white"
+              className="flex-1 sm:flex-none border border-slate-200 rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[#004B9B] bg-white"
             >
               <option value="">Tất cả vai trò</option>
               {CREATABLE_ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}

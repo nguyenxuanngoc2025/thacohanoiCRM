@@ -148,10 +148,10 @@ export default async function SettingsPage() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-6 space-y-4 sm:space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-slate-900">Cài đặt hệ thống</h1>
-        <p className="text-sm text-slate-400 mt-0.5">Quản lý nhân sự, tích hợp kênh và cấu hình nghiệp vụ</p>
+        <h1 className="text-lg sm:text-xl font-bold text-slate-900">Cài đặt hệ thống</h1>
+        <p className="text-xs sm:text-sm text-slate-400 mt-0.5">Quản lý nhân sự, tích hợp kênh và cấu hình nghiệp vụ</p>
       </div>
 
       <SettingsClient
