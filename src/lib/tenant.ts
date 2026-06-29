@@ -33,11 +33,12 @@ export interface TenantCompany {
   custom_domain: string | null;
   branding: CompanyBranding;
   plan_status: string;
+  b10_enabled: boolean;
 }
 
 const PLATFORM_DOMAIN = process.env.NEXT_PUBLIC_PLATFORM_DOMAIN ?? 'crmthacoauto.com';
 const DEFAULT_SLUG = process.env.DEFAULT_COMPANY_SLUG ?? 'thaco-auto-hanoi';
-const SELECT = 'id,name,slug,subdomain,custom_domain,branding,plan_status';
+const SELECT = 'id,name,slug,subdomain,custom_domain,branding,plan_status,b10_enabled';
 
 /**
  * Tra công ty theo Host:
