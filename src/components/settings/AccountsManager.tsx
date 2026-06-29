@@ -356,7 +356,8 @@ function EditModal({
     ? init.brand_ids : (init?.brand_id ? [init.brand_id] : []);
 
   const [fullName, setFullName] = useState(init?.full_name ?? '');
-  const [email, setEmail] = useState(init?.email ?? '');
+  // Form chỉ nhập username (phần trước @) — bỏ đuôi domain khi prefill tài khoản đang sửa.
+  const [email, setEmail] = useState((init?.email ?? '').replace(/@.*$/, ''));
   const [role, setRole] = useState<UserRole>((init?.role as UserRole) ?? 'tvbh');
   const [showroomIds, setShowroomIds] = useState<string[]>(initShowroomIds);
   const [brandIds, setBrandIds] = useState<string[]>(initBrandIds);
@@ -377,8 +378,7 @@ function EditModal({
 
   const submit = async () => {
     setError(null);
-    if (isNew && (!fullName.trim() || !email.trim())) { setError('Vui lòng nhập họ tên và tên đăng nhập.'); return; }
-    if (!isNew && !fullName.trim()) { setError('Vui lòng nhập họ tên.'); return; }
+    if (!fullName.trim() || !email.trim()) { setError('Vui lòng nhập họ tên và tên đăng nhập.'); return; }
     if (needsTeam && !teamId) { setError('Vai trò này bắt buộc gán 1 phòng bán hàng.'); return; }
     if (needsShowroom && showroomIds.length === 0) { setError('Vai trò này bắt buộc gán ≥1 showroom.'); return; }
     if (needsBrand && brandIds.length === 0) { setError('Vai trò này bắt buộc gán ≥1 thương hiệu.'); return; }
@@ -402,7 +402,7 @@ function EditModal({
         const res = await fetch('/api/admin/update-user', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            userId: (target as StaffRow).id, full_name: fullName.trim(), role,
+            userId: (target as StaffRow).id, full_name: fullName.trim(), email: email.trim(), role,
             showroom_ids: needsShowroom ? showroomIds : [],
             brand_ids: needsBrand ? brandIds : [],
             sales_team_id: needsTeam ? teamId : null,
@@ -432,20 +432,18 @@ function EditModal({
             <input value={fullName} onChange={(e) => setFullName(e.target.value)}
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#004B9B]" placeholder="Nguyễn Văn A" />
           </Field>
-          {isNew ? (
-            <Field label="Tên đăng nhập">
-              <div className="flex items-stretch border border-slate-200 rounded-lg overflow-hidden focus-within:border-[#004B9B]">
-                <input type="text" value={email} onChange={(e) => setEmail(e.target.value)}
-                  className="flex-1 min-w-0 px-3 py-2 text-sm outline-none" placeholder="nguyenvana" autoComplete="off" />
-                <span className="px-3 py-2 text-sm text-slate-400 bg-slate-50 border-l border-slate-100 whitespace-nowrap select-none">@{EMAIL_DOMAIN}</span>
-              </div>
-              <p className="text-[11px] text-slate-400 mt-1">Chỉ nhập tên, hệ thống tự thêm @{EMAIL_DOMAIN}</p>
-            </Field>
-          ) : (
-            <Field label="Email">
-              <div className="text-sm text-slate-500 font-mono px-3 py-2 bg-slate-50 rounded-lg border border-slate-100">{email || '—'}</div>
-            </Field>
-          )}
+          <Field label="Tên đăng nhập">
+            <div className="flex items-stretch border border-slate-200 rounded-lg overflow-hidden focus-within:border-[#004B9B]">
+              <input type="text" value={email} onChange={(e) => setEmail(e.target.value)}
+                className="flex-1 min-w-0 px-3 py-2 text-sm outline-none" placeholder="nguyenvana" autoComplete="off" />
+              <span className="px-3 py-2 text-sm text-slate-400 bg-slate-50 border-l border-slate-100 whitespace-nowrap select-none">@{EMAIL_DOMAIN}</span>
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1">
+              {isNew
+                ? `Chỉ nhập tên, hệ thống tự thêm @${EMAIL_DOMAIN}`
+                : 'Đổi tên đăng nhập sẽ áp dụng cho lần đăng nhập kế tiếp.'}
+            </p>
+          </Field>
           <Field label="Vai trò">
             <select value={role} onChange={(e) => setRole(e.target.value as UserRole)}
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#004B9B] bg-white">

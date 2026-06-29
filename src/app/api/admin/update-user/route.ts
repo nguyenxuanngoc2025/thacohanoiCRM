@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient, createClient } from '@/lib/supabase/server';
 import type { UserRole } from '@/types/database';
 import { roleNeedsShowroom, roleNeedsBrand, roleNeedsSalesTeam, isCreatableRole } from '@/lib/nav';
+import { usernameToEmail } from '@/lib/account-email';
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,9 +11,10 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await request.json();
-    const { userId, full_name, role, sales_team_id, is_active, assign_share_pct } = body as {
+    const { userId, full_name, email, role, sales_team_id, is_active, assign_share_pct } = body as {
       userId: string;
       full_name?: string;
+      email?: string;
       role?: UserRole;
       sales_team_id?: string | null;
       is_active?: boolean;
@@ -33,7 +35,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     // Cô lập đa công ty: chỉ được sửa tài khoản thuộc CÙNG công ty với admin.
-    const { data: target } = await service.from('users').select('company_id').eq('id', userId).maybeSingle();
+    const { data: target } = await service.from('users').select('company_id, email').eq('id', userId).maybeSingle();
     if (!target || target.company_id !== caller.company_id) {
       return NextResponse.json({ error: 'Không tìm thấy tài khoản trong công ty của bạn.' }, { status: 404 });
     }
@@ -61,6 +63,18 @@ export async function POST(request: NextRequest) {
     let syncBrands: string[] | null = null;
     let syncShowrooms: string[] | null = null;
     if (typeof full_name === 'string' && full_name.trim()) updates.full_name = full_name.trim();
+    // Đổi tên đăng nhập (email): cập nhật cả auth.users (đăng nhập) lẫn hồ sơ CRM.
+    if (typeof email === 'string' && email.trim()) {
+      const cleanEmail = usernameToEmail(email);
+      if (cleanEmail !== target.email) {
+        const { data: dup } = await service.from('users')
+          .select('id').eq('email', cleanEmail).neq('id', userId).maybeSingle();
+        if (dup) return NextResponse.json({ error: 'Tên đăng nhập này đã có người dùng khác.' }, { status: 400 });
+        const { error: authErr } = await service.auth.admin.updateUserById(userId, { email: cleanEmail, email_confirm: true });
+        if (authErr) return NextResponse.json({ error: `Không đổi được tên đăng nhập: ${authErr.message}` }, { status: 400 });
+        updates.email = cleanEmail;
+      }
+    }
     if (role) {
       updates.role = role;
       const needsTeam = roleNeedsSalesTeam(role);
