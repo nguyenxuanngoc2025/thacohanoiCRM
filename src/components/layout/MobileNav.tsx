@@ -24,9 +24,10 @@ export interface MobileNavProps {
 }
 
 /**
- * Thanh điều hướng đáy màn hình cho mobile (kiểu app) — thay sidebar trái.
- * Đặt ở thumb-zone (đáy), touch target ≥56px, icon + nhãn ngắn.
- * Chỉ hiển thị trên mobile (lg:hidden); desktop dùng Sidebar.
+ * Thanh điều hướng đáy cho mobile (kiểu app) — thay sidebar trái.
+ * Tông tối gradient lấy từ sidebar desktop (var(--sidebar-bg)), neo cứng ở đáy
+ * (in-flow trong cột flex chiều cao cố định → không bao giờ trôi khi cuộn).
+ * Tab active có viên nền nổi bật giống mục active của sidebar.
  */
 export default function MobileNav({ userRole, userName, userCode = '' }: MobileNavProps) {
   const pathname = usePathname();
@@ -44,7 +45,6 @@ export default function MobileNav({ userRole, userName, userCode = '' }: MobileN
     return () => document.removeEventListener('mousedown', handler);
   }, [menuOpen]);
 
-  // Đóng menu tài khoản khi đổi trang.
   useEffect(() => { setMenuOpen(false); }, [pathname]);
 
   const initials = userName.split(' ').map((w) => w[0]).join('').slice(-2).toUpperCase();
@@ -53,12 +53,20 @@ export default function MobileNav({ userRole, userName, userCode = '' }: MobileN
   const handleSignOut = async () => { setMenuOpen(false); await logout(); };
 
   return (
-    <div ref={wrapRef} className="lg:hidden shrink-0 relative">
+    <div
+      ref={wrapRef}
+      className="lg:hidden shrink-0 relative"
+      style={{
+        background: 'var(--sidebar-bg)',
+        boxShadow: '0 -6px 20px rgba(0,0,0,0.18)',
+        paddingBottom: 'env(safe-area-inset-bottom)',
+      }}
+    >
       {/* Bảng tài khoản trượt lên từ đáy */}
       {menuOpen && (
         <>
-          <div className="fixed inset-0 z-40 bg-black/20" onClick={() => setMenuOpen(false)} />
-          <div className="absolute bottom-full left-0 right-0 z-50 bg-white border-t border-slate-200 rounded-t-2xl shadow-[0_-8px_24px_rgba(0,0,0,0.12)] pb-2">
+          <div className="fixed inset-0 z-40 bg-black/30" onClick={() => setMenuOpen(false)} />
+          <div className="absolute bottom-full left-0 right-0 z-50 bg-white border-t border-slate-200 rounded-t-2xl shadow-[0_-8px_24px_rgba(0,0,0,0.16)] pb-2">
             <div className="flex items-center gap-3 px-4 py-3.5 border-b border-slate-100">
               <div
                 className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0"
@@ -79,10 +87,7 @@ export default function MobileNav({ userRole, userName, userCode = '' }: MobileN
       )}
 
       {/* Thanh tab đáy */}
-      <nav
-        className="flex items-stretch bg-white border-t border-slate-200"
-        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
-      >
+      <nav className="flex items-stretch px-1.5 pt-1.5 pb-1">
         {items.map((item) => {
           const Icon = ICON_MAP[item.icon] ?? LayoutDashboard;
           const active = !!pathname?.startsWith(item.href);
@@ -90,11 +95,14 @@ export default function MobileNav({ userRole, userName, userCode = '' }: MobileN
             <Link
               key={item.href}
               href={item.href}
-              className="flex-1 flex flex-col items-center justify-center gap-1 py-2 min-h-[56px] active:bg-slate-50"
-              style={{ color: active ? BRAND : '#94a3b8' }}
+              className="flex-1 flex flex-col items-center justify-center gap-1 py-1.5 min-h-[52px] rounded-lg transition-colors"
+              style={{
+                color: active ? '#ffffff' : 'rgba(255,255,255,0.62)',
+                background: active ? 'rgba(255,255,255,0.16)' : 'transparent',
+              }}
             >
-              <Icon size={22} strokeWidth={active ? 2.4 : 2} />
-              <span className="text-[10.5px] font-medium leading-none" style={{ fontWeight: active ? 600 : 500 }}>
+              <Icon size={21} strokeWidth={active ? 2.4 : 1.9} />
+              <span className="text-[10.5px] leading-none" style={{ fontWeight: active ? 700 : 500 }}>
                 {item.label}
               </span>
             </Link>
@@ -103,11 +111,14 @@ export default function MobileNav({ userRole, userName, userCode = '' }: MobileN
         {/* Tài khoản */}
         <button
           onClick={() => setMenuOpen((v) => !v)}
-          className="flex-1 flex flex-col items-center justify-center gap-1 py-2 min-h-[56px] active:bg-slate-50"
-          style={{ color: menuOpen ? BRAND : '#94a3b8' }}
+          className="flex-1 flex flex-col items-center justify-center gap-1 py-1.5 min-h-[52px] rounded-lg transition-colors"
+          style={{
+            color: menuOpen ? '#ffffff' : 'rgba(255,255,255,0.62)',
+            background: menuOpen ? 'rgba(255,255,255,0.16)' : 'transparent',
+          }}
         >
-          <MoreHorizontal size={22} strokeWidth={menuOpen ? 2.4 : 2} />
-          <span className="text-[10.5px] font-medium leading-none" style={{ fontWeight: menuOpen ? 600 : 500 }}>
+          <MoreHorizontal size={21} strokeWidth={menuOpen ? 2.4 : 1.9} />
+          <span className="text-[10.5px] leading-none" style={{ fontWeight: menuOpen ? 700 : 500 }}>
             Tài khoản
           </span>
         </button>

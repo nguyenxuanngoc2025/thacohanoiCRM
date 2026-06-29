@@ -46,6 +46,13 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
 }
 
+/* Cảm giác app trên mobile: chặn tràn ngang (hết "lắc trái phải"),
+   tắt hiệu ứng nảy/rubber-band của trình duyệt khi cuộn tới biên. */
+html, body {
+  overflow-x: hidden;
+  overscroll-behavior: none;
+}
+
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ── dropdown-panel: popup nền trắng ───────────────────────── */

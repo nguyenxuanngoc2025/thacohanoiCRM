@@ -36,7 +36,7 @@ export default function DashboardShell({
 
   return (
     // Sidebar chạy full chiều cao; status bar nằm trong cột phải, ngay dưới nội dung chính.
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--color-bg)' }}>
+    <div style={{ display: 'flex', height: '100dvh', overflow: 'hidden', background: 'var(--color-bg)' }}>
       {/* Desktop: sidebar trái. Mobile: ẩn (dùng bottom nav). */}
       <div className="hidden lg:block">
         <Sidebar
@@ -49,7 +49,7 @@ export default function DashboardShell({
         />
       </div>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
-        <main style={{ flex: 1, minHeight: 0, overflowY: 'auto', background: 'var(--color-bg)', position: 'relative' }}>
+        <main style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', background: 'var(--color-bg)', position: 'relative' }}>
           {children}
         </main>
         {/* Desktop: status bar đáy. Mobile: ẩn (nhường chỗ bottom nav). */}
