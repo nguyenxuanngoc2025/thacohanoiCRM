@@ -1,6 +1,34 @@
+import { createHmac, timingSafeEqual } from 'node:crypto';
+
 const GRAPH = `https://graph.facebook.com/${process.env.FB_GRAPH_VERSION ?? 'v21.0'}`;
 
 export interface FbLeadField { name: string; values: string[] }
+
+/**
+ * Xác thực chữ ký webhook Facebook (header `X-Hub-Signature-256`).
+ * Facebook ký body bằng HMAC-SHA256 với App Secret làm khoá:
+ *   signature = 'sha256=' + HMAC_SHA256(appSecret, rawBody)
+ * rawBody phải là chuỗi body GỐC (chưa qua JSON.parse).
+ * Trả false nếu thiếu tham số hoặc chữ ký không khớp.
+ */
+export function verifyFbSignature(
+  rawBody: string,
+  signatureHeader: string | null | undefined,
+  appSecret: string | null | undefined,
+): boolean {
+  if (!appSecret || !signatureHeader) return false;
+  const provided = signatureHeader.startsWith('sha256=')
+    ? signatureHeader.slice(7)
+    : signatureHeader;
+  if (!provided) return false;
+
+  const expected = createHmac('sha256', appSecret).update(rawBody).digest('hex');
+  // So sánh chống timing attack — độ dài phải bằng nhau trước.
+  const a = Buffer.from(provided, 'utf8');
+  const b = Buffer.from(expected, 'utf8');
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
 
 /** Lấy chi tiết lead form từ Graph API bằng System User token. */
 export async function fetchLeadDetail(leadgenId: string): Promise<{

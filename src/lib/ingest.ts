@@ -37,10 +37,20 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
 
   if (candidateShowroomIds.length === 0) return { ok: false, reason: 'no_showroom' };
 
-  // Chống trùng theo (phone, brand_id) — brand cố định theo fanpage
+  // Công ty của kênh (mọi showroom của 1 kênh cùng thuộc 1 công ty) — cần SỚM để:
+  //  (1) chống trùng theo ĐÚNG công ty (lead độc lập từng công ty),
+  //  (2) đọc chiến lược phân giao cấp 1 ở dưới.
+  const { data: anchorSr } = await db
+    .from('showrooms').select('company_id').in('id', candidateShowroomIds).limit(1).maybeSingle();
+  const companyId0 = anchorSr?.company_id ?? null;
+  if (!companyId0) return { ok: false, reason: 'no_showroom' };
+
+  // Chống trùng theo (company_id, phone, brand_id) — lead quản lý độc lập theo công ty:
+  // cùng SĐT + thương hiệu nhưng khác công ty là 2 lead riêng (KHÔNG coi là trùng).
   const { data: existing } = await db
     .from('leads')
     .select('id, assigned_to')
+    .eq('company_id', companyId0)
     .eq('phone', phone)
     .eq('brand_id', channel.brand_id)
     .maybeSingle();
@@ -122,13 +132,9 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
   const withTvbh = candidateShowroomIds.filter(showroomHasTvbh);
   const showroomPool = withTvbh.length > 0 ? withTvbh : candidateShowroomIds;
 
-  // Công ty của nhóm showroom ứng viên (mọi showroom của 1 kênh cùng công ty) → đọc chiến lược cấp 1.
-  const { data: anchorSr } = await db
-    .from('showrooms').select('company_id').in('id', candidateShowroomIds).limit(1).maybeSingle();
-  const companyId0 = anchorSr?.company_id ?? null;
-  const { data: companyCfg } = companyId0
-    ? await db.from('companies').select('showroom_assign_strategy').eq('id', companyId0).maybeSingle()
-    : { data: null };
+  // Chiến lược phân giao cấp 1 của công ty (companyId0 đã resolve ở trên).
+  const { data: companyCfg } = await db
+    .from('companies').select('showroom_assign_strategy').eq('id', companyId0).maybeSingle();
   const showroomStrategy = (companyCfg?.showroom_assign_strategy ?? 'least_loaded') as AssignStrategy;
 
   // % share + lead gần nhất theo showroom (phục vụ weighted/round_robin).

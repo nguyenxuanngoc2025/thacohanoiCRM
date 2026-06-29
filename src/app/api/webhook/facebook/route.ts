@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { fetchLeadDetail, type FbLeadField } from '@/lib/facebook';
+import { fetchLeadDetail, verifyFbSignature, type FbLeadField } from '@/lib/facebook';
 import { ingestLead } from '@/lib/ingest';
 import { extractPhone } from '@/lib/phone';
 import { gatherIntentText } from '@/lib/lead-intent-text';
@@ -19,7 +19,23 @@ export async function GET(request: NextRequest) {
 // POST — nhận leadgen, lấy chi tiết, nạp vào CRM
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    // Đọc body GỐC để xác thực chữ ký (HMAC tính trên đúng chuỗi này).
+    const rawBody = await request.text();
+
+    // Kiểm chữ ký X-Hub-Signature-256 chống lead giả (ai biết page_id công khai cũng
+    // POST được). Có FB_APP_SECRET → bắt buộc đúng chữ ký; chưa cấu hình → bỏ qua kiểm
+    // (fail-open) để không chặn lead thật khi env chưa set.
+    const appSecret = process.env.FB_APP_SECRET;
+    if (appSecret) {
+      if (!verifyFbSignature(rawBody, request.headers.get('x-hub-signature-256'), appSecret)) {
+        console.warn('[fb-webhook] chữ ký không hợp lệ — bỏ qua payload.');
+        return NextResponse.json({ ok: false }, { status: 200 }); // 200 để FB không retry bão
+      }
+    } else {
+      console.warn('[fb-webhook] FB_APP_SECRET chưa cấu hình — bỏ qua kiểm chữ ký.');
+    }
+
+    const body = JSON.parse(rawBody);
     if (body.object !== 'page') return NextResponse.json({ ok: true });
 
     for (const entry of body.entry ?? []) {
