@@ -134,13 +134,13 @@ export default function SettingsClient({
           <SalesTeamsManager salesTeams={salesTeams} showrooms={showrooms} brands={brands} staff={staff} />
         )}
         {active === 'integrations' && (
-          <IntegrationsCatalog channels={channels} showrooms={showrooms} brands={brands} models={models} fbBusinessId={fbBusinessId} googleConnected={googleConnected} zaloBotSession={zaloBotSession} />
+          <IntegrationsCatalog channels={channels} showrooms={showrooms} brands={brands} models={models} fbBusinessId={fbBusinessId} googleConnected={googleConnected} />
         )}
         {active === 'pipeline' && <PipelineReference counts={statusCounts} />}
         {active === 'assignment' && (
           <AssignmentManager showrooms={showrooms} salesTeams={salesTeams} staff={staff} rules={assignmentRules} sla={slaConfig} companyId={companyId} companyShowroomStrategy={companyShowroomStrategy} />
         )}
-        {active === 'notifications' && <NotificationsManager channels={notifChannels} showrooms={showrooms} salesTeams={salesTeams} />}
+        {active === 'notifications' && <NotificationsManager channels={notifChannels} showrooms={showrooms} salesTeams={salesTeams} zaloBotSession={zaloBotSession} />}
         {active === 'audit' && <ActivityLog logs={recentLogs} staff={staff} />}
       </div>
     </div>

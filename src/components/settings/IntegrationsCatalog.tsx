@@ -14,7 +14,6 @@ import ZaloGuideModal from './ZaloGuideModal';
 import FacebookGuideModal from './FacebookGuideModal';
 import GoogleSheetConnect from './GoogleSheetConnect';
 import GoogleSheetGuideModal from './GoogleSheetGuideModal';
-import ZaloBotConnect from './ZaloBotConnect';
 
 export type { ChannelRow };
 
@@ -22,11 +21,10 @@ export type { ChannelRow };
 const CONNECTORS = PLATFORMS;
 
 export default function IntegrationsCatalog({
-  channels, showrooms, brands, models, fbBusinessId, googleConnected, zaloBotSession,
+  channels, showrooms, brands, models, fbBusinessId, googleConnected,
 }: {
   channels: ChannelRow[]; showrooms: ShowroomRow[]; brands: BrandRow[]; models: ModelRow[];
   fbBusinessId?: string; googleConnected?: boolean;
-  zaloBotSession: { status: 'connected' | 'disconnected'; displayName: string | null; lastError: string | null };
 }) {
   const router = useRouter();
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -138,15 +136,12 @@ export default function IntegrationsCatalog({
                       sheets={channels.filter((c) => c.platform === 'google_sheet')}
                     />
                   ) : (
-                    <div className="space-y-2">
-                      {conn.key === 'zalo' && <ZaloBotConnect session={zaloBotSession} />}
-                      <div className="space-y-1.5">
-                        {rows.map((c) => (
-                          <ChannelItem key={c.id} c={c} showrooms={showrooms} brands={brands}
-                            onEdit={() => setModal({ platform: conn.key, row: c })} onDelete={() => del(c)} />
-                        ))}
-                        {count === 0 && <div className="text-xs text-slate-400 py-3 text-center">Chưa có {conn.unit} nào. Bấm “Thêm {conn.unit}”.</div>}
-                      </div>
+                    <div className="space-y-1.5">
+                      {rows.map((c) => (
+                        <ChannelItem key={c.id} c={c} showrooms={showrooms} brands={brands}
+                          onEdit={() => setModal({ platform: conn.key, row: c })} onDelete={() => del(c)} />
+                      ))}
+                      {count === 0 && <div className="text-xs text-slate-400 py-3 text-center">Chưa có {conn.unit} nào. Bấm “Thêm {conn.unit}”.</div>}
                     </div>
                   )}
                 </div>

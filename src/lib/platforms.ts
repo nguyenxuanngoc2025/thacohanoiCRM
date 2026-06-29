@@ -1,5 +1,5 @@
 import {
-  Megaphone, Globe, MessageCircle, Search, Music2, Phone, Mail, MessagesSquare, Store,
+  Megaphone, Globe, MessageCircle, Search, Music2,
 } from 'lucide-react';
 import type { ElementType } from 'react';
 
@@ -30,10 +30,6 @@ export const PLATFORMS: Platform[] = [
   { key: 'zalo',     name: 'Zalo OA',            desc: 'Tin nhắn OA · quảng cáo Zalo Lead',    icon: MessageCircle,  color: '#0068FF', state: 'active', unit: 'OA',       digital: true },
   { key: 'google_sheet', name: 'Google Sheet',     desc: 'Hút lead từ Google Sheet agency chia sẻ', icon: Search,         color: '#0F9D58', state: 'active', unit: 'sheet',    digital: true },
   { key: 'tiktok',   name: 'TikTok Lead',        desc: 'TikTok Lead Generation',               icon: Music2,         color: '#010101', state: 'soon',   unit: 'form',     digital: true },
-  { key: 'email',    name: 'Email',              desc: 'Hộp thư thu lead',                     icon: Mail,           color: '#0EA5E9', state: 'soon',   unit: 'hộp thư',  digital: true },
-  { key: 'livechat', name: 'Live chat',          desc: 'Chat trực tuyến trên web',             icon: MessagesSquare, color: '#8B5CF6', state: 'soon',   unit: 'widget',   digital: true },
-  { key: 'hotline',  name: 'Hotline / Tổng đài', desc: 'Cuộc gọi đến · ghi nhận lead',         icon: Phone,          color: '#16a34a', state: 'soon',   unit: 'số',       digital: false },
-  { key: 'walkin',   name: 'Khách tới showroom', desc: 'Khách vãng lai · ghi nhận tại quầy',   icon: Store,          color: '#F59E0B', state: 'soon',   unit: 'điểm',     digital: false },
 ];
 
 /** Tên các kênh digital — dùng làm danh mục "Nguồn" cho form thêm lead thủ công. */

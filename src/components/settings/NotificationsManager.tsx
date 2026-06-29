@@ -8,6 +8,7 @@ import {
   PanelHeader, PrimaryBtn, GhostBtn, Field, TextInput, Select, Toggle, StatusPill, FlashBar, Panel, postAdmin,
 } from './ui';
 import GroupPicker from './GroupPicker';
+import ZaloBotConnect from './ZaloBotConnect';
 
 const EVENT_LABELS: Record<string, string> = {
   new_lead: 'Data mới',
@@ -23,7 +24,10 @@ const MGMT_EVENTS = ['daily_report', 'weekly_report', 'monthly_report'];
 type Scope = 'sales' | 'management';
 
 export default function NotificationsManager(
-  { channels, showrooms, salesTeams }: { channels: NotifChannelRow[]; showrooms: ShowroomRow[]; salesTeams: SalesTeamRow[] },
+  { channels, showrooms, salesTeams, zaloBotSession }: {
+    channels: NotifChannelRow[]; showrooms: ShowroomRow[]; salesTeams: SalesTeamRow[];
+    zaloBotSession: { status: 'connected' | 'disconnected'; displayName: string | null; lastError: string | null };
+  },
 ) {
   const router = useRouter();
   const [flash, setFlash] = useState<string | null>(null);
@@ -93,6 +97,14 @@ export default function NotificationsManager(
   return (
     <div className="space-y-4">
       <FlashBar msg={flash} />
+      <Panel>
+        <PanelHeader
+          title="Bot gửi thông báo"
+          desc="Đăng nhập 1 tài khoản Zalo để hệ thống dùng làm bot gửi tin lead mới và báo cáo vào các group bên dưới. Quét mã QR như đăng nhập Zalo trên máy tính."
+        />
+        <ZaloBotConnect session={zaloBotSession} />
+      </Panel>
+
       <Panel>
         <PanelHeader
           title="Kênh thông báo"
