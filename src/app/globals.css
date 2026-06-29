@@ -53,6 +53,14 @@ html, body {
   overscroll-behavior: none;
 }
 
+/* Khung app full màn hình. Dùng svh (small viewport height) — luôn coi như
+   thanh công cụ trình duyệt đang hiện → bottom nav KHÔNG bao giờ bị thanh
+   địa chỉ Safari che. Fallback 100vh cho trình duyệt cũ. */
+.app-shell {
+  height: 100vh;
+  height: 100svh;
+}
+
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ── dropdown-panel: popup nền trắng ───────────────────────── */

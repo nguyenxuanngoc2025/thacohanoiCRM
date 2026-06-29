@@ -36,7 +36,7 @@ export default function DashboardShell({
 
   return (
     // Sidebar chạy full chiều cao; status bar nằm trong cột phải, ngay dưới nội dung chính.
-    <div style={{ display: 'flex', height: '100dvh', overflow: 'hidden', background: 'var(--color-bg)' }}>
+    <div className="app-shell" style={{ display: 'flex', overflow: 'hidden', background: 'var(--color-bg)' }}>
       {/* Desktop: sidebar trái. Mobile: ẩn (dùng bottom nav). */}
       <div className="hidden lg:block">
         <Sidebar
