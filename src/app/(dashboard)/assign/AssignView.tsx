@@ -67,14 +67,14 @@ export default function AssignView({ leads, tvbh }: { leads: UnassignedLead[]; t
   };
 
   return (
-    <div className="h-full flex flex-col p-6 gap-4">
+    <div className="h-full flex flex-col p-3 sm:p-6 gap-3 sm:gap-4">
       {flash && (
         <div className="shrink-0 px-4 py-2.5 text-sm bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-lg">
           {flash}
         </div>
       )}
 
-      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-6">
         {/* Lead chưa giao */}
         <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col min-h-0">
           <div className="shrink-0 flex items-center justify-between gap-3 p-5 pb-3 border-b border-slate-100">
@@ -96,7 +96,43 @@ export default function AssignView({ leads, tvbh }: { leads: UnassignedLead[]; t
             <div className="px-5 py-12 text-center text-slate-400 text-sm">Tất cả lead đã có người phụ trách.</div>
           ) : (
             <div className="flex-1 min-h-0 overflow-auto">
-              <table className="w-full text-sm">
+              {/* Mobile: danh sách thẻ (bảng 6 cột không vừa màn hình điện thoại) */}
+              <div className="lg:hidden divide-y divide-slate-100">
+                {leads.map((l) => {
+                  const inSr = tvbh.filter((t) => (l.showroom_id ? t.showroom_id === l.showroom_id : true));
+                  const opts = inSr.length > 0 ? inSr : tvbh;
+                  return (
+                    <div key={l.id} className="p-4 space-y-2.5">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="font-semibold text-slate-800 truncate">{l.full_name ?? 'Khách lẻ'}</div>
+                          <div className="text-xs text-slate-400 mt-0.5">{formatPhoneDisplay(l.phone)}{l.source ? ` · ${l.source}` : ''}</div>
+                        </div>
+                        <span className="shrink-0 text-xs text-slate-500 whitespace-nowrap">{fmtDate(l.created_at)}</span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                        <span className="text-slate-600">{l.brand_name}</span>
+                        {l.model_name && <span className="inline-flex font-medium text-slate-700 bg-slate-100 rounded-full px-2 py-0.5">{l.model_name}</span>}
+                        {l.showroom_name && <span className="text-slate-400">· {l.showroom_name}</span>}
+                      </div>
+                      <select
+                        defaultValue=""
+                        disabled={pending && busyId === l.id}
+                        onChange={(e) => assignOne(l.id, e.target.value)}
+                        className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm bg-white outline-none focus:border-[#004B9B] disabled:opacity-50"
+                      >
+                        <option value="">— Chọn tư vấn bán hàng —</option>
+                        {opts.map((t) => (
+                          <option key={t.id} value={t.id}>{t.full_name} ({t.open_count})</option>
+                        ))}
+                      </select>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Desktop: bảng nhiều cột */}
+              <table className="hidden lg:table w-full text-sm">
                 <thead className="sticky top-0 z-10 bg-slate-50 text-slate-500 text-left text-xs uppercase tracking-wide">
                   <tr>
                     <th className="px-5 py-2.5 font-semibold">Khách hàng</th>

@@ -548,15 +548,15 @@ export default function LeadsTable({
   // Dropdown trong header render qua portal (card có overflow-hidden sẽ cắt mất nếu dùng absolute)
   const filterBtnRef = React.useRef<HTMLButtonElement>(null);
   const colBtnRef = React.useRef<HTMLButtonElement>(null);
-  const [filterPos, setFilterPos] = useState<{ left: number; top: number } | null>(null);
+  const [filterPos, setFilterPos] = useState<{ left: number; top: number; width: number } | null>(null);
   const [colPos, setColPos] = useState<{ left: number; top: number } | null>(null);
   const openFilterMenu = () => {
     if (filterMenu) { setFilterMenu(false); return; }
     const r = filterBtnRef.current?.getBoundingClientRect();
     if (r) {
-      const W = 460;
+      const W = Math.min(460, window.innerWidth - 16);
       const left = Math.max(8, Math.min(r.left, window.innerWidth - W - 8));
-      setFilterPos({ left, top: r.bottom + 4 });
+      setFilterPos({ left, top: r.bottom + 4, width: W });
     }
     setFilterMenu(true);
   };
@@ -844,7 +844,7 @@ export default function LeadsTable({
               <div style={{ position: 'fixed', inset: 0, zIndex: 9998 }} onClick={() => setFilterMenu(false)} />
               <div
                 style={{
-                  position: 'fixed', top: filterPos.top, left: filterPos.left, width: 460, zIndex: 9999,
+                  position: 'fixed', top: filterPos.top, left: filterPos.left, width: filterPos.width, zIndex: 9999,
                   maxHeight: '80vh', overflowY: 'auto',
                   background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12,
                   boxShadow: '0 8px 24px rgba(0,0,0,0.12)', padding: 14,
