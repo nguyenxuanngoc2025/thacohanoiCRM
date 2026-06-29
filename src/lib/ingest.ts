@@ -15,17 +15,18 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
   // Tra nguồn theo page_id
   const { data: channel } = await db
     .from('channel_accounts')
-    .select('id, showroom_id, brand_id, campaign')
+    .select('id, showroom_id, brand_id, campaign, showroom_assign_strategy')
     .eq('page_id', payload.page_id)
     .eq('is_active', true)
     .maybeSingle();
 
   if (!channel) return { ok: false, reason: 'unknown_channel' };
 
-  // 1 fanpage có thể phục vụ NHIỀU showroom (junction). Fallback: anchor showroom_id.
+  // 1 fanpage có thể phục vụ NHIỀU showroom (junction) + % phân bổ riêng của kênh này cho từng showroom.
+  // Fallback: anchor showroom_id.
   const { data: junction } = await db
     .from('channel_account_showrooms')
-    .select('showroom_id')
+    .select('showroom_id, share_pct')
     .eq('channel_account_id', channel.id);
 
   const candidateShowroomIds =
@@ -125,29 +126,27 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
     tvbhByTeam.set(t.sales_team_id, arr);
   }
 
-  // CẤP 1 — chọn showroom theo chiến lược cấu hình ở công ty (ít lead / xoay vòng / theo tỷ lệ).
+  // CẤP 1 — chọn showroom theo chiến lược cấu hình NGAY TRÊN KÊNH (theo từng kênh, KHÔNG còn global công ty).
   // Chỉ xét showroom có ≥1 phòng-của-brand có ≥1 TVBH active; nếu không có thì xét hết.
   const showroomHasTvbh = (sid: string) =>
     (teamsByShowroom.get(sid) ?? []).some((tid) => (tvbhByTeam.get(tid)?.length ?? 0) > 0);
   const withTvbh = candidateShowroomIds.filter(showroomHasTvbh);
   const showroomPool = withTvbh.length > 0 ? withTvbh : candidateShowroomIds;
 
-  // Chiến lược phân giao cấp 1 của công ty (companyId0 đã resolve ở trên).
-  const { data: companyCfg } = await db
-    .from('companies').select('showroom_assign_strategy').eq('id', companyId0).maybeSingle();
-  const showroomStrategy = (companyCfg?.showroom_assign_strategy ?? 'least_loaded') as AssignStrategy;
-
-  // % share + lead gần nhất theo showroom (phục vụ weighted/round_robin).
-  const { data: srMeta } = await db
-    .from('showrooms').select('id, assign_share_pct').in('id', showroomPool);
-  const shareBySr = new Map<string, number>((srMeta ?? []).map((s) => [s.id, Number(s.assign_share_pct) || 0]));
+  // Kiểu chia cấp 1 lấy từ KÊNH; % của từng showroom lấy từ junction (mỗi kênh 1 bộ % riêng).
+  const showroomStrategy = (channel.showroom_assign_strategy ?? 'least_loaded') as AssignStrategy;
+  const shareBySr = new Map<string, number>(
+    (junction ?? []).map((j) => [j.showroom_id, Number(j.share_pct) || 0])
+  );
 
   const showroomCands: StrategyCandidate[] = [];
   for (const sid of showroomPool) {
+    // Đếm tải + lead gần nhất CHỈ của kênh này (channel_account_id) → tỷ lệ % của kênh không bị
+    // nhiễu bởi lead từ kênh/thương hiệu khác cùng đổ vào showroom.
     const { count } = await db.from('leads').select('id', { count: 'exact', head: true })
-      .eq('showroom_id', sid).or('status.is.null,status.neq.Fail');
+      .eq('showroom_id', sid).eq('channel_account_id', channel.id).or('status.is.null,status.neq.Fail');
     const { data: last } = await db.from('leads').select('created_at')
-      .eq('showroom_id', sid).order('created_at', { ascending: false }).limit(1).maybeSingle();
+      .eq('showroom_id', sid).eq('channel_account_id', channel.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
     showroomCands.push({
       id: sid,
       activeLeadCount: count ?? 0,

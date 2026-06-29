@@ -6,7 +6,7 @@ import {
   ChevronDown, Plus, Edit2, Trash2, X, HelpCircle,
   Activity, Loader2, CheckCircle2, AlertTriangle, XCircle,
 } from 'lucide-react';
-import type { ChannelRow, ShowroomRow, BrandRow, ModelRow } from './types';
+import type { ChannelRow, ShowroomRow, BrandRow, ModelRow, AssignStrategy } from './types';
 import { PLATFORMS, type ConnectorState } from '@/lib/platforms';
 import {
   PrimaryBtn, GhostBtn, Field, TextInput, Select, Toggle, StatusPill, FlashBar, postAdmin,
@@ -302,6 +302,13 @@ function ChannelModal({
   const [showroomIds, setShowroomIds] = useState<string[]>(
     init?.showroom_ids?.length ? init.showroom_ids : (init?.showroom_id ? [init.showroom_id] : [])
   );
+  // CẤP 1 — cách kênh chia lead vào các showroom + % của từng showroom (chỉ dùng khi "theo tỷ lệ %").
+  const [showroomStrategy, setShowroomStrategy] = useState<AssignStrategy>(
+    (init?.showroom_assign_strategy ?? 'least_loaded') as AssignStrategy
+  );
+  const [shares, setShares] = useState<Record<string, string>>(
+    Object.fromEntries(Object.entries(init?.showroom_shares ?? {}).map(([k, v]) => [k, String(v)]))
+  );
   const [brandId, setBrandId] = useState(init?.brand_id ?? '');
   const [campaign, setCampaign] = useState(init?.campaign ?? '');
   const [secret, setSecret] = useState('');
@@ -333,6 +340,8 @@ function ChannelModal({
       page_id: pageId.trim(),
       page_name: pageName.trim() || null,
       showroom_ids: showroomIds, brand_id: brandId,
+      showroom_assign_strategy: showroomStrategy,
+      showroom_shares: Object.fromEntries(showroomIds.map((id) => [id, Number(shares[id]) || 0])),
       campaign: campaign.trim() || null,
       ...(isZalo && secret.trim() ? { secret: secret.trim() } : {}),
       is_active: isActive,
@@ -368,7 +377,7 @@ function ChannelModal({
               <TextInput value={secret} onChange={(e) => setSecret(e.target.value)} placeholder={isNew ? 'Dán OA Secret Key' : '••••••••'} />
             </Field>
           )}
-          <Field label="Showroom nhận lead" hint="Tick các showroom dùng chung kênh này. Lead sẽ được chia đều cho các showroom đã chọn.">
+          <Field label="Showroom nhận lead" hint="Tick các showroom dùng chung kênh này.">
             <div className="space-y-1.5">
               {showrooms.map((s) => {
                 const checked = showroomIds.includes(s.id);
@@ -383,6 +392,43 @@ function ChannelModal({
               })}
             </div>
           </Field>
+          {showroomIds.length >= 2 && (
+            <Field label="Cách chia lead vào các showroom" hint="Áp dụng khi kênh này phục vụ nhiều showroom.">
+              <Select value={showroomStrategy} onChange={(e) => setShowroomStrategy(e.target.value as AssignStrategy)}>
+                <option value="least_loaded">Chia đều (ưu tiên nơi đang ít lead nhất)</option>
+                <option value="round_robin">Xoay vòng (lần lượt từng showroom)</option>
+                <option value="weighted">Theo tỷ lệ %</option>
+              </Select>
+            </Field>
+          )}
+          {showroomIds.length >= 2 && showroomStrategy === 'weighted' && (
+            <div className="rounded-lg border border-slate-200 p-3 space-y-2">
+              <div className="text-xs font-semibold text-slate-500">Tỷ lệ phân bổ cho từng showroom</div>
+              {showroomIds.map((id) => {
+                const s = showrooms.find((x) => x.id === id);
+                return (
+                  <div key={id} className="flex items-center gap-2">
+                    <span className="flex-1 text-sm text-slate-700 truncate">{s?.name ?? '—'}</span>
+                    <div className="w-20">
+                      <TextInput type="number" min={0} value={shares[id] ?? '0'}
+                        onChange={(e) => setShares((v) => ({ ...v, [id]: e.target.value }))} />
+                    </div>
+                    <span className="text-xs text-slate-400">%</span>
+                  </div>
+                );
+              })}
+              {(() => {
+                const total = showroomIds.reduce((a, id) => a + (Number(shares[id]) || 0), 0);
+                return (
+                  <div className="text-xs">
+                    Tổng:{' '}
+                    <span className={total === 100 ? 'font-bold text-emerald-600' : 'font-bold text-amber-600'}>{total}%</span>
+                    {total !== 100 && <span className="text-slate-400"> (nên 100%)</span>}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
           <Field label="Thương hiệu">
             <Select value={brandId} onChange={(e) => setBrandId(e.target.value)}>
               <option value="">— Chọn thương hiệu —</option>

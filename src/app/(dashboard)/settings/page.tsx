@@ -23,12 +23,10 @@ export default async function SettingsPage() {
   const NONE = '00000000-0000-0000-0000-000000000000';
 
   // Giai đoạn 1: nhân sự + showroom của ĐÚNG công ty này (làm gốc scope cho phần còn lại).
-  const [{ data: staff }, { data: showroomRows }, { data: companyRow }] = await Promise.all([
+  const [{ data: staff }, { data: showroomRows }] = await Promise.all([
     service.from('users').select('id, full_name, email, role, showroom_id, brand_id, sales_team_id, is_active, assign_share_pct').eq('company_id', companyId).is('deleted_at', null).order('role'),
     service.from('showrooms').select('id, name, code, team_assign_strategy, assign_share_pct').eq('company_id', companyId).order('name'),
-    service.from('companies').select('showroom_assign_strategy').eq('id', companyId).maybeSingle(),
   ]);
-  const companyShowroomStrategy = (companyRow?.showroom_assign_strategy ?? 'least_loaded') as 'least_loaded' | 'round_robin' | 'weighted';
   const srIds = ((showroomRows ?? []) as { id: string }[]).map((s) => s.id);
   const srFilter = srIds.length ? srIds : [NONE];
   const userIds = ((staff ?? []) as { id: string }[]).map((u) => u.id);
@@ -53,8 +51,8 @@ export default async function SettingsPage() {
     service.from('showroom_brands').select('showroom_id, brand_id').in('showroom_id', srFilter),
     service.from('brands').select('id, name, slug').order('name'),
     service.from('models').select('id, brand_id, name, sort_order, is_active, keywords').order('sort_order'),
-    service.from('channel_accounts').select('id, page_name, platform, page_id, showroom_id, brand_id, campaign, is_active, config').in('showroom_id', srFilter).order('created_at', { ascending: false }),
-    service.from('channel_account_showrooms').select('channel_account_id, showroom_id').in('showroom_id', srFilter),
+    service.from('channel_accounts').select('id, page_name, platform, page_id, showroom_id, brand_id, campaign, showroom_assign_strategy, is_active, config').in('showroom_id', srFilter).order('created_at', { ascending: false }),
+    service.from('channel_account_showrooms').select('channel_account_id, showroom_id, share_pct').in('showroom_id', srFilter),
     service.from('assignment_rules').select('id, showroom_id, strategy, specific_user_id, is_active, priority').eq('company_id', companyId).order('priority', { ascending: false }),
     service.from('sla_config').select('id, round, first_response_hours, follow_up_hours, is_active').eq('company_id', companyId).order('round'),
     service.from('notification_channels').select('id, channel, name, target, events, is_active, showroom_id, sales_team_id, scope').eq('company_id', companyId).order('created_at', { ascending: false }),
@@ -120,13 +118,19 @@ export default async function SettingsPage() {
     assign_share_pct: Number(s.assign_share_pct) || 0,
   }));
 
-  // Gom danh sách showroom cho mỗi kênh (bảng junction channel_account_showrooms)
+  // Gom danh sách showroom + % phân bổ cho mỗi kênh (bảng junction channel_account_showrooms)
   const showroomIdsByChannel: Record<string, string[]> = {};
-  for (const r of (channelShowroomRows ?? []) as { channel_account_id: string; showroom_id: string }[]) {
+  const sharesByChannel: Record<string, Record<string, number>> = {};
+  for (const r of (channelShowroomRows ?? []) as { channel_account_id: string; showroom_id: string; share_pct?: number }[]) {
     (showroomIdsByChannel[r.channel_account_id] ??= []).push(r.showroom_id);
+    (sharesByChannel[r.channel_account_id] ??= {})[r.showroom_id] = Number(r.share_pct) || 0;
   }
   const channelsWithShowrooms: ChannelRow[] = ((channels ?? []) as Omit<ChannelRow, 'showroom_ids'>[])
-    .map((c) => ({ ...c, showroom_ids: showroomIdsByChannel[c.id] ?? (c.showroom_id ? [c.showroom_id] : []) }));
+    .map((c) => ({
+      ...c,
+      showroom_ids: showroomIdsByChannel[c.id] ?? (c.showroom_id ? [c.showroom_id] : []),
+      showroom_shares: sharesByChannel[c.id] ?? {},
+    }));
 
   // Business ID nền tảng (dùng chung) — hiển thị trong hướng dẫn kết nối Facebook.
   const fbBusinessId = (await getFbBusinessId()) ?? '';
@@ -164,7 +168,6 @@ export default async function SettingsPage() {
         currentUserId={user.id}
         channels={channelsWithShowrooms}
         assignmentRules={assignmentRules ?? []}
-        companyShowroomStrategy={companyShowroomStrategy}
         slaConfig={slaConfig ?? []}
         notifChannels={notifChannels ?? []}
         recentLogs={recentLogs ?? []}

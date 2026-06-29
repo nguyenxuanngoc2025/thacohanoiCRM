@@ -13,7 +13,7 @@ import NotificationsManager from './NotificationsManager';
 import ActivityLog from './ActivityLog';
 import SalesTeamsManager from './SalesTeamsManager';
 import type {
-  ShowroomRow, BrandRow, ModelRow, ChannelRow, AssignmentRuleRow, SlaRow, NotifChannelRow, LeadLogRow, SalesTeamRow, AssignStrategy,
+  ShowroomRow, BrandRow, ModelRow, ChannelRow, AssignmentRuleRow, SlaRow, NotifChannelRow, LeadLogRow, SalesTeamRow,
 } from './types';
 
 export type { ChannelRow };
@@ -61,7 +61,7 @@ const NAV: NavGroup[] = [
 
 export default function SettingsClient({
   staff, showrooms, brands, models, salesTeams, companyId, currentUserId, channels,
-  assignmentRules, companyShowroomStrategy, slaConfig, notifChannels, recentLogs, statusCounts,
+  assignmentRules, slaConfig, notifChannels, recentLogs, statusCounts,
   fbBusinessId, googleConnected, zaloBotSession,
 }: {
   staff: StaffRow[];
@@ -73,7 +73,6 @@ export default function SettingsClient({
   currentUserId: string;
   channels: ChannelRow[];
   assignmentRules: AssignmentRuleRow[];
-  companyShowroomStrategy: AssignStrategy;
   slaConfig: SlaRow[];
   notifChannels: NotifChannelRow[];
   recentLogs: LeadLogRow[];
@@ -166,7 +165,7 @@ export default function SettingsClient({
         )}
         {active === 'pipeline' && <PipelineReference counts={statusCounts} />}
         {active === 'assignment' && (
-          <AssignmentManager showrooms={showrooms} salesTeams={salesTeams} staff={staff} rules={assignmentRules} sla={slaConfig} companyId={companyId} companyShowroomStrategy={companyShowroomStrategy} />
+          <AssignmentManager showrooms={showrooms} salesTeams={salesTeams} staff={staff} rules={assignmentRules} sla={slaConfig} companyId={companyId} />
         )}
         {active === 'notifications' && <NotificationsManager channels={notifChannels} showrooms={showrooms} salesTeams={salesTeams} zaloBotSession={zaloBotSession} />}
         {active === 'audit' && <ActivityLog logs={recentLogs} staff={staff} />}

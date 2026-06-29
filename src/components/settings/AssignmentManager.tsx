@@ -18,7 +18,7 @@ const STRATEGY_LABELS: Record<AssignStrategy, string> = {
 };
 
 export default function AssignmentManager({
-  showrooms, salesTeams, staff, rules, sla, companyId, companyShowroomStrategy,
+  showrooms, salesTeams, staff, rules, sla, companyId,
 }: {
   showrooms: ShowroomRow[];
   salesTeams: SalesTeamRow[];
@@ -26,7 +26,6 @@ export default function AssignmentManager({
   rules: AssignmentRuleRow[];
   sla: SlaRow[];
   companyId: string;
-  companyShowroomStrategy: AssignStrategy;
 }) {
   const router = useRouter();
   const [flash, setFlash] = useState<string | null>(null);
@@ -54,7 +53,7 @@ export default function AssignmentManager({
       <Panel>
         <PanelHeader
           title="Cây phân giao lead"
-          desc="Đặt kiểu chia cho cả 3 cấp tại đây: công ty → showroom → phòng → TVBH. Mở từng nhánh để chỉnh sâu hơn."
+          desc="Đặt kiểu chia trong từng showroom: showroom → phòng → TVBH. Cách chia lead vào showroom được đặt riêng ở mỗi kênh (mục Tích hợp)."
         />
         <div className="rounded-lg bg-slate-50 border border-slate-100 p-3.5 mb-4 text-[13px] leading-relaxed text-slate-600">
           <span className="font-semibold text-slate-800">3 kiểu chia:</span>{' '}
@@ -63,7 +62,6 @@ export default function AssignmentManager({
           <b>Theo tỷ lệ %</b> (mỗi nơi một phần trăm, tổng nên bằng 100%).
         </div>
         <AssignmentTree
-          companyShowroomStrategy={companyShowroomStrategy}
           showrooms={showrooms}
           salesTeams={salesTeams}
           staff={staff}
@@ -171,9 +169,8 @@ function TotalBadge({ total }: { total: number }) {
 
 // Cây phân giao: 1 màn hình đặt kiểu chia cả 3 cấp.
 function AssignmentTree({
-  companyShowroomStrategy, showrooms, salesTeams, staff, onDone,
+  showrooms, salesTeams, staff, onDone,
 }: {
-  companyShowroomStrategy: AssignStrategy;
   showrooms: ShowroomRow[];
   salesTeams: SalesTeamRow[];
   staff: StaffRow[];
@@ -181,12 +178,8 @@ function AssignmentTree({
 }) {
   const tvbh = staff.filter((s) => s.role === 'tvbh');
 
-  const [coStrat, setCoStrat] = useState<AssignStrategy>(companyShowroomStrategy);
   const [srStrat, setSrStrat] = useState<Record<string, AssignStrategy>>(
     Object.fromEntries(showrooms.map((s) => [s.id, s.team_assign_strategy])),
-  );
-  const [srPct, setSrPct] = useState<Record<string, string>>(
-    Object.fromEntries(showrooms.map((s) => [s.id, String(s.assign_share_pct ?? 0)])),
   );
   const [tmStrat, setTmStrat] = useState<Record<string, AssignStrategy>>(
     Object.fromEntries(salesTeams.map((t) => [t.id, t.tvbh_assign_strategy])),
@@ -205,15 +198,6 @@ function AssignmentTree({
   const teamsOf = (showroomId: string) => salesTeams.filter((t) => t.showroom_id === showroomId);
   const tvbhOf = (teamId: string) => tvbh.filter((u) => u.sales_team_id === teamId);
 
-  const saveCo = async (next: AssignStrategy) => {
-    const prev = coStrat;
-    setCoStrat(next); setBusy('co');
-    const r = await postAdmin('/api/admin/assignment-rules', { op: 'set-company-strategy', showroom_assign_strategy: next });
-    setBusy(null);
-    if (!r.ok) { window.alert(r.error); setCoStrat(prev); return; }
-    onDone('Đã đổi kiểu chia vào showroom.');
-  };
-
   const saveSrStrat = async (s: ShowroomRow, next: AssignStrategy) => {
     const prev = srStrat[s.id];
     setSrStrat((v) => ({ ...v, [s.id]: next })); setBusy(`sr-${s.id}`);
@@ -223,16 +207,6 @@ function AssignmentTree({
     setBusy(null);
     if (!r.ok) { window.alert(r.error); setSrStrat((v) => ({ ...v, [s.id]: prev })); return; }
     onDone(`Đã đổi kiểu chia của showroom ${s.name}.`);
-  };
-
-  const saveSrPct = async (s: ShowroomRow) => {
-    setBusy(`srpct-${s.id}`);
-    const r = await postAdmin('/api/admin/showrooms', {
-      op: 'update', id: s.id, name: s.name, code: s.code, brand_ids: s.brand_ids, assign_share_pct: Number(srPct[s.id]) || 0,
-    });
-    setBusy(null);
-    if (!r.ok) { window.alert(r.error); return; }
-    onDone(`Đã lưu tỷ lệ showroom ${s.name}.`);
   };
 
   const saveTmStrat = async (t: SalesTeamRow, next: AssignStrategy) => {
@@ -260,25 +234,8 @@ function AssignmentTree({
     onDone(`Đã lưu tỷ lệ TVBH ${u.full_name ?? ''}.`);
   };
 
-  const srTotal = showrooms.reduce((acc, s) => acc + (Number(srPct[s.id]) || 0), 0);
-
   return (
     <div className="space-y-3">
-      {/* Cấp 1: công ty → showroom */}
-      <div className="border border-slate-200 rounded-lg p-4">
-        <div className="flex items-center gap-2 text-sm font-bold text-slate-800 mb-2">
-          <Building2 size={15} style={{ color: '#004B9B' }} /> Công ty chia lead vào các showroom
-        </div>
-        <div className="max-w-xs">
-          <StratSelect value={coStrat} disabled={busy === 'co'} onChange={saveCo} />
-        </div>
-        {coStrat === 'weighted' && (
-          <div className="mt-2 pl-1">
-            <TotalBadge total={srTotal} />
-          </div>
-        )}
-      </div>
-
       {/* Cấp 2 + 3: từng showroom → phòng → TVBH */}
       {showrooms.length === 0 && (
         <div className="text-sm text-slate-400 px-1">Chưa có showroom. Thêm ở tab "Showroom · Thương hiệu".</div>
@@ -297,10 +254,6 @@ function AssignmentTree({
               </button>
               <Building2 size={15} className="text-slate-500 shrink-0" />
               <span className="flex-1 text-sm font-semibold text-slate-800 truncate">{s.name}</span>
-              {coStrat === 'weighted' && (
-                <PctInput value={srPct[s.id] ?? '0'} busy={busy === `srpct-${s.id}`}
-                  onChange={(val) => setSrPct((v) => ({ ...v, [s.id]: val }))} onSave={() => saveSrPct(s)} />
-              )}
             </div>
 
             {isOpen && (

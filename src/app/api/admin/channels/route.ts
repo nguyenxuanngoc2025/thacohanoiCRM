@@ -47,6 +47,13 @@ export async function POST(request: NextRequest) {
     const platform = String(body.platform ?? 'facebook').toLowerCase().trim() || 'facebook';
     // Secret OA (Zalo) để xác thực chữ ký webhook. Để trống khi sửa = giữ nguyên secret cũ.
     const secret = typeof body.secret === 'string' ? body.secret.trim() : '';
+    // CẤP 1 (kênh → showroom): kiểu chia + % của từng showroom đặt ngay trên kênh này.
+    const ALLOWED_STRATEGIES = ['least_loaded', 'round_robin', 'weighted'];
+    const showroom_assign_strategy = ALLOWED_STRATEGIES.includes(body.showroom_assign_strategy)
+      ? body.showroom_assign_strategy
+      : 'least_loaded';
+    const shares: Record<string, number> =
+      body.showroom_shares && typeof body.showroom_shares === 'object' ? body.showroom_shares : {};
     const row = {
       platform,
       page_id,
@@ -54,15 +61,20 @@ export async function POST(request: NextRequest) {
       showroom_id,
       brand_id,
       campaign: body.campaign ? String(body.campaign).trim() : null,
+      showroom_assign_strategy,
       is_active: body.is_active ?? true,
       ...(secret ? { secret } : {}),
     };
 
-    // Đồng bộ junction channel_account_showrooms: xoá cũ + chèn mới
+    // Đồng bộ junction channel_account_showrooms: xoá cũ + chèn mới (kèm % phân bổ của kênh).
     const syncShowrooms = async (channelId: string) => {
       await service.from('channel_account_showrooms').delete().eq('channel_account_id', channelId);
       await service.from('channel_account_showrooms').insert(
-        showroom_ids.map((sid) => ({ channel_account_id: channelId, showroom_id: sid }))
+        showroom_ids.map((sid) => ({
+          channel_account_id: channelId,
+          showroom_id: sid,
+          share_pct: Number(shares[sid]) || 0,
+        }))
       );
     };
 

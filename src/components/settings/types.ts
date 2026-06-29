@@ -72,6 +72,9 @@ export interface ChannelRow {
   brand_id: string | null;
   campaign: string | null;
   is_active: boolean;
+  // CẤP 1: cách kênh chia lead vào các showroom + % của từng showroom (showroom_id → %).
+  showroom_assign_strategy?: AssignStrategy;
+  showroom_shares?: Record<string, number>;
   config?: SheetConfig | null;
 }
 
