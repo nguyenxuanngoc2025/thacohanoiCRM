@@ -36,6 +36,7 @@ export interface Kpis {
   total: number;
   contacted: number;
   contactRate: number;
+  interested: number; // KHQT — khách quan tâm
   following: number; // GDTD — đang theo dõi giao dịch
   won: number; // KHĐ — ký hợp đồng
   winRate: number;
@@ -47,6 +48,7 @@ export interface Kpis {
 export function computeKpis(leads: ReportLead[], nowMs: number): Kpis {
   const total = leads.length;
   const contacted = leads.filter(isContacted).length;
+  const interested = leads.filter((l) => l.status === 'KHQT').length;
   const following = leads.filter((l) => l.status === 'GDTD').length;
   const won = leads.filter(isWon).length;
   const fail = leads.filter(isFail).length;
@@ -55,6 +57,7 @@ export function computeKpis(leads: ReportLead[], nowMs: number): Kpis {
     total,
     contacted,
     contactRate: rate(contacted, total),
+    interested,
     following,
     won,
     winRate: rate(won, total),
@@ -94,6 +97,7 @@ export interface GroupRow {
   share: number; // % tổng lead của tập (tỉ trọng)
   contacted: number;
   contactRate: number;
+  interested: number; // KHQT — khách quan tâm
   following: number; // GDTD — đang theo dõi
   won: number;
   winRate: number;
@@ -116,12 +120,13 @@ function groupBy(
     if (!row) {
       row = {
         key, label: labelOf(l), leads: 0, share: 0, contacted: 0, contactRate: 0,
-        following: 0, won: 0, winRate: 0, fail: 0, failRate: 0, overdue: 0,
+        interested: 0, following: 0, won: 0, winRate: 0, fail: 0, failRate: 0, overdue: 0,
       };
       map.set(key, row);
     }
     row.leads += 1;
     if (isContacted(l)) row.contacted += 1;
+    if (l.status === 'KHQT') row.interested += 1;
     if (l.status === 'GDTD') row.following += 1;
     if (isWon(l)) row.won += 1;
     if (isFail(l)) row.fail += 1;

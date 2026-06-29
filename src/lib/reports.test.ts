@@ -27,6 +27,7 @@ describe('computeKpis', () => {
     expect(k.total).toBe(4);
     expect(k.contacted).toBe(2);
     expect(k.contactRate).toBe(50);
+    expect(k.interested).toBe(0); // không có KHQT trong tập này
     expect(k.following).toBe(1);
     expect(k.won).toBe(1);
     expect(k.winRate).toBe(25);
@@ -113,7 +114,8 @@ describe('groupBySource', () => {
     expect(fb.share).toBe(75); // 3/4
     expect(fb.contacted).toBe(1);
     expect(fb.contactRate).toBe(33.3);
-    expect(fb.following).toBe(1);
+    expect(fb.interested).toBe(1); // KHQT
+    expect(fb.following).toBe(1); // GDTD
     expect(fb.fail).toBe(1);
     expect(fb.failRate).toBe(33.3);
     expect(fb.overdue).toBe(1);

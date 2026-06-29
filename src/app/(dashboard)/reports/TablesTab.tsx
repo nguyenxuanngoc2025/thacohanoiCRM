@@ -9,17 +9,19 @@ import {
 import { exportXlsx, type SheetData } from '@/lib/xlsx-export';
 import { Panel, Dropdown, BRAND, fmt, type Opt } from './ui';
 
-type MetricKey = 'leads' | 'share' | 'contacted' | 'contactRate' | 'following' | 'won' | 'winRate' | 'fail' | 'failRate' | 'overdue';
+type MetricKey = 'leads' | 'share' | 'contacted' | 'contactRate' | 'interested' | 'following' | 'won' | 'winRate' | 'fail' | 'failRate' | 'overdue';
 
 interface MetricCol { key: MetricKey; label: string; pct?: boolean; tone?: string }
 
+// Cột bám đúng phễu phân loại khách hàng: Đã LH → KHQT → GDTD → KHĐ → Loại.
 const METRICS: MetricCol[] = [
   { key: 'leads', label: 'Lead' },
   { key: 'share', label: 'Tỉ trọng', pct: true },
   { key: 'contacted', label: 'Đã LH' },
   { key: 'contactRate', label: 'Tỉ lệ LH', pct: true },
-  { key: 'following', label: 'Theo dõi' },
-  { key: 'won', label: 'Ký HĐ', tone: '#047857' },
+  { key: 'interested', label: 'KHQT', tone: '#1d4ed8' },
+  { key: 'following', label: 'GDTD', tone: '#b45309' },
+  { key: 'won', label: 'KHĐ', tone: '#047857' },
   { key: 'winRate', label: 'Tỉ lệ chốt', pct: true, tone: '#047857' },
   { key: 'fail', label: 'Loại', tone: '#be123c' },
   { key: 'failRate', label: 'Tỉ lệ loại', pct: true, tone: '#be123c' },
@@ -134,6 +136,7 @@ function FlatTable({ rows, cols, firstCol, totals, sortKey, asc, onSort }: {
       case 'share': return '100%';
       case 'contacted': return totals.contacted;
       case 'contactRate': return `${totals.contactRate}%`;
+      case 'interested': return totals.interested;
       case 'following': return totals.following;
       case 'won': return totals.won;
       case 'winRate': return `${totals.winRate}%`;
@@ -258,7 +261,7 @@ function flatSheet(leads: ReportLead[], nowMs: number, dim: Dimension): SheetDat
   const totals = computeKpis(leads, nowMs);
   const header = [DIMENSION_LABEL[dim], ...METRICS.map((m) => m.label)];
   const body = rows.map((r) => [r.label, ...METRICS.map((m) => r[m.key])]);
-  const totalRow: (string | number)[] = ['Tổng', totals.total, 100, totals.contacted, totals.contactRate, totals.following, totals.won, totals.winRate, totals.fail, totals.failRate, totals.overdue];
+  const totalRow: (string | number)[] = ['Tổng', totals.total, 100, totals.contacted, totals.contactRate, totals.interested, totals.following, totals.won, totals.winRate, totals.fail, totals.failRate, totals.overdue];
   return { name: DIMENSION_LABEL[dim], rows: [header, ...body, totalRow] };
 }
 
