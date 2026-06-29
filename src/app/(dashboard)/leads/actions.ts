@@ -143,8 +143,11 @@ export async function renameLead(leadId: string, fullName: string | null) {
   if (!user) return { ok: false as const, error: 'Chưa đăng nhập.' };
 
   const name = fullName?.trim() || null;
-  const { error } = await db.from('leads').update({ full_name: name }).eq('id', leadId);
+  // .select() để biết số dòng thực đổi: nếu RLS chặn (ngoài phạm vi quyền) thì trả 0 dòng KHÔNG kèm lỗi
+  // → phải báo thất bại thật, tránh "đã lưu" giả mà DB không đổi.
+  const { data, error } = await db.from('leads').update({ full_name: name }).eq('id', leadId).select('id');
   if (error) return { ok: false as const, error: error.message };
+  if (!data || data.length === 0) return { ok: false as const, error: 'Bạn không có quyền sửa lead này.' };
 
   await db.from('lead_logs').insert({
     lead_id: leadId,
@@ -172,7 +175,7 @@ export async function updateLead(input: LeadUpdateInput) {
 
   const { data: prev } = await db.from('leads').select('status').eq('id', input.leadId).maybeSingle();
 
-  const { error } = await db
+  const { data: updated, error } = await db
     .from('leads')
     .update({
       status: input.status,
@@ -181,8 +184,11 @@ export async function updateLead(input: LeadUpdateInput) {
       last_contact_at: now,
       next_contact_at: input.nextContactAt,
     })
-    .eq('id', input.leadId);
+    .eq('id', input.leadId)
+    .select('id');
   if (error) return { ok: false as const, error: error.message };
+  // 0 dòng đổi mà không lỗi = RLS chặn (ngoài phạm vi quyền) → báo thất bại thật.
+  if (!updated || updated.length === 0) return { ok: false as const, error: 'Bạn không có quyền sửa lead này.' };
 
   // Log liên hệ (luôn ghi vì đây là 1 lần TVBH liên hệ KH)
   await db.from('lead_logs').insert({

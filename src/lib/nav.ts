@@ -100,13 +100,13 @@ export const ROLE_SCOPE: Record<UserRole, string> = {
   platform_owner: 'Toàn nền tảng — mọi công ty',
   admin: 'Toàn công ty — mọi showroom & lead',
   gd_cty: 'Toàn công ty — mọi showroom & lead',
-  mkt_cty: 'Toàn công ty — chỉ xem & báo cáo',
-  digital_mkt: 'Toàn công ty — chỉ xem & báo cáo',
+  mkt_cty: 'Toàn công ty — xem & sửa lead, không phân giao',
+  digital_mkt: 'Toàn công ty — xem & sửa lead, không phân giao',
   gd_brand: 'Theo các thương hiệu phụ trách — mọi showroom có thương hiệu đó',
-  mkt_brand: 'Theo các thương hiệu phụ trách — chỉ xem & báo cáo',
+  mkt_brand: 'Theo các thương hiệu phụ trách — xem & sửa lead, không phân giao',
   tp_brand: 'Theo các thương hiệu phụ trách — mọi showroom có thương hiệu đó',
   gd_showroom: 'Theo các showroom phụ trách — toàn bộ lead của showroom',
-  mkt_showroom: 'Theo các showroom phụ trách — chỉ xem & báo cáo',
+  mkt_showroom: 'Theo các showroom phụ trách — xem & sửa lead, không phân giao',
   tp_phong: 'Theo phòng — toàn bộ lead của phòng mình',
   tvbh: 'Cá nhân — chỉ lead được giao cho mình',
 };
@@ -114,18 +114,19 @@ export const ROLE_SCOPE: Record<UserRole, string> = {
 const VIEW_ALL = 'Xem toàn bộ lead trong phạm vi';
 const REPORT = 'Xem báo cáo';
 const ASSIGN_TXT = 'Phân giao lead cho TVBH';
+const EDIT_LEAD = 'Cập nhật thông tin lead (tên, trạng thái, ghi chú)';
 
 export const ROLE_CAN: Record<UserRole, string[]> = {
   platform_owner: ['Quản trị mọi công ty', 'Đặt quota & khóa/mở', 'Quản lý hợp đồng/công nợ'],
   admin: ['Quản lý nhân sự (thêm/sửa/xoá)', 'Cấu hình kênh thu lead', VIEW_ALL, ASSIGN_TXT, REPORT],
   gd_cty: [VIEW_ALL + ' (toàn công ty)', ASSIGN_TXT, REPORT],
-  mkt_cty: [VIEW_ALL + ' (toàn công ty)', REPORT],
-  digital_mkt: [VIEW_ALL + ' (toàn công ty)', REPORT],
+  mkt_cty: [VIEW_ALL + ' (toàn công ty)', EDIT_LEAD, REPORT],
+  digital_mkt: [VIEW_ALL + ' (toàn công ty)', EDIT_LEAD, REPORT],
   gd_brand: [VIEW_ALL + ' (các thương hiệu phụ trách)', ASSIGN_TXT, REPORT],
-  mkt_brand: [VIEW_ALL + ' (các thương hiệu phụ trách)', REPORT],
+  mkt_brand: [VIEW_ALL + ' (các thương hiệu phụ trách)', EDIT_LEAD, REPORT],
   tp_brand: [VIEW_ALL + ' (các thương hiệu phụ trách)', ASSIGN_TXT, REPORT],
   gd_showroom: [VIEW_ALL + ' (các showroom phụ trách)', ASSIGN_TXT, REPORT],
-  mkt_showroom: [VIEW_ALL + ' (các showroom phụ trách)', REPORT],
+  mkt_showroom: [VIEW_ALL + ' (các showroom phụ trách)', EDIT_LEAD, REPORT],
   tp_phong: [VIEW_ALL + ' (phòng)', ASSIGN_TXT, REPORT],
   tvbh: ['Xem & chăm sóc lead được giao', 'Cập nhật trạng thái lead', 'Ghi nhật ký chăm sóc'],
 };
