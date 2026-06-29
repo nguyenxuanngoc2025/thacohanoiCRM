@@ -44,6 +44,7 @@ export default async function LeadsPage() {
   const canCreate = me?.role ? CAN_CREATE_LEAD.has(me.role as UserRole) : false;
   const canAssign = me?.role ? CAN_ASSIGN.has(me.role as UserRole) : false;
   const canDelete = me?.role ? CAN_MANAGE_STAFF.has(me.role as UserRole) : false;
+  const isTvbh = me?.role === 'tvbh';
 
   const tenant = await getTenant();
   const b10Enabled = tenant?.b10_enabled ?? false;
@@ -129,6 +130,7 @@ export default async function LeadsPage() {
       canAssign={canAssign}
       canDelete={canDelete}
       b10Enabled={b10Enabled}
+      isTvbh={isTvbh}
     />
   );
 }

@@ -156,6 +156,12 @@ const SEL_W = 44;
 const STORAGE_KEY = 'leads.cols.v5';
 const DEFAULT_HIDDEN: ColKey[] = ['source', 'model', 'contactedAt', 'note', 'next', 'count'];
 
+// TVBH (nhân viên bán hàng) chỉ chăm lead của chính mình → ẩn các cột tổ chức trùng lặp
+// (Showroom/Phòng/Phụ trách đều là của chính họ) và chi tiết phụ; ưu tiên cột tác nghiệp:
+// Dòng xe, Nội dung liên hệ, Hẹn gọi lại, Số lần LH. Vẫn tick mở lại nếu cần.
+const TVBH_STORAGE_KEY = 'leads.cols.tvbh.v1';
+const TVBH_DEFAULT_HIDDEN: ColKey[] = ['showroom', 'team', 'assignee', 'source', 'contactedAt', 'b10on', 'b10class'];
+
 // Thứ tự cột do người dùng kéo-thả (chỉ áp dụng cho cột KHÔNG đóng băng; cột sticky luôn ghim đầu).
 const ORDER_KEY = 'leads.colorder.v1';
 const DEFAULT_ORDER: ColKey[] = COLS.filter((c) => !STICKY.includes(c.key)).map((c) => c.key);
@@ -527,7 +533,7 @@ function StatusPicker({ lead, variant, pending, start }: {
 }
 
 export default function LeadsTable({
-  leads, allLeads, filters, setFilters, models, brands, showrooms, assignees, teams, canCreate, canAssign, canDelete, b10Enabled,
+  leads, allLeads, filters, setFilters, models, brands, showrooms, assignees, teams, canCreate, canAssign, canDelete, b10Enabled, isTvbh,
 }: {
   leads: LeadRow[];
   allLeads: LeadRow[];
@@ -542,13 +548,17 @@ export default function LeadsTable({
   canAssign: boolean;
   canDelete: boolean;
   b10Enabled: boolean;
+  isTvbh: boolean;
 }) {
+  // Khoá lưu cấu hình cột + bộ cột ẩn mặc định khác nhau theo vai trò (TVBH gọn hơn).
+  const storageKey = isTvbh ? TVBH_STORAGE_KEY : STORAGE_KEY;
+  const defaultHidden = isTvbh ? TVBH_DEFAULT_HIDDEN : DEFAULT_HIDDEN;
   const [tab, setTab] = useState<Tab>('all');
   const [showNew, setShowNew] = useState(false);
   const [sortKey, setSortKey] = useState<ColKey | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [pending, start] = useTransition();
-  const [hidden, setHidden] = useState<Set<ColKey>>(new Set(DEFAULT_HIDDEN));
+  const [hidden, setHidden] = useState<Set<ColKey>>(() => new Set(defaultHidden));
   const [order, setOrder] = useState<ColKey[]>(DEFAULT_ORDER);
   const [dragKey, setDragKey] = useState<ColKey | null>(null);
   const [overKey, setOverKey] = useState<ColKey | null>(null);
@@ -583,7 +593,7 @@ export default function LeadsTable({
   // Khôi phục cấu hình cột hiển thị + thứ tự cột
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      const raw = localStorage.getItem(storageKey);
       if (raw) setHidden(new Set(JSON.parse(raw) as ColKey[]));
     } catch { /* ignore */ }
     try {
@@ -595,7 +605,7 @@ export default function LeadsTable({
         setOrder([...saved, ...missing]);
       }
     } catch { /* ignore */ }
-  }, []);
+  }, [storageKey]);
 
   // Bỏ chọn khi tập lead theo bộ lọc thay đổi
   useEffect(() => { setSel(new Set()); }, [leads]);
@@ -604,7 +614,7 @@ export default function LeadsTable({
     setHidden((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key); else next.add(key);
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify([...next])); } catch { /* ignore */ }
+      try { localStorage.setItem(storageKey, JSON.stringify([...next])); } catch { /* ignore */ }
       return next;
     });
   };
