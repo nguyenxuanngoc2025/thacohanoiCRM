@@ -44,7 +44,8 @@ describe('reconcileB10', () => {
     { id: 'l1', phone: '0900000001', b10_status: null },
     { id: 'l2', phone: '0900000002', b10_status: 'KHQT' },
   ];
-  const companyPhones = new Set(['900000001', '900000002', '900000003']);
+  // companyPhones = khoá định danh +84… (cùng dạng app lưu trong DB).
+  const companyPhones = new Set(['+84900000001', '+84900000002', '+84900000003']);
 
   it('khớp trong phạm vi → cập nhật best; ngoài phạm vi & không tìm thấy đếm riêng', () => {
     const rows: B10Row[] = [

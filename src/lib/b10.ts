@@ -1,5 +1,6 @@
 // app/src/lib/b10.ts
 import { type LeadStatus } from './lead-status';
+import { normalizePhone } from './phone';
 
 /** Thang xếp hạng B10 (thấp → cao). NULL = chưa phân loại (thấp nhất). */
 export const B10_RANK: Record<LeadStatus, number> = {
@@ -32,19 +33,6 @@ export function normalizeB10Status(raw: string | null): LeadStatus | null {
   return map[v] ?? null;
 }
 
-// thêm vào cuối app/src/lib/b10.ts
-
-/** SĐT chỉ giữ chữ số (khớp theo cách app chống trùng). */
-export function digitsOnly(phone: string): string {
-  return (phone ?? '').replace(/\D/g, '');
-}
-
-/** Chuẩn hoá SĐT về dạng 9 chữ số (bỏ đầu số 0) để khớp với companyPhones. */
-function normalizePhone(phone: string): string {
-  const d = digitsOnly(phone);
-  return d.startsWith('0') ? d.slice(1) : d;
-}
-
 export interface B10Row { phone: string; status: string | null }
 export interface B10Lead { id: string; phone: string; b10_status: LeadStatus | null }
 export interface B10Update { id: string; b10_status: LeadStatus | null }
@@ -59,8 +47,9 @@ export interface B10Result { updates: B10Update[]; summary: B10Summary }
 
 /**
  * Đối soát thuần (không IO):
- * - `scopedLeads`: lead người import được phép sửa (đã RLS-scope), khớp theo SĐT chuẩn hoá.
- * - `companyPhones`: tập SĐT (chuẩn hoá) của toàn công ty — để phân biệt "ngoài phạm vi" vs "không tìm thấy".
+ * - `scopedLeads`: lead người import được phép sửa (đã RLS-scope), khớp theo SĐT chuẩn hoá `+84…`.
+ * - `companyPhones`: tập SĐT chuẩn hoá `+84…` của toàn công ty — để phân biệt "ngoài phạm vi" vs "không tìm thấy".
+ * SĐT chuẩn hoá qua `normalizePhone` của app (cùng khoá định danh `+84…` mà lead lưu trong DB).
  */
 export function reconcileB10(
   rows: B10Row[],
@@ -68,7 +57,10 @@ export function reconcileB10(
   companyPhones: Set<string>,
 ): B10Result {
   const byPhone = new Map<string, B10Lead>();
-  for (const l of scopedLeads) byPhone.set(normalizePhone(l.phone), l);
+  for (const l of scopedLeads) {
+    const k = normalizePhone(l.phone);
+    if (k) byPhone.set(k, l);
+  }
 
   // Gộp best theo lead id (nhiều dòng có thể trỏ cùng 1 khách).
   const merged = new Map<string, LeadStatus | null>(); // id → best b10_status mới
