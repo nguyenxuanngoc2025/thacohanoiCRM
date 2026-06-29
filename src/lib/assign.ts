@@ -44,7 +44,9 @@ export function pickWeightedTeam(candidates: WeightedLoad[]): string | null {
   return scored[0].id;
 }
 
-export type AssignStrategy = 'least_loaded' | 'round_robin' | 'weighted';
+// 'manual' = không tự chia (chỉ cấp phòng→TVBH dùng): lead về phòng nhưng KHÔNG gán TVBH,
+// trưởng phòng tự chia tay. pickByStrategy trả null cho 'manual'.
+export type AssignStrategy = 'least_loaded' | 'round_robin' | 'weighted' | 'manual';
 
 export interface RoundRobinCandidate {
   id: string;
@@ -71,6 +73,7 @@ export interface StrategyCandidate {
 
 /** Chọn 1 ứng viên theo chiến lược. */
 export function pickByStrategy(strategy: AssignStrategy, candidates: StrategyCandidate[]): string | null {
+  if (strategy === 'manual') return null; // chia tay → không tự chọn ai
   if (candidates.length === 0) return null;
   if (strategy === 'round_robin') {
     return pickRoundRobin(candidates.map((c) => ({ id: c.id, lastAssignedAt: c.lastAssignedAt })));

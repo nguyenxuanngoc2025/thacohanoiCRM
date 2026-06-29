@@ -1,6 +1,6 @@
 // Kiểu dữ liệu dùng chung cho các panel Cài đặt
 
-export type AssignStrategy = 'least_loaded' | 'round_robin' | 'weighted';
+export type AssignStrategy = 'least_loaded' | 'round_robin' | 'weighted' | 'manual';
 
 export interface ShowroomRow {
   id: string;

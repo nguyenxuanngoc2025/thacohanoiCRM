@@ -12,7 +12,7 @@ import { matchesQuery } from '@/lib/search';
 import { STATUS_OPTIONS, FAIL_REASONS, isContacted, type LeadStatus } from '@/lib/lead-status';
 import { sourceLabel, sourcePlatform } from '@/lib/source';
 import { classifyLead, markContacted, unmarkContacted, bulkReassign, deleteLeads, setLeadModel } from './actions';
-import type { ModelOption, BrandOption, ShowroomOption, AssigneeOption } from './LeadsView';
+import type { ModelOption, BrandOption, ShowroomOption, AssigneeOption, TeamOption } from './LeadsView';
 import LeadDrawer from './LeadDrawer';
 import NewLeadModal from './NewLeadModal';
 
@@ -516,7 +516,7 @@ function StatusPicker({ lead, variant, pending, start }: {
 }
 
 export default function LeadsTable({
-  leads, allLeads, filters, setFilters, models, brands, showrooms, assignees, canCreate, canAssign, canDelete,
+  leads, allLeads, filters, setFilters, models, brands, showrooms, assignees, teams, canCreate, canAssign, canDelete,
 }: {
   leads: LeadRow[];
   allLeads: LeadRow[];
@@ -526,6 +526,7 @@ export default function LeadsTable({
   brands: BrandOption[];
   showrooms: ShowroomOption[];
   assignees: AssigneeOption[];
+  teams: TeamOption[];
   canCreate: boolean;
   canAssign: boolean;
   canDelete: boolean;
@@ -1181,6 +1182,7 @@ export default function LeadsTable({
           showrooms={showrooms}
           models={models}
           assignees={assignees}
+          teams={teams}
           onClose={() => setShowNew(false)}
         />
       )}

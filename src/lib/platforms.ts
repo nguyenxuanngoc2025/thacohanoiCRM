@@ -1,5 +1,5 @@
 import {
-  Megaphone, Globe, MessageCircle, Search, Music2,
+  Megaphone, Globe, MessageCircle, Search, Music2, PhoneCall,
 } from 'lucide-react';
 import type { ElementType } from 'react';
 
@@ -29,6 +29,7 @@ export const PLATFORMS: Platform[] = [
   { key: 'website',  name: 'Website form',       desc: 'Form trên web · landing page',         icon: Globe,          color: '#004B9B', state: 'active', unit: 'biểu mẫu', digital: true },
   { key: 'zalo',     name: 'Zalo OA',            desc: 'Tin nhắn OA · quảng cáo Zalo Lead',    icon: MessageCircle,  color: '#0068FF', state: 'active', unit: 'OA',       digital: true },
   { key: 'google_sheet', name: 'Google Sheet',     desc: 'Hút lead từ Google Sheet agency chia sẻ', icon: Search,         color: '#0F9D58', state: 'active', unit: 'sheet',    digital: true },
+  { key: 'google',   name: 'Google (gọi hotline)', desc: 'Khách tìm qua Google rồi gọi hotline',  icon: PhoneCall,      color: '#EA4335', state: 'active', unit: 'cuộc gọi', digital: true },
   { key: 'tiktok',   name: 'TikTok Lead',        desc: 'TikTok Lead Generation',               icon: Music2,         color: '#010101', state: 'soon',   unit: 'form',     digital: true },
 ];
 

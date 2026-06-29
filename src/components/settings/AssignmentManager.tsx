@@ -14,6 +14,7 @@ const STRATEGY_LABELS: Record<AssignStrategy, string> = {
   least_loaded: 'Ít lead nhất',
   round_robin: 'Xoay vòng',
   weighted: 'Theo tỷ lệ %',
+  manual: 'Thủ công (tự chia)',
 };
 
 export default function AssignmentManager({
@@ -133,13 +134,14 @@ export default function AssignmentManager({
   );
 }
 
-// Select 3 kiểu chia dùng chung.
-function StratSelect({ value, disabled, onChange }: { value: AssignStrategy; disabled?: boolean; onChange: (v: AssignStrategy) => void }) {
+// Select kiểu chia dùng chung. allowManual=true (chỉ cấp phòng→TVBH) thêm lựa chọn "Thủ công".
+function StratSelect({ value, disabled, allowManual, onChange }: { value: AssignStrategy; disabled?: boolean; allowManual?: boolean; onChange: (v: AssignStrategy) => void }) {
   return (
     <Select value={value} disabled={disabled} onChange={(e) => onChange(e.target.value as AssignStrategy)}>
       <option value="least_loaded">{STRATEGY_LABELS.least_loaded}</option>
       <option value="round_robin">{STRATEGY_LABELS.round_robin}</option>
       <option value="weighted">{STRATEGY_LABELS.weighted}</option>
+      {allowManual && <option value="manual">{STRATEGY_LABELS.manual}</option>}
     </Select>
   );
 }
@@ -345,10 +347,13 @@ function AssignmentTree({
                             <div className="text-xs font-semibold text-slate-500 mb-1.5">Phòng này chia lead cho TVBH:</div>
                             <div className="max-w-xs">
                               <StratSelect value={tmStrat[t.id] ?? 'least_loaded'} disabled={busy === `tm-${t.id}`}
-                                onChange={(next) => saveTmStrat(t, next)} />
+                                allowManual onChange={(next) => saveTmStrat(t, next)} />
                             </div>
                             {tmStrat[t.id] === 'weighted' && members.length > 0 && (
                               <div className="mt-1.5"><TotalBadge total={memTotal} /></div>
+                            )}
+                            {tmStrat[t.id] === 'manual' && (
+                              <div className="mt-1.5 text-xs text-slate-500">Lead về phòng nhưng chưa gán TVBH — trưởng phòng tự chia tay.</div>
                             )}
                           </div>
                           {members.length === 0 && (

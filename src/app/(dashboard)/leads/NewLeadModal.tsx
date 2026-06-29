@@ -6,15 +6,16 @@ import { X, UserPlus, Sparkles } from 'lucide-react';
 import { createLead, recommendAssignment } from './actions';
 import { DIGITAL_PLATFORMS, DEFAULT_PLATFORM_KEY } from '@/lib/platforms';
 import { SOURCE_VARIANTS } from '@/lib/source';
-import type { ModelOption, BrandOption, ShowroomOption, AssigneeOption } from './LeadsView';
+import type { ModelOption, BrandOption, ShowroomOption, AssigneeOption, TeamOption } from './LeadsView';
 
 export default function NewLeadModal({
-  brands, showrooms, models, assignees, onClose,
+  brands, showrooms, models, assignees, teams, onClose,
 }: {
   brands: BrandOption[];
   showrooms: ShowroomOption[];
   models: ModelOption[];
   assignees: AssigneeOption[];
+  teams: TeamOption[];
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -25,6 +26,8 @@ export default function NewLeadModal({
   const [phone, setPhone] = useState('');
   const [brandId, setBrandId] = useState('');
   const [showroomId, setShowroomId] = useState('');
+  // Phòng (sales_team): để trống = tự động theo cấu hình; chọn cụ thể khi khách muốn về 1 phòng.
+  const [salesTeamId, setSalesTeamId] = useState('');
   const [modelId, setModelId] = useState('');
   // Nguồn = kênh (platform key); nếu kênh có phân nhánh thì chọn thêm chi tiết kênh
   const [sourceKey, setSourceKey] = useState<string>(DEFAULT_PLATFORM_KEY);
@@ -39,7 +42,19 @@ export default function NewLeadModal({
 
   const brandModels = models.filter((m) => m.brand_id === brandId);
 
-  // Lần mở modal: gợi ý showroom ít lead nhất + TVBH ít lead nhất, tự điền nếu còn trống
+  // Phòng khả dụng: theo showroom đã chọn (+ thương hiệu nếu đã chọn, vì phòng cố định 1 brand).
+  const availableTeams = teams.filter(
+    (t) => (!showroomId || t.showroom_id === showroomId) && (!brandId || t.brand_id === brandId),
+  );
+  // TVBH khả dụng: nếu đã chọn phòng → chỉ TVBH của phòng; chưa chọn phòng nhưng có showroom → TVBH của showroom.
+  const availableAssignees = salesTeamId
+    ? assignees.filter((a) => a.sales_team_id === salesTeamId)
+    : showroomId
+      ? assignees.filter((a) => a.showroom_id === showroomId)
+      : assignees;
+
+  // Lần mở modal: gợi ý showroom ít lead nhất + TVBH ít lead nhất, tự điền nếu còn trống.
+  // Suy ra phòng từ TVBH gợi ý (TVBH thuộc 1 phòng) để điền sẵn ô Phòng.
   useEffect(() => {
     let alive = true;
     recommendAssignment(null).then((r) => {
@@ -48,18 +63,32 @@ export default function NewLeadModal({
       setRecAssignee(r.assigneeName);
       setShowroomId((cur) => cur || r.showroomId || '');
       setAssignedTo((cur) => cur || r.assigneeId || '');
+      const team = r.assigneeId ? assignees.find((a) => a.id === r.assigneeId)?.sales_team_id : null;
+      if (team) setSalesTeamId((cur) => cur || team);
     });
     return () => { alive = false; };
-  }, []);
+  }, [assignees]);
 
-  // Đổi showroom thủ công → tính lại TVBH gợi ý cho showroom đó
+  // Đổi showroom thủ công → reset phòng (phòng gắn showroom) + tính lại TVBH gợi ý.
   const onShowroomChange = (id: string) => {
     setShowroomId(id);
-    if (!id) { setRecAssignee(null); return; }
+    setSalesTeamId('');
+    if (!id) { setRecAssignee(null); setAssignedTo(''); return; }
     recommendAssignment(id).then((r) => {
       setRecAssignee(r.assigneeName);
       setAssignedTo(r.assigneeId || '');
+      const team = r.assigneeId ? assignees.find((a) => a.id === r.assigneeId)?.sales_team_id : null;
+      setSalesTeamId(team || '');
     });
+  };
+
+  // Đổi phòng → lọc lại TVBH; nếu TVBH đang chọn không thuộc phòng mới thì bỏ chọn.
+  const onTeamChange = (id: string) => {
+    setSalesTeamId(id);
+    if (id && assignedTo && !assignees.some((a) => a.id === assignedTo && a.sales_team_id === id)) {
+      setAssignedTo('');
+      setRecAssignee(null);
+    }
   };
 
   // Đổi kênh → đặt lại nhánh mặc định (nhánh đầu nếu kênh có phân nhánh)
@@ -81,6 +110,7 @@ export default function NewLeadModal({
         phone,
         brandId,
         showroomId: showroomId || null,
+        salesTeamId: salesTeamId || null,
         modelId: modelId || null,
         source,
         assignedTo: assignedTo || null,
@@ -134,10 +164,19 @@ export default function NewLeadModal({
 
           <div>
             <label className={lblCls}>Thương hiệu <span className="text-rose-500">*</span></label>
-            <select value={brandId} onChange={(e) => { setBrandId(e.target.value); setModelId(''); }} className={inputCls}>
+            <select value={brandId} onChange={(e) => { setBrandId(e.target.value); setModelId(''); setSalesTeamId(''); }} className={inputCls}>
               <option value="">— Chọn thương hiệu —</option>
               {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
             </select>
+          </div>
+
+          <div>
+            <label className={lblCls}>Phòng bán hàng</label>
+            <select value={salesTeamId} onChange={(e) => onTeamChange(e.target.value)} className={inputCls}>
+              <option value="">— Tự động —</option>
+              {availableTeams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+            <p className="mt-1 text-xs text-slate-400">Để trống = hệ thống tự chia phòng. Chọn cụ thể khi khách muốn về một phòng.</p>
           </div>
 
           <div>
@@ -168,7 +207,7 @@ export default function NewLeadModal({
             <label className={lblCls}>Phụ trách</label>
             <select value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)} className={inputCls}>
               <option value="">— Chưa giao —</option>
-              {assignees.map((a) => <option key={a.id} value={a.id}>{a.full_name}</option>)}
+              {availableAssignees.map((a) => <option key={a.id} value={a.id}>{a.full_name}</option>)}
             </select>
             {recAssignee && (
               <p className="mt-1 inline-flex items-center gap-1 text-xs text-[#004B9B]">

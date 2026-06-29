@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { type LeadRow } from './LeadsTable';
-import LeadsView, { type ModelOption, type BrandOption, type ShowroomOption, type AssigneeOption } from './LeadsView';
+import LeadsView, { type ModelOption, type BrandOption, type ShowroomOption, type AssigneeOption, type TeamOption } from './LeadsView';
 import { CAN_CREATE_LEAD, CAN_ASSIGN, CAN_MANAGE_STAFF } from '@/lib/nav';
 import { type UserRole } from '@/types/database';
 
@@ -46,6 +46,7 @@ export default async function LeadsPage() {
     { data: rawBrands },
     { data: rawShowrooms },
     { data: rawAssignees },
+    { data: rawTeams },
   ] = await Promise.all([
     supabase
       .from('leads')
@@ -58,7 +59,8 @@ export default async function LeadsPage() {
     supabase.from('lead_logs').select('lead_id').eq('type', 'contact'),
     supabase.from('brands').select('id, name').order('name'),
     supabase.from('showrooms').select('id, name').order('name'),
-    supabase.from('users').select('id, full_name').eq('role', 'tvbh').eq('is_active', true).order('full_name'),
+    supabase.from('users').select('id, full_name, showroom_id, sales_team_id').eq('role', 'tvbh').eq('is_active', true).order('full_name'),
+    supabase.from('sales_teams').select('id, name, showroom_id, brand_id').order('name'),
   ]);
 
   // Đếm số lần liên hệ theo lead
@@ -94,6 +96,7 @@ export default async function LeadsPage() {
   const brands: BrandOption[] = ((rawBrands ?? []) as BrandOption[]);
   const showrooms: ShowroomOption[] = ((rawShowrooms ?? []) as ShowroomOption[]);
   const assignees: AssigneeOption[] = ((rawAssignees ?? []) as AssigneeOption[]);
+  const teams: TeamOption[] = ((rawTeams ?? []) as TeamOption[]);
 
   return (
     <LeadsView
@@ -102,6 +105,7 @@ export default async function LeadsPage() {
       brands={brands}
       showrooms={showrooms}
       assignees={assignees}
+      teams={teams}
       canCreate={canCreate}
       canAssign={canAssign}
       canDelete={canDelete}

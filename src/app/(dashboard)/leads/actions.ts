@@ -348,6 +348,7 @@ export interface NewLeadInput {
   phone: string;
   brandId: string;
   showroomId: string | null;
+  salesTeamId: string | null;
   modelId: string | null;
   source: string;
   assignedTo: string | null;
@@ -368,6 +369,13 @@ export async function createLead(input: NewLeadInput) {
   if (!me?.company_id) return { ok: false as const, error: 'Tài khoản chưa gắn công ty.' };
   if (!CAN_CREATE_LEAD.has(me.role as UserRole)) return { ok: false as const, error: 'Bạn không có quyền thêm lead.' };
 
+  // Phòng: ưu tiên phòng chỉ định; nếu trống nhưng có TVBH thì suy ra phòng của TVBH (giữ liên kết).
+  let salesTeamId = input.salesTeamId;
+  if (!salesTeamId && input.assignedTo) {
+    const { data: tvbh } = await db.from('users').select('sales_team_id').eq('id', input.assignedTo).maybeSingle();
+    salesTeamId = tvbh?.sales_team_id ?? null;
+  }
+
   const note = input.note.trim();
   const { data: inserted, error } = await db
     .from('leads')
@@ -375,6 +383,7 @@ export async function createLead(input: NewLeadInput) {
       company_id: me.company_id,
       brand_id: input.brandId,
       showroom_id: input.showroomId,
+      sales_team_id: salesTeamId,
       model_id: input.modelId,
       assigned_to: input.assignedTo,
       phone,

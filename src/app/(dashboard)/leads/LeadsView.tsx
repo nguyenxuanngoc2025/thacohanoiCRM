@@ -18,18 +18,20 @@ export interface ModelOption {
 
 export interface BrandOption { id: string; name: string }
 export interface ShowroomOption { id: string; name: string }
-export interface AssigneeOption { id: string; full_name: string }
+export interface AssigneeOption { id: string; full_name: string; showroom_id: string | null; sales_team_id: string | null }
+export interface TeamOption { id: string; name: string; showroom_id: string; brand_id: string }
 
 const THRESHOLD = 140; // px cuộn trong bảng để thu hết card
 
 export default function LeadsView({
-  leads, models, brands, showrooms, assignees, canCreate, canAssign, canDelete,
+  leads, models, brands, showrooms, assignees, teams, canCreate, canAssign, canDelete,
 }: {
   leads: LeadRow[];
   models: ModelOption[];
   brands: BrandOption[];
   showrooms: ShowroomOption[];
   assignees: AssigneeOption[];
+  teams: TeamOption[];
   canCreate: boolean;
   canAssign: boolean;
   canDelete: boolean;
@@ -116,6 +118,7 @@ export default function LeadsView({
           brands={brands}
           showrooms={showrooms}
           assignees={assignees}
+          teams={teams}
           canCreate={canCreate}
           canAssign={canAssign}
           canDelete={canDelete}

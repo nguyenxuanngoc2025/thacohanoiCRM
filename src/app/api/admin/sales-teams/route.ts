@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
 
     if (op === 'set-strategy') {
       const updates: Record<string, unknown> = {};
-      if (['least_loaded', 'round_robin', 'weighted'].includes(body.tvbh_assign_strategy)) {
+      if (['least_loaded', 'round_robin', 'weighted', 'manual'].includes(body.tvbh_assign_strategy)) {
         updates.tvbh_assign_strategy = body.tvbh_assign_strategy;
       }
       if (Number.isFinite(Number(body.assign_share_pct))) {
