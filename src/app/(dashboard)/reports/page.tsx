@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { CAN_VIEW_REPORTS } from '@/lib/nav';
+import { getOpenBrandIds } from '@/lib/company-brands';
 import type { UserRole } from '@/types/database';
 import type { ReportLead } from '@/lib/reports';
 import ReportsView, { type RangeKey } from './ReportsView';
@@ -59,7 +60,7 @@ export default async function ReportsPage({
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
-  const { data: me } = await supabase.from('users').select('role').eq('id', user.id).maybeSingle();
+  const { data: me } = await supabase.from('users').select('role, company_id').eq('id', user.id).maybeSingle();
   if (!me?.role || !CAN_VIEW_REPORTS.has(me.role as UserRole)) redirect('/leads');
 
   const range = (['this_month', 'last_month', '30d', 'custom'].includes(sp.range ?? '')
@@ -67,13 +68,19 @@ export default async function ReportsPage({
     : 'this_month') as RangeKey;
   const { fromMs, toMs } = resolveRange(range, sp.from, sp.to);
 
-  const { data: raw } = await supabase
+  // Hãng công ty đang mở (whitelist). Lead của hãng đã đóng bị loại khỏi báo cáo/KPI.
+  const openBrandIds = await getOpenBrandIds(supabase, me?.company_id ?? null);
+
+  let reportsQuery = supabase
     .from('leads')
     .select(
       'status, source, brand_id, model_id, showroom_id, assigned_to, created_at, last_contact_at, next_contact_at, fail_reason, brand:brands(name), model:models(name), showroom:showrooms(name), assignee:users!assigned_to(full_name)',
     )
     .gte('created_at', iso(fromMs))
-    .lte('created_at', iso(toMs))
+    .lte('created_at', iso(toMs));
+  if (openBrandIds.length) reportsQuery = reportsQuery.in('brand_id', openBrandIds);
+
+  const { data: raw } = await reportsQuery
     .order('created_at', { ascending: false })
     .limit(5000);
 

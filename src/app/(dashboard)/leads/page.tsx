@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { type LeadRow } from './LeadsTable';
 import LeadsView, { type ModelOption, type BrandOption, type ShowroomOption, type AssigneeOption, type TeamOption } from './LeadsView';
 import { CAN_CREATE_LEAD, CAN_ASSIGN, CAN_MANAGE_STAFF } from '@/lib/nav';
+import { getOpenBrandIds } from '@/lib/company-brands';
 import { type UserRole } from '@/types/database';
 
 export const dynamic = 'force-dynamic';
@@ -33,11 +34,21 @@ export default async function LeadsPage() {
 
   const { data: { user } } = await supabase.auth.getUser();
   const { data: me } = user
-    ? await supabase.from('users').select('role').eq('id', user.id).maybeSingle()
+    ? await supabase.from('users').select('role, company_id').eq('id', user.id).maybeSingle()
     : { data: null };
   const canCreate = me?.role ? CAN_CREATE_LEAD.has(me.role as UserRole) : false;
   const canAssign = me?.role ? CAN_ASSIGN.has(me.role as UserRole) : false;
   const canDelete = me?.role ? CAN_MANAGE_STAFF.has(me.role as UserRole) : false;
+
+  // Hãng công ty đang mở (whitelist). Lead của hãng đã đóng bị ẩn khỏi danh sách + KPI.
+  const openBrandIds = await getOpenBrandIds(supabase, me?.company_id ?? null);
+
+  let leadsQuery = supabase
+    .from('leads')
+    .select(
+      'id, full_name, phone, source, status, created_at, last_contact_at, next_contact_at, last_note, fail_reason, no_answer_count, brand_id, model_id, showroom_id, assigned_to, brand:brands(name), model:models(name), showroom:showrooms(name), assignee:users!assigned_to(full_name)',
+    );
+  if (openBrandIds.length) leadsQuery = leadsQuery.in('brand_id', openBrandIds);
 
   const [
     { data: rawLeads },
@@ -48,11 +59,7 @@ export default async function LeadsPage() {
     { data: rawAssignees },
     { data: rawTeams },
   ] = await Promise.all([
-    supabase
-      .from('leads')
-      .select(
-        'id, full_name, phone, source, status, created_at, last_contact_at, next_contact_at, last_note, fail_reason, no_answer_count, brand_id, model_id, showroom_id, assigned_to, brand:brands(name), model:models(name), showroom:showrooms(name), assignee:users!assigned_to(full_name)',
-      )
+    leadsQuery
       .order('created_at', { ascending: false })
       .limit(300),
     supabase.from('models').select('id, name, brand_id').eq('is_active', true).order('sort_order'),

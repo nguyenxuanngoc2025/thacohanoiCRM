@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import AssignView, { type UnassignedLead, type TvbhLoad } from './AssignView';
 import { CAN_ASSIGN } from '@/lib/nav';
+import { getOpenBrandIds } from '@/lib/company-brands';
 import { type UserRole } from '@/types/database';
 
 export const dynamic = 'force-dynamic';
@@ -26,18 +27,32 @@ export default async function AssignPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  const { data: me } = await supabase.from('users').select('role').eq('id', user.id).maybeSingle();
+  const { data: me } = await supabase.from('users').select('role, company_id').eq('id', user.id).maybeSingle();
   if (!me?.role || !CAN_ASSIGN.has(me.role as UserRole)) redirect('/leads');
+
+  // Hãng công ty đang mở (whitelist). Lead của hãng đã đóng bị ẩn khỏi hàng chờ + đếm tải.
+  const openBrandIds = await getOpenBrandIds(supabase, me?.company_id ?? null);
+
+  let unassignedQuery = supabase
+    .from('leads')
+    .select('id, full_name, phone, source, created_at, showroom_id, brand:brands(name), model:models(name), showroom:showrooms(name)')
+    .is('assigned_to', null);
+  let openLeadsQuery = supabase
+    .from('leads')
+    .select('assigned_to')
+    .not('assigned_to', 'is', null)
+    .or(OPEN_LEADS);
+  if (openBrandIds.length) {
+    unassignedQuery = unassignedQuery.in('brand_id', openBrandIds);
+    openLeadsQuery = openLeadsQuery.in('brand_id', openBrandIds);
+  }
 
   const [
     { data: rawUnassigned },
     { data: rawTvbh },
     { data: openLeads },
   ] = await Promise.all([
-    supabase
-      .from('leads')
-      .select('id, full_name, phone, source, created_at, showroom_id, brand:brands(name), model:models(name), showroom:showrooms(name)')
-      .is('assigned_to', null)
+    unassignedQuery
       .order('created_at', { ascending: false })
       .limit(300),
     supabase
@@ -46,11 +61,7 @@ export default async function AssignPage() {
       .eq('role', 'tvbh')
       .eq('is_active', true)
       .order('full_name'),
-    supabase
-      .from('leads')
-      .select('assigned_to')
-      .not('assigned_to', 'is', null)
-      .or(OPEN_LEADS),
+    openLeadsQuery,
   ]);
 
   // Đếm lead đang mở theo TVBH
