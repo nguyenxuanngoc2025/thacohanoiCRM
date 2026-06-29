@@ -31,6 +31,8 @@ export const CAN_VIEW_REPORTS = new Set<UserRole>([
 ]);
 // Quản trị tài khoản / kênh / cấu hình hệ thống.
 export const CAN_MANAGE_STAFF = new Set<UserRole>(['admin']);
+// Vai trò xem trang Đối soát B10 + import (xem được SĐT trên B10).
+export const B10_IMPORT: UserRole[] = ['tp_phong', 'gd_showroom', 'gd_brand', 'gd_cty', 'admin'];
 
 const ALL: UserRole[] = [
   'platform_owner', 'admin', 'gd_cty', 'mkt_cty', 'digital_mkt',
@@ -45,6 +47,7 @@ export interface NavItem {
   href: string;
   icon: string;
   roles: UserRole[];
+  requiresB10?: boolean;
 }
 
 // Menu chính sidebar — công cụ Marketing theo dõi lead. Cài đặt chỉ admin/chủ nền tảng.
@@ -52,6 +55,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Lead', href: '/leads', icon: 'Users', roles: ALL },
   { label: 'Phân giao', href: '/assign', icon: 'UserCheck', roles: ASSIGN },
   { label: 'Báo cáo', href: '/reports', icon: 'BarChart3', roles: REPORTS },
+  { label: 'Đối soát', href: '/doi-soat', icon: 'FileCheck2', roles: B10_IMPORT, requiresB10: true },
   { label: 'Cài đặt', href: '/settings', icon: 'Settings', roles: ['admin', 'platform_owner'] },
 ];
 
