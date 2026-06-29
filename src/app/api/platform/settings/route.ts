@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { requirePlatformOwner } from '@/lib/platform-guard';
 
 // Cấu hình cấp nền tảng (key-value). Chỉ chủ nền tảng được ghi.
-const ALLOWED_KEYS = new Set(['fb_business_id', 'google_oauth_client_id', 'google_api_key']);
+const ALLOWED_KEYS = new Set(['fb_business_id', 'fb_app_secret', 'google_oauth_client_id', 'google_api_key']);
 
 export async function POST(request: NextRequest) {
   const guard = await requirePlatformOwner();

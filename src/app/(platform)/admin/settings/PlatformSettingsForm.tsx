@@ -4,8 +4,8 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 export default function PlatformSettingsForm({
-  fbBusinessId, googleClientId, googleApiKey,
-}: { fbBusinessId: string; googleClientId: string; googleApiKey: string }) {
+  fbBusinessId, fbAppSecretSet, googleClientId, googleApiKey,
+}: { fbBusinessId: string; fbAppSecretSet: boolean; googleClientId: string; googleApiKey: string }) {
   return (
     <div className="space-y-5">
       <SettingCard
@@ -15,6 +15,16 @@ export default function PlatformSettingsForm({
         initial={fbBusinessId}
         placeholder="Ví dụ: 1234567890123456"
         savedMsg="Đã lưu. Mã sẽ hiển thị trong hướng dẫn kết nối Facebook của các công ty."
+      />
+      <SettingCard
+        title="Facebook App Secret"
+        hint="Khoá bí mật của Facebook App nền tảng — dùng để xác thực lead webhook (chống lead giả). Lấy trong Facebook for Developers → App của bạn → Cài đặt → Cơ bản → Khoá bí mật của ứng dụng. Dán vào rồi Lưu. Vì lý do bảo mật, hệ thống không hiển thị lại khoá đã lưu."
+        settingKey="fb_app_secret"
+        initial=""
+        isSecret
+        secretSet={fbAppSecretSet}
+        placeholder="Dán App Secret vào đây"
+        savedMsg="Đã lưu App Secret. Webhook lead sẽ bắt đầu kiểm chữ ký chống lead giả."
       />
       <SettingCard
         title="Google OAuth Client ID"
@@ -37,9 +47,10 @@ export default function PlatformSettingsForm({
 }
 
 function SettingCard({
-  title, hint, settingKey, initial, placeholder, savedMsg,
+  title, hint, settingKey, initial, placeholder, savedMsg, isSecret = false, secretSet = false,
 }: {
-  title: string; hint: string; settingKey: string; initial: string; placeholder: string; savedMsg: string;
+  title: string; hint: string; settingKey: string; initial: string; placeholder: string;
+  savedMsg: string; isSecret?: boolean; secretSet?: boolean;
 }) {
   const router = useRouter();
   const [value, setValue] = useState(initial);
@@ -47,12 +58,18 @@ function SettingCard({
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const save = async () => {
+    const trimmed = value.trim();
+    // Khoá bí mật: bỏ trống = giữ nguyên giá trị cũ (tránh lỡ tay xoá khi không nhập lại).
+    if (isSecret && !trimmed) {
+      setMsg({ ok: false, text: 'Hãy dán khoá vào ô rồi mới bấm Lưu.' });
+      return;
+    }
     setBusy(true);
     setMsg(null);
     const res = await fetch('/api/platform/settings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ key: settingKey, value: value.trim() }),
+      body: JSON.stringify({ key: settingKey, value: trimmed }),
     });
     const json = await res.json().catch(() => ({}));
     setBusy(false);
@@ -60,6 +77,7 @@ function SettingCard({
       setMsg({ ok: false, text: json?.error ?? 'Lưu thất bại.' });
       return;
     }
+    if (isSecret) setValue(''); // không giữ khoá trong ô sau khi lưu
     setMsg({ ok: true, text: savedMsg });
     router.refresh();
   };
@@ -70,10 +88,15 @@ function SettingCard({
         <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
         <p className="text-xs text-slate-400 mt-0.5">{hint}</p>
       </div>
+      {isSecret && secretSet && (
+        <p className="text-xs text-emerald-600">Đã lưu một khoá. Để trống nếu không muốn thay đổi.</p>
+      )}
       <input
         value={value}
         onChange={(e) => setValue(e.target.value)}
         placeholder={placeholder}
+        type={isSecret ? 'password' : 'text'}
+        autoComplete={isSecret ? 'new-password' : undefined}
         className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-mono outline-none focus:border-[#004B9B]"
       />
       {msg && (

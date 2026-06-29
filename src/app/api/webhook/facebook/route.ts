@@ -3,6 +3,7 @@ import { fetchLeadDetail, verifyFbSignature, type FbLeadField } from '@/lib/face
 import { ingestLead } from '@/lib/ingest';
 import { extractPhone } from '@/lib/phone';
 import { gatherIntentText } from '@/lib/lead-intent-text';
+import { getFbAppSecret } from '@/lib/platform-settings';
 
 // GET — Facebook xác minh webhook (hub.challenge)
 export async function GET(request: NextRequest) {
@@ -25,7 +26,9 @@ export async function POST(request: NextRequest) {
     // Kiểm chữ ký X-Hub-Signature-256 chống lead giả (ai biết page_id công khai cũng
     // POST được). Có FB_APP_SECRET → bắt buộc đúng chữ ký; chưa cấu hình → bỏ qua kiểm
     // (fail-open) để không chặn lead thật khi env chưa set.
-    const appSecret = process.env.FB_APP_SECRET;
+    // Lấy App Secret: ưu tiên env, nếu chưa có thì lấy từ cấu hình nền tảng (chủ nền tảng
+    // nhập trong giao diện) — nhờ vậy không cần thao tác máy chủ.
+    const appSecret = await getFbAppSecret();
     if (appSecret) {
       if (!verifyFbSignature(rawBody, request.headers.get('x-hub-signature-256'), appSecret)) {
         console.warn('[fb-webhook] chữ ký không hợp lệ — bỏ qua payload.');
