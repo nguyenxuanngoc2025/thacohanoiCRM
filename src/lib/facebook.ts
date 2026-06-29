@@ -36,7 +36,10 @@ export async function fetchLeadDetail(leadgenId: string): Promise<{
   adName: string | null; formName: string | null; campaignName: string | null;
 }> {
   const token = process.env.FB_SYSTEM_USER_TOKEN!;
-  const res = await fetch(`${GRAPH}/${leadgenId}?fields=field_data,ad_name,form_name,campaign_name&access_token=${token}`);
+  // Node leadgen KHÔNG có field `form_name` (chỉ có `form_id`). Nếu xin `form_name`,
+  // FB từ chối CẢ request (#100) → mất luôn field_data (SĐT/tên). Lấy `form_id` rồi
+  // gọi riêng tên form ở dưới.
+  const res = await fetch(`${GRAPH}/${leadgenId}?fields=field_data,ad_name,campaign_name,form_id&access_token=${token}`);
   const raw = await res.json();
   if (!res.ok) {
     // Token hết hạn / rate limit → KHÔNG nuốt lỗi âm thầm, để webhook log lại.
@@ -45,12 +48,26 @@ export async function fetchLeadDetail(leadgenId: string): Promise<{
   const fields: FbLeadField[] = raw?.field_data ?? [];
   const get = (keys: string[]) =>
     fields.find((f) => keys.includes(f.name))?.values?.[0] ?? null;
+
+  // Tên form (dùng cho dò dòng xe) — gọi riêng node form, lỗi thì bỏ qua (không chặn lead).
+  let formName: string | null = null;
+  const formId = typeof raw?.form_id === 'string' ? raw.form_id : null;
+  if (formId) {
+    try {
+      const fr = await fetch(`${GRAPH}/${formId}?fields=name&access_token=${token}`);
+      const fj = await fr.json();
+      if (fr.ok && typeof fj?.name === 'string') formName = fj.name;
+    } catch (e) {
+      console.error('[facebook] fetch form name lỗi:', e);
+    }
+  }
+
   return {
     fullName: get(['full_name', 'name', 'họ_và_tên']),
     phone: get(['phone_number', 'phone', 'số_điện_thoại']),
     raw,
     adName: typeof raw?.ad_name === 'string' ? raw.ad_name : null,
-    formName: typeof raw?.form_name === 'string' ? raw.form_name : null,
+    formName,
     campaignName: typeof raw?.campaign_name === 'string' ? raw.campaign_name : null,
   };
 }
