@@ -5,9 +5,9 @@ import { X, PhoneCall, RefreshCw, Clock, Save, Pencil, Check } from 'lucide-reac
 import { formatPhoneDisplay } from '@/lib/phone';
 import { sourceLabel, sourcePlatform } from '@/lib/source';
 import { STATUS_OPTIONS, type LeadStatus } from '@/lib/lead-status';
-import { updateLead, reassignLead, renameLead, getLeadLogs, type LeadLogItem } from './actions';
+import { updateLead, reassignLead, reassignTeam, renameLead, getLeadLogs, type LeadLogItem } from './actions';
 import type { LeadRow } from './LeadsTable';
-import type { ModelOption, AssigneeOption } from './LeadsView';
+import type { ModelOption, AssigneeOption, TeamOption } from './LeadsView';
 
 const fmtDate = (v: string) => new Date(v).toLocaleString('vi-VN', {
   day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
@@ -31,11 +31,12 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 }
 
 export default function LeadDrawer({
-  lead, models, assignees, canManage, onClose,
+  lead, models, assignees, teams, canManage, onClose,
 }: {
   lead: LeadRow;
   models: ModelOption[];
   assignees: AssigneeOption[];
+  teams: TeamOption[];
   canManage: boolean;
   onClose: () => void;
 }) {
@@ -46,11 +47,20 @@ export default function LeadDrawer({
   const [note, setNote] = useState('');
   const [nextDate, setNextDate] = useState(toDateInput(lead.next_contact_at));
   const [assignedTo, setAssignedTo] = useState<string>(lead.assigned_to ?? '');
+  const [salesTeamId, setSalesTeamId] = useState<string>(lead.sales_team_id ?? '');
   const [pending, start] = useTransition();
   const [logs, setLogs] = useState<LeadLogItem[] | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
 
   const brandModels = models.filter((m) => m.brand_id === lead.brand_id);
+  // Phòng bán hàng của ĐÚNG showroom + thương hiệu của lead (phòng gắn theo brand).
+  const showroomTeams = teams.filter(
+    (t) => t.showroom_id === lead.showroom_id && t.brand_id === lead.brand_id
+  );
+  // Phụ trách: lọc TVBH theo phòng đã chọn (nếu có) để chỉ giao trong đúng phòng; chưa phân phòng → liệt kê tất cả.
+  const teamAssignees = salesTeamId
+    ? assignees.filter((a) => a.sales_team_id === salesTeamId)
+    : assignees;
 
   const cancelName = () => { setFullName(lead.full_name ?? ''); setEditingName(false); };
   const onRename = () => {
@@ -79,6 +89,26 @@ export default function LeadDrawer({
       } else {
         setAssignedTo(prev);
         setFlash(res.error ?? 'Đổi phụ trách thất bại.');
+      }
+    });
+  };
+
+  const onReassignTeam = (next: string) => {
+    const prev = salesTeamId;
+    setSalesTeamId(next);
+    start(async () => {
+      const res = await reassignTeam(lead.id, next || null);
+      if (res.ok) {
+        // Đổi phòng có thể gỡ phụ trách (TP phòng mới tự phân lại) → đồng bộ UI.
+        if (res.clearedAssignee) setAssignedTo('');
+        setFlash(res.clearedAssignee
+          ? 'Đã chuyển phòng — gỡ phụ trách để trưởng phòng phân lại.'
+          : 'Đã chuyển phòng bán hàng.');
+        getLeadLogs(lead.id).then(setLogs);
+        setTimeout(() => setFlash(null), 2500);
+      } else {
+        setSalesTeamId(prev);
+        setFlash(res.error ?? 'Chuyển phòng thất bại.');
       }
     });
   };
@@ -164,6 +194,22 @@ export default function LeadDrawer({
             <InfoRow label="Chi tiết kênh" value={sourceLabel(lead.source)} />
             {canManage ? (
               <div className="flex justify-between items-center gap-3 py-1.5 text-sm">
+                <span className="text-slate-400">Phòng bán hàng</span>
+                <select
+                  value={salesTeamId}
+                  disabled={pending || showroomTeams.length === 0}
+                  onChange={(e) => onReassignTeam(e.target.value)}
+                  className="text-sm border border-slate-200 rounded-lg px-2 py-1 bg-white focus:border-[#004B9B] outline-none disabled:opacity-50 max-w-[60%]"
+                >
+                  <option value="">— Chưa phân phòng —</option>
+                  {showroomTeams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </div>
+            ) : (
+              <InfoRow label="Phòng bán hàng" value={lead.team_name ?? '—'} />
+            )}
+            {canManage ? (
+              <div className="flex justify-between items-center gap-3 py-1.5 text-sm">
                 <span className="text-slate-400">Phụ trách</span>
                 <select
                   value={assignedTo}
@@ -172,7 +218,7 @@ export default function LeadDrawer({
                   className="text-sm border border-slate-200 rounded-lg px-2 py-1 bg-white focus:border-[#004B9B] outline-none disabled:opacity-50 max-w-[60%]"
                 >
                   <option value="">— Chưa giao —</option>
-                  {assignees.map((a) => <option key={a.id} value={a.id}>{a.full_name}</option>)}
+                  {teamAssignees.map((a) => <option key={a.id} value={a.id}>{a.full_name}</option>)}
                 </select>
               </div>
             ) : (

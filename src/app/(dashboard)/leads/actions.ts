@@ -289,6 +289,66 @@ export async function reassignLead(leadId: string, newAssigneeId: string | null)
 }
 
 /**
+ * Đổi phòng bán hàng (sales_team) của lead — cho người có quyền phân giao.
+ * Khi đổi phòng, nếu người phụ trách hiện tại KHÔNG thuộc phòng mới thì gỡ phụ trách
+ * để trưởng phòng mới tự phân lại cho TVBH. Ghi log 'system'.
+ */
+export async function reassignTeam(leadId: string, newTeamId: string | null) {
+  const db = await createClient();
+  const { data: { user } } = await db.auth.getUser();
+  if (!user) return { ok: false as const, error: 'Chưa đăng nhập.' };
+
+  const { data: me } = await db.from('users').select('role').eq('id', user.id).maybeSingle();
+  if (!me || !CAN_ASSIGN.has(me.role as UserRole)) return { ok: false as const, error: 'Bạn không có quyền đổi phòng bán hàng.' };
+
+  const { data: prev } = await db.from('leads').select('sales_team_id, assigned_to').eq('id', leadId).maybeSingle();
+  if (!prev) return { ok: false as const, error: 'Không tìm thấy lead.' };
+  if (prev.sales_team_id === newTeamId) return { ok: true as const, clearedAssignee: false };
+
+  // Nếu người phụ trách hiện tại không thuộc phòng mới → gỡ phụ trách (TP phòng mới tự phân lại).
+  let clearAssignee = false;
+  if (prev.assigned_to) {
+    if (!newTeamId) {
+      clearAssignee = true;
+    } else {
+      const { data: a } = await db.from('users').select('sales_team_id').eq('id', prev.assigned_to).maybeSingle();
+      if (a?.sales_team_id !== newTeamId) clearAssignee = true;
+    }
+  }
+
+  const patch: { sales_team_id: string | null; assigned_to?: string | null } = { sales_team_id: newTeamId };
+  if (clearAssignee) patch.assigned_to = null;
+
+  const { data: updated, error } = await db.from('leads').update(patch).eq('id', leadId).select('id');
+  if (error) return { ok: false as const, error: error.message };
+  // 0 dòng đổi mà không lỗi = RLS chặn (ngoài phạm vi quyền) → báo thất bại thật.
+  if (!updated || updated.length === 0) return { ok: false as const, error: 'Bạn không có quyền sửa lead này.' };
+
+  // Tên phòng cũ + mới để ghi log dễ đọc
+  const ids = [prev.sales_team_id, newTeamId].filter((x): x is string => !!x);
+  let names: Record<string, string> = {};
+  if (ids.length > 0) {
+    const { data: ts } = await db.from('sales_teams').select('id, name').in('id', ids);
+    names = Object.fromEntries((ts ?? []).map((t) => [t.id, t.name]));
+  }
+  const oldN = prev.sales_team_id ? (names[prev.sales_team_id] ?? '—') : 'Chưa phân phòng';
+  const newN = newTeamId ? (names[newTeamId] ?? '—') : 'Chưa phân phòng';
+
+  await db.from('lead_logs').insert({
+    lead_id: leadId,
+    user_id: user.id,
+    type: 'system',
+    content: clearAssignee
+      ? `Đổi phòng bán hàng: ${oldN} → ${newN} (gỡ phụ trách để phòng mới phân lại).`
+      : `Đổi phòng bán hàng: ${oldN} → ${newN}.`,
+  });
+
+  revalidatePath('/leads');
+  revalidatePath('/assign');
+  return { ok: true as const, clearedAssignee: clearAssignee };
+}
+
+/**
  * Gán hàng loạt nhiều lead cho 1 TVBH (chỉ admin/manager). Bỏ qua lead đã đúng người.
  * Ghi log 'system' cho từng lead.
  */

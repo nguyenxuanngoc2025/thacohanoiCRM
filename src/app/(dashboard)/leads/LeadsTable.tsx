@@ -1207,6 +1207,7 @@ export default function LeadsTable({
           lead={openLead}
           models={models}
           assignees={assignees}
+          teams={teams}
           canManage={canCreate}
           onClose={() => setOpenLead(null)}
         />
