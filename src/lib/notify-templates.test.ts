@@ -70,31 +70,33 @@ describe('notify-templates', () => {
     expect(gg).not.toContain('Nguồn: Google ·');
   });
 
-  it('renderOverdue: tiêu đề có số lead, dòng có KH + TVBH + giờ, SĐT che, chưa giao ghi rõ', () => {
+  it('renderOverdue: tóm tắt tổng + chưa giao + lâu nhất, nêu lead gấp, SĐT che', () => {
     const t = renderOverdue('KIA Hà Nội', [
       { fullName: 'A', phone: '+84901234567', assignee: 'B', overdueHours: 5 },
       { fullName: null, phone: '+84909876543', assignee: null, overdueHours: 12 },
     ]);
     expect(t).toContain('QUÁ HẠN LIÊN HỆ');
-    expect(t).toContain('(2 lead)');
-    expect(t).toContain('quá hạn 5h');
+    expect(t).toContain('Tổng <b>2</b> lead');
+    expect(t).toContain('Chưa phân giao 1 · Đã giao 1');
+    expect(t).toContain('Quá hạn lâu nhất: 12h');   // lấy max
     expect(t).toContain('Khách lẻ');
     expect(t).toContain('0901234***');         // SĐT dạng 10 chữ số, che 3 số cuối
     expect(t).not.toContain('+84');            // KHÔNG dùng +84
     expect(t).not.toContain('0901234567');     // KHÔNG lộ đầy đủ
-    expect(t).toContain('Chưa được phân giao'); // lead chưa giao
+    expect(t).toContain('Vào hệ thống');        // lời nhắc hành động
   });
 
-  it('renderOverdue: nhiều lead → giới hạn số dòng, phần dư rút gọn "… và N lead khác"', () => {
+  it('renderOverdue: nhiều lead → tin ngắn, chỉ nêu top, phần dư gói "… và N lead khác"', () => {
     const items = Array.from({ length: 92 }, (_, i) => ({
-      fullName: `KH ${i}`, phone: '+84901234567', assignee: 'B', overdueHours: 5,
+      fullName: `KH ${i}`, phone: '+84901234567', assignee: 'B', overdueHours: i + 1,
     }));
     const t = renderOverdue('KIA Hà Nội', items);
-    expect(t).toContain('(92 lead)');               // tiêu đề vẫn tổng đúng
+    expect(t).toContain('Tổng <b>92</b> lead');     // số liệu tổng đúng
     const lineCount = t.split('\n').filter((l) => l.startsWith('•')).length;
-    expect(lineCount).toBeLessThanOrEqual(20);        // không liệt kê hết
-    expect(t).toContain('lead khác');                 // có dòng rút gọn
-    expect(t.length).toBeLessThan(2000);              // không vượt giới hạn Zalo
+    expect(lineCount).toBeLessThanOrEqual(3);         // chỉ nêu top 3 lead gấp nhất
+    expect(t).toContain('… và 89 lead khác.');        // phần dư gói gọn
+    expect(t).toContain('92h');                       // top nêu lead quá hạn lâu nhất
+    expect(t.length).toBeLessThan(600);               // tin gọn, dễ đọc
   });
 
   it('renderDailySr: tổng lead, tỷ lệ LH, phân loại, dòng chưa tuân thủ', () => {

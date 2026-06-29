@@ -52,20 +52,38 @@ export interface OverdueItem {
   overdueHours: number;
 }
 
-// Giới hạn số lead liệt kê trong 1 tin: tin quá dài bị Zalo từ chối ("Tham số không hợp lệ").
-const OVERDUE_MAX_LINES = 20;
+// Chỉ nêu vài lead gấp nhất; phần còn lại gói gọn vào số liệu — tin ngắn, dễ đọc,
+// không bị Zalo từ chối vì quá dài, và đủ thông điệp để nhóm hành động ngay.
+const OVERDUE_TOP = 3;
 
 export function renderOverdue(showroom: string, items: OverdueItem[]): string {
-  const head = `QUÁ HẠN LIÊN HỆ — ${showroom} (${items.length} lead)`;
-  const shown = items.slice(0, OVERDUE_MAX_LINES);
-  const lines = shown.map((it) => {
-    const ten = it.fullName?.trim() || 'Khách lẻ';
-    const tvbh = it.assignee?.trim() || 'Chưa được phân giao';
-    return `• ${ten} ${maskPhone(it.phone)} — ${tvbh} — quá hạn ${it.overdueHours}h`;
-  });
-  const remaining = items.length - shown.length;
-  if (remaining > 0) lines.push(`… và ${remaining} lead khác — xem chi tiết trên hệ thống.`);
-  return [head, ...lines].join('\n');
+  const total = items.length;
+  const unassigned = items.filter((it) => !it.assignee?.trim()).length;
+  const assigned = total - unassigned;
+  const maxOverdue = items.reduce((m, it) => Math.max(m, it.overdueHours), 0);
+
+  // Top lead gấp nhất (quá hạn lâu nhất) để nêu đích danh, còn lại quy về số liệu.
+  const top = [...items]
+    .sort((a, b) => b.overdueHours - a.overdueHours)
+    .slice(0, OVERDUE_TOP)
+    .map((it) => {
+      const ten = it.fullName?.trim() || 'Khách lẻ';
+      const tvbh = it.assignee?.trim() || 'chưa phân giao';
+      return `• ${ten} ${maskPhone(it.phone)} — ${tvbh} — ${it.overdueHours}h`;
+    });
+  const remaining = total - top.length;
+
+  const lines = [
+    `<b>QUÁ HẠN LIÊN HỆ — ${showroom}</b>`,
+    `Tổng <b>${total}</b> lead · Chưa phân giao ${unassigned} · Đã giao ${assigned}`,
+    `Quá hạn lâu nhất: ${maxOverdue}h`,
+    '',
+    'Ưu tiên xử lý:',
+    ...top,
+  ];
+  if (remaining > 0) lines.push(`… và ${remaining} lead khác.`);
+  lines.push('Vào hệ thống để phân giao và liên hệ ngay.');
+  return lines.join('\n');
 }
 
 export interface DailySrStats {
