@@ -24,12 +24,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Không tìm thấy tài khoản trong công ty của bạn.' }, { status: 404 });
     }
 
-    // Vô hiệu hoá hồ sơ (giữ row cho audit + FK leads.assigned_to), rồi xoá đăng nhập auth.
-    const { error: profileError } = await service.from('users').update({ is_active: false }).eq('id', userId);
+    // Vô hiệu hoá + đánh dấu đã xoá (giữ row cho audit + FK leads.assigned_to), rồi xoá đăng nhập auth.
+    const { error: profileError } = await service.from('users').update({ is_active: false, deleted_at: new Date().toISOString() }).eq('id', userId);
     if (profileError) return NextResponse.json({ error: profileError.message }, { status: 500 });
 
+    // Nếu auth user đã bị xoá từ lần trước thì coi như xong (idempotent) — chỉ cần profile is_active=false.
     const { error: authError } = await service.auth.admin.deleteUser(userId);
-    if (authError) return NextResponse.json({ error: authError.message }, { status: 500 });
+    if (authError && !/not found/i.test(authError.message)) {
+      return NextResponse.json({ error: authError.message }, { status: 500 });
+    }
 
     return NextResponse.json({ success: true });
   } catch {

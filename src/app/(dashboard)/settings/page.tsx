@@ -24,7 +24,7 @@ export default async function SettingsPage() {
 
   // Giai đoạn 1: nhân sự + showroom của ĐÚNG công ty này (làm gốc scope cho phần còn lại).
   const [{ data: staff }, { data: showroomRows }, { data: companyRow }] = await Promise.all([
-    service.from('users').select('id, full_name, email, role, showroom_id, brand_id, sales_team_id, is_active, assign_share_pct').eq('company_id', companyId).order('role'),
+    service.from('users').select('id, full_name, email, role, showroom_id, brand_id, sales_team_id, is_active, assign_share_pct').eq('company_id', companyId).is('deleted_at', null).order('role'),
     service.from('showrooms').select('id, name, code, team_assign_strategy, assign_share_pct').eq('company_id', companyId).order('name'),
     service.from('companies').select('showroom_assign_strategy').eq('id', companyId).maybeSingle(),
   ]);
