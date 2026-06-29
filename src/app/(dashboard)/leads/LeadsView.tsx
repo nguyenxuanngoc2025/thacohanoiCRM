@@ -24,7 +24,7 @@ export interface TeamOption { id: string; name: string; showroom_id: string; bra
 const THRESHOLD = 140; // px cuộn trong bảng để thu hết card
 
 export default function LeadsView({
-  leads, models, brands, showrooms, assignees, teams, canCreate, canAssign, canDelete,
+  leads, models, brands, showrooms, assignees, teams, canCreate, canAssign, canDelete, b10Enabled,
 }: {
   leads: LeadRow[];
   models: ModelOption[];
@@ -35,6 +35,7 @@ export default function LeadsView({
   canCreate: boolean;
   canAssign: boolean;
   canDelete: boolean;
+  b10Enabled: boolean;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const cardsRef = useRef<HTMLDivElement>(null);
@@ -122,6 +123,7 @@ export default function LeadsView({
           canCreate={canCreate}
           canAssign={canAssign}
           canDelete={canDelete}
+          b10Enabled={b10Enabled}
         />
       </div>
     </div>

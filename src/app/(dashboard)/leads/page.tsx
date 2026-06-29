@@ -3,6 +3,7 @@ import { type LeadRow } from './LeadsTable';
 import LeadsView, { type ModelOption, type BrandOption, type ShowroomOption, type AssigneeOption, type TeamOption } from './LeadsView';
 import { CAN_CREATE_LEAD, CAN_ASSIGN, CAN_MANAGE_STAFF } from '@/lib/nav';
 import { getOpenBrandIds } from '@/lib/company-brands';
+import { getTenant } from '@/lib/tenant';
 import { type UserRole } from '@/types/database';
 
 export const dynamic = 'force-dynamic';
@@ -19,6 +20,8 @@ interface RawLead {
   last_note: string | null;
   fail_reason: string | null;
   no_answer_count: number | null;
+  b10_status: LeadRow['b10_status'];
+  b10_synced_at: string | null;
   brand_id: string;
   model_id: string | null;
   showroom_id: string | null;
@@ -40,13 +43,16 @@ export default async function LeadsPage() {
   const canAssign = me?.role ? CAN_ASSIGN.has(me.role as UserRole) : false;
   const canDelete = me?.role ? CAN_MANAGE_STAFF.has(me.role as UserRole) : false;
 
+  const tenant = await getTenant();
+  const b10Enabled = tenant?.b10_enabled ?? false;
+
   // Hãng công ty đang mở (whitelist). Lead của hãng đã đóng bị ẩn khỏi danh sách + KPI.
   const openBrandIds = await getOpenBrandIds(supabase, me?.company_id ?? null);
 
   let leadsQuery = supabase
     .from('leads')
     .select(
-      'id, full_name, phone, source, status, created_at, last_contact_at, next_contact_at, last_note, fail_reason, no_answer_count, brand_id, model_id, showroom_id, assigned_to, brand:brands(name), model:models(name), showroom:showrooms(name), assignee:users!assigned_to(full_name)',
+      'id, full_name, phone, source, status, created_at, last_contact_at, next_contact_at, last_note, fail_reason, no_answer_count, b10_status, b10_synced_at, brand_id, model_id, showroom_id, assigned_to, brand:brands(name), model:models(name), showroom:showrooms(name), assignee:users!assigned_to(full_name)',
     );
   if (openBrandIds.length) leadsQuery = leadsQuery.in('brand_id', openBrandIds);
 
@@ -88,6 +94,8 @@ export default async function LeadsPage() {
     last_note: l.last_note,
     fail_reason: l.fail_reason,
     no_answer_count: l.no_answer_count ?? 0,
+    b10_status: l.b10_status,
+    b10_on: l.b10_synced_at != null,
     brand_id: l.brand_id,
     brand_name: l.brand?.name ?? '—',
     model_id: l.model_id,
@@ -116,6 +124,7 @@ export default async function LeadsPage() {
       canCreate={canCreate}
       canAssign={canAssign}
       canDelete={canDelete}
+      b10Enabled={b10Enabled}
     />
   );
 }

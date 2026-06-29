@@ -37,6 +37,8 @@ export interface LeadRow {
   contact_count: number;
   fail_reason: string | null;
   no_answer_count: number;
+  b10_status: LeadStatus | null;
+  b10_on: boolean;
 }
 
 // ─── Bộ lọc phạm vi (nâng lên LeadsView để KPI nhảy theo) ───────────────────────
@@ -88,7 +90,8 @@ export function applyScope(leads: LeadRow[], f: Filters): LeadRow[] {
 type Tab = 'all' | 'pending' | 'contacted' | 'overdue';
 type ColKey =
   | 'time' | 'name' | 'phone' | 'showroom' | 'brand' | 'model' | 'platform' | 'assignee'
-  | 'contacted' | 'class' | 'contactedAt' | 'note' | 'source' | 'next' | 'count';
+  | 'contacted' | 'class' | 'contactedAt' | 'note' | 'source' | 'next' | 'count'
+  | 'b10on' | 'b10class';
 
 const STATUS_ORDER: Record<string, number> = Object.fromEntries(
   STATUS_OPTIONS.map((s, i) => [s.code, i]),
@@ -108,6 +111,8 @@ function compare(key: ColKey, a: LeadRow, b: LeadRow): number {
     case 'assignee': return (a.assignee_name ?? '').localeCompare(b.assignee_name ?? '', 'vi');
     case 'contacted': return (isContacted(a.last_contact_at) ? 1 : 0) - (isContacted(b.last_contact_at) ? 1 : 0);
     case 'class': return (STATUS_ORDER[a.status ?? ''] ?? 99) - (STATUS_ORDER[b.status ?? ''] ?? 99);
+    case 'b10on': return (a.b10_on ? 1 : 0) - (b.b10_on ? 1 : 0);
+    case 'b10class': return (STATUS_ORDER[a.b10_status ?? ''] ?? 99) - (STATUS_ORDER[b.b10_status ?? ''] ?? 99);
     case 'contactedAt': return tsOrNeg(a.last_contact_at) - tsOrNeg(b.last_contact_at);
     case 'note': return (a.last_note ?? '').localeCompare(b.last_note ?? '', 'vi');
     case 'platform': return sourcePlatform(a.source).localeCompare(sourcePlatform(b.source), 'vi');
@@ -125,6 +130,8 @@ const COLS: ColDef[] = [
   { key: 'phone', label: 'SĐT', pad: 'px-4' },
   { key: 'contacted', label: 'Trạng thái', pad: 'px-4' },
   { key: 'class', label: 'Phân loại', pad: 'px-4' },
+  { key: 'b10on', label: 'B10', pad: 'px-4' },
+  { key: 'b10class', label: 'Kết quả B10', pad: 'px-4' },
   { key: 'platform', label: 'Nguồn', pad: 'px-4' },
   { key: 'brand', label: 'Thương hiệu', pad: 'px-4' },
   { key: 'showroom', label: 'Showroom', pad: 'px-4' },
@@ -516,7 +523,7 @@ function StatusPicker({ lead, variant, pending, start }: {
 }
 
 export default function LeadsTable({
-  leads, allLeads, filters, setFilters, models, brands, showrooms, assignees, teams, canCreate, canAssign, canDelete,
+  leads, allLeads, filters, setFilters, models, brands, showrooms, assignees, teams, canCreate, canAssign, canDelete, b10Enabled,
 }: {
   leads: LeadRow[];
   allLeads: LeadRow[];
@@ -530,6 +537,7 @@ export default function LeadsTable({
   canCreate: boolean;
   canAssign: boolean;
   canDelete: boolean;
+  b10Enabled: boolean;
 }) {
   const [tab, setTab] = useState<Tab>('all');
   const [showNew, setShowNew] = useState(false);
@@ -622,7 +630,9 @@ export default function LeadsTable({
   // Cột sticky luôn ghim đầu theo thứ tự cố định; cột còn lại theo thứ tự người dùng kéo-thả.
   const byKey = (k: ColKey) => COLS.find((c) => c.key === k)!;
   const orderedCols: ColDef[] = [...STICKY.map(byKey), ...order.map(byKey)];
-  const visibleCols = orderedCols.filter((c) => !hidden.has(c.key));
+  // Cột B10 chỉ hiện khi công ty bật tính năng đối soát.
+  const allowB10 = (k: ColKey) => b10Enabled || (k !== 'b10on' && k !== 'b10class');
+  const visibleCols = orderedCols.filter((c) => !hidden.has(c.key) && allowB10(c.key));
 
   // Tính offset trái cho các cột đóng băng (chỉ những cột đang hiện); chừa chỗ cột chọn.
   const leftMap: Partial<Record<ColKey, number>> = {};
@@ -766,6 +776,17 @@ export default function LeadsTable({
         return <StatusPicker lead={l} variant="contacted" pending={pending} start={start} />;
       case 'class':
         return <StatusPicker lead={l} variant="class" pending={pending} start={start} />;
+      case 'b10on':
+        return l.b10_on
+          ? <span className="inline-flex items-center gap-1 text-emerald-600 font-medium"><Check size={13} /></span>
+          : <span className="text-slate-300">✗</span>;
+      case 'b10class': {
+        const o = l.b10_status ? STATUS_OPTIONS.find((s) => s.code === l.b10_status) : null;
+        return o
+          ? <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
+              style={{ color: o.color, background: o.bg }}>{o.code}</span>
+          : <span className="text-slate-300">—</span>;
+      }
       case 'time': return <span className="text-slate-500">{fmtDate(l.created_at)}</span>;
       case 'name': return <span className="font-medium text-slate-800">{l.full_name ?? '—'}</span>;
       case 'phone': return <span className="text-slate-600">{formatPhoneDisplay(l.phone)}</span>;
@@ -922,7 +943,7 @@ export default function LeadsTable({
                   <div className="my-1.5 border-t border-slate-100" />
                   <div className="text-[10px] text-slate-400 px-2 pb-1">Kéo để đổi thứ tự</div>
                   {/* Cột còn lại — kéo-thả đổi thứ tự */}
-                  {order.map(byKey).map((c) => {
+                  {order.map(byKey).filter((c) => allowB10(c.key)).map((c) => {
                     const isOver = overKey === c.key && dragKey !== c.key;
                     return (
                       <label
