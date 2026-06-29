@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from '@/components/layout/Sidebar';
 import StatusBar from '@/components/layout/StatusBar';
+import MobileNav from '@/components/layout/MobileNav';
 import { type UserRole } from '@/types/database';
 
 export interface DashboardShellProps {
@@ -36,19 +37,27 @@ export default function DashboardShell({
   return (
     // Sidebar chạy full chiều cao; status bar nằm trong cột phải, ngay dưới nội dung chính.
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--color-bg)' }}>
-      <Sidebar
-        userRole={userRole}
-        userName={userName}
-        userCode={userCode}
-        companyName={companyName}
-        collapsed={collapsed}
-        onToggleCollapse={toggleCollapse}
-      />
+      {/* Desktop: sidebar trái. Mobile: ẩn (dùng bottom nav). */}
+      <div className="hidden lg:block">
+        <Sidebar
+          userRole={userRole}
+          userName={userName}
+          userCode={userCode}
+          companyName={companyName}
+          collapsed={collapsed}
+          onToggleCollapse={toggleCollapse}
+        />
+      </div>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
         <main style={{ flex: 1, minHeight: 0, overflowY: 'auto', background: 'var(--color-bg)', position: 'relative' }}>
           {children}
         </main>
-        <StatusBar role={userRole} companyName={companyName} metrics={metrics} />
+        {/* Desktop: status bar đáy. Mobile: ẩn (nhường chỗ bottom nav). */}
+        <div className="hidden lg:block">
+          <StatusBar role={userRole} companyName={companyName} metrics={metrics} />
+        </div>
+        {/* Mobile: thanh điều hướng đáy kiểu app */}
+        <MobileNav userRole={userRole} userName={userName} userCode={userCode} />
       </div>
     </div>
   );
