@@ -7,16 +7,20 @@
  * Chạy:  node scripts/backfill-fb-leads.mjs [YYYY-MM-DD]
  * Đọc env từ app/.env.local (FB_SYSTEM_USER_TOKEN, NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY).
  */
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { createClient } from '@supabase/supabase-js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// ---- env ----
+// ---- env (local: .env.local; VPS prod: .env.production.local) ----
 const env = {};
-for (const line of readFileSync(join(__dirname, '..', '.env.local'), 'utf8').split('\n')) {
+const envFile = ['.env.local', '.env.production.local']
+  .map((f) => join(__dirname, '..', f))
+  .find((p) => existsSync(p));
+if (!envFile) throw new Error('Không tìm thấy .env.local hoặc .env.production.local');
+for (const line of readFileSync(envFile, 'utf8').split('\n')) {
   const m = line.match(/^([A-Z0-9_]+)=(.*)$/);
   if (m) env[m[1]] = m[2].trim();
 }
