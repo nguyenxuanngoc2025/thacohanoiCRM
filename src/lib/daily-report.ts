@@ -29,6 +29,13 @@ export interface PeriodReport {
   management: string;
 }
 
+// Phòng/showroom đã cấu hình group nhận báo cáo → luôn xuất hiện trong báo cáo
+// (kèm số 0 nếu kỳ này không có lead), để group đã tạo vẫn nhận báo cáo đều.
+export interface ReportSeed {
+  teams?: { id: string; name: string }[];
+  showrooms?: { id: string; name: string }[];
+}
+
 function emptyStats(): DailySrStats {
   return { total: 0, contacted: 0, pending: 0, overdue: 0, KHQT: 0, GDTD: 0, KyHD: 0, Fail: 0 };
 }
@@ -75,9 +82,14 @@ function nonCompliantOf(g: Bucket): NonCompliant[] {
  *  - management: bảng tổng hợp toàn công ty.
  * dateLabel đã gồm từ chỉ kỳ ('NGÀY 24/06' | 'TUẦN ...' | 'THÁNG ...').
  */
-export function buildPeriodReport(leads: ReportLead[], dateLabel: string, now: Date): PeriodReport {
+export function buildPeriodReport(leads: ReportLead[], dateLabel: string, now: Date, seed?: ReportSeed): PeriodReport {
   const teams = new Map<string, Bucket>();
   const showrooms = new Map<string, Bucket>();
+
+  // Tạo sẵn bucket rỗng cho phòng/showroom đã có group → có lead thì cộng dồn,
+  // không có lead vẫn ra báo cáo "0 lead" cho group đó.
+  for (const t of seed?.teams ?? []) teams.set(t.id, newBucket(t.name));
+  for (const s of seed?.showrooms ?? []) showrooms.set(s.id, newBucket(s.name));
 
   for (const l of leads) {
     const sg = showrooms.get(l.showroom_id) ?? newBucket(l.showroom_name);

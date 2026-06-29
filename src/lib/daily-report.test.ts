@@ -70,6 +70,32 @@ describe('daily-report', () => {
     expect(r.management).toContain('TỔNG: 0 lead');
   });
 
+  it('seed: phòng/showroom đã cấu hình group nhưng 0 lead vẫn ra báo cáo số 0', () => {
+    const now = new Date('2026-06-24T18:00:00Z');
+    const r = buildPeriodReport([], 'NGÀY 24/06', now, {
+      teams: [{ id: 't9', name: 'Phòng Đài Tư' }],
+      showrooms: [{ id: 'sr9', name: 'Showroom Đài Tư' }],
+    });
+    expect(r.perTeam).toHaveLength(1);
+    expect(r.perTeam[0].id).toBe('t9');
+    expect(r.perTeam[0].stats.total).toBe(0);
+    expect(r.perTeam[0].text).toContain('BÁO CÁO NGÀY 24/06 — Phòng Đài Tư');
+    expect(r.perShowroom).toHaveLength(1);
+    expect(r.perShowroom[0].id).toBe('sr9');
+    expect(r.perShowroom[0].stats.total).toBe(0);
+  });
+
+  it('seed + có lead cùng phòng: gộp đúng 1 bucket, không tạo trùng', () => {
+    const now = new Date('2026-06-24T18:00:00Z');
+    const leads: ReportLead[] = [
+      L({ sales_team_id: 't1', team_name: 'Phòng KIA 1', last_contact_at: '2026-06-24T09:00:00Z', status: 'KHQT' }),
+    ];
+    const r = buildPeriodReport(leads, 'NGÀY 24/06', now, { teams: [{ id: 't1', name: 'Phòng KIA 1' }] });
+    expect(r.perTeam).toHaveLength(1);
+    expect(r.perTeam[0].id).toBe('t1');
+    expect(r.perTeam[0].stats.total).toBe(1);
+  });
+
   it('perTeam: chỉ gom lead có sales_team_id; báo cáo tiêu đề theo tên phòng', () => {
     const now = new Date('2026-06-24T18:00:00Z');
     const leads: ReportLead[] = [

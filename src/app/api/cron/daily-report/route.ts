@@ -68,15 +68,29 @@ export async function POST(request: NextRequest) {
     };
   });
 
-  const report = buildPeriodReport(mapped, dateLabel, now);
-
   const { data: channels } = await db
     .from('notification_channels')
     .select('id, channel, target, events, showroom_id, sales_team_id, scope')
     .eq('is_active', true);
 
-  const inserts: Record<string, unknown>[] = [];
   const has = (c: { events: string[] | null }) => (c.events ?? []).includes(event);
+
+  // Seed: phòng/showroom đã cấu hình group cho kỳ này → luôn có báo cáo (0 lead vẫn gửi).
+  const teamSeedIds = period === 'daily'
+    ? [...new Set((channels ?? []).filter((c) => has(c) && c.scope === 'sales' && c.sales_team_id).map((c) => c.sales_team_id as string))]
+    : [];
+  const showroomSeedIds = [...new Set((channels ?? []).filter((c) => has(c) && c.scope === 'management' && c.showroom_id).map((c) => c.showroom_id as string))];
+  const [{ data: teamRows }, { data: srRows }] = await Promise.all([
+    teamSeedIds.length ? db.from('sales_teams').select('id, name').in('id', teamSeedIds) : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+    showroomSeedIds.length ? db.from('showrooms').select('id, name').in('id', showroomSeedIds) : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+  ]);
+
+  const report = buildPeriodReport(mapped, dateLabel, now, {
+    teams: (teamRows ?? []).map((t) => ({ id: t.id, name: t.name })),
+    showrooms: (srRows ?? []).map((s) => ({ id: s.id, name: s.name })),
+  });
+
+  const inserts: Record<string, unknown>[] = [];
 
   // Nhóm bán hàng (theo phòng): CHỈ nhận báo cáo NGÀY.
   if (period === 'daily') {
