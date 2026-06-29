@@ -390,6 +390,7 @@ function QuotaModal({
 }: { company: PlatformCompany; brands: PlatformBrand[]; onClose: () => void; onDone: (m: string) => void }) {
   const [maxSr, setMaxSr] = useState(String(company.max_showrooms));
   const [brandIds, setBrandIds] = useState<string[]>(company.brand_ids);
+  const [b10Enabled, setB10Enabled] = useState(company.b10_enabled);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -404,7 +405,7 @@ function QuotaModal({
       return;
     }
     setBusy(true);
-    const r = await patchCompany({ id: company.id, max_showrooms: Math.floor(n), brand_ids: brandIds });
+    const r = await patchCompany({ id: company.id, max_showrooms: Math.floor(n), brand_ids: brandIds, b10_enabled: b10Enabled });
     setBusy(false);
     if (!r.ok) { setError(r.error ?? 'Lỗi'); return; }
     onDone(`Đã cập nhật quota "${company.name}".`);
@@ -439,6 +440,17 @@ function QuotaModal({
               })}
               {brands.length === 0 && <p className="text-sm text-slate-400">Chưa có thương hiệu.</p>}
             </div>
+          </div>
+          <div className="pt-1 border-t border-slate-100">
+            <label className="flex items-start gap-2.5 px-3 py-2 mt-3 rounded-lg border cursor-pointer"
+              style={{ borderColor: b10Enabled ? '#004B9B' : '#e2e8f0', background: b10Enabled ? '#e6f0fa' : '#fff' }}>
+              <input type="checkbox" checked={b10Enabled} onChange={(e) => setB10Enabled(e.target.checked)}
+                className="mt-0.5 accent-[#004B9B]" />
+              <span>
+                <span className="block text-sm font-medium text-slate-700">Bật đối soát B10</span>
+                <span className="block text-xs text-slate-400">Hiện trang Đối soát, cột B10 trên Lead và chỉ số B10 trong Báo cáo cho công ty này.</span>
+              </span>
+            </label>
           </div>
           {error && <div className="text-sm bg-rose-50 text-rose-600 border border-rose-100 rounded-lg px-3 py-2">{error}</div>}
         </div>

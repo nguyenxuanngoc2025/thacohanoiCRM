@@ -11,7 +11,7 @@ export async function GET() {
 
   const [{ data: companies }, { data: showrooms }, { data: cbRows }, { data: users }, { data: brands }] =
     await Promise.all([
-      service.from('companies').select('id,name,slug,subdomain,custom_domain,plan_status,max_showrooms').order('name'),
+      service.from('companies').select('id,name,slug,subdomain,custom_domain,plan_status,max_showrooms,b10_enabled').order('name'),
       service.from('showrooms').select('id,company_id'),
       service.from('company_brands').select('company_id,brand_id'),
       service.from('users').select('id,company_id,is_active'),
@@ -33,9 +33,10 @@ export async function GET() {
 
   const rows = ((companies ?? []) as {
     id: string; name: string; slug: string; subdomain: string | null;
-    custom_domain: string | null; plan_status: string; max_showrooms: number;
+    custom_domain: string | null; plan_status: string; max_showrooms: number; b10_enabled: boolean | null;
   }[]).map((c) => ({
     ...c,
+    b10_enabled: c.b10_enabled ?? false,
     showroom_used: srCount[c.id] ?? 0,
     user_count: userCount[c.id] ?? 0,
     brand_ids: brandIdsByCompany[c.id] ?? [],
@@ -157,6 +158,7 @@ export async function PATCH(request: NextRequest) {
       max_showrooms?: number;
       plan_status?: 'active' | 'suspended' | 'trial';
       brand_ids?: string[];
+      b10_enabled?: boolean;
     };
     if (!body.id) return NextResponse.json({ error: 'Thiếu id công ty' }, { status: 400 });
 
@@ -166,6 +168,9 @@ export async function PATCH(request: NextRequest) {
     }
     if (body.plan_status && ['active', 'suspended', 'trial'].includes(body.plan_status)) {
       patch.plan_status = body.plan_status;
+    }
+    if (typeof body.b10_enabled === 'boolean') {
+      patch.b10_enabled = body.b10_enabled;
     }
     if (Object.keys(patch).length) {
       const { error } = await service.from('companies').update(patch).eq('id', body.id);
@@ -190,6 +195,7 @@ export async function PATCH(request: NextRequest) {
       : 'company.quota';
     await writeAudit(service, userId, action, 'company', body.id, {
       max_showrooms: patch.max_showrooms, plan_status: patch.plan_status,
+      b10_enabled: patch.b10_enabled,
       brand_ids: Array.isArray(body.brand_ids) ? body.brand_ids.length : undefined,
     });
 

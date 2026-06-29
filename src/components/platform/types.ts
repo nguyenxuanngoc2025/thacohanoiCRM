@@ -15,6 +15,7 @@ export interface PlatformCompany {
   showroom_used: number;
   user_count: number;
   brand_ids: string[];
+  b10_enabled: boolean;
 }
 
 export type ContractStatus = 'prospect' | 'active' | 'expired' | 'churned';
