@@ -4,6 +4,7 @@ import React, { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ChevronDown, Plus, Edit2, Trash2, X, HelpCircle,
+  Activity, Loader2, CheckCircle2, AlertTriangle, XCircle,
 } from 'lucide-react';
 import type { ChannelRow, ShowroomRow, BrandRow, ModelRow } from './types';
 import { PLATFORMS, type ConnectorState } from '@/lib/platforms';
@@ -20,6 +21,15 @@ export type { ChannelRow };
 // Danh mục kênh dùng chung (xem src/lib/platforms.ts) — sửa nguồn tại một chỗ duy nhất.
 const CONNECTORS = PLATFORMS;
 
+interface HealthCheck { label: string; status: 'ok' | 'warn' | 'fail'; detail: string }
+interface HealthState {
+  name: string;
+  loading: boolean;
+  ok: boolean | null;
+  checks: HealthCheck[];
+  error: string | null;
+}
+
 export default function IntegrationsCatalog({
   channels, showrooms, brands, models, fbBusinessId, googleConnected,
 }: {
@@ -33,7 +43,27 @@ export default function IntegrationsCatalog({
   const [showZaloGuide, setShowZaloGuide] = useState(false);
   const [showFbGuide, setShowFbGuide] = useState(false);
   const [showGoogleGuide, setShowGoogleGuide] = useState(false);
+  const [health, setHealth] = useState<HealthState | null>(null);
   const flashMsg = (m: string) => { setFlash(m); setTimeout(() => setFlash(null), 3000); };
+
+  const runHealth = async (c: ChannelRow) => {
+    const name = c.page_name ?? c.page_id ?? 'Kênh';
+    setHealth({ name, loading: true, ok: null, checks: [], error: null });
+    try {
+      const res = await fetch('/api/admin/channels/health', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: c.id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setHealth({ name, loading: false, ok: false, checks: [], error: data.error ?? 'Kiểm tra thất bại.' });
+        return;
+      }
+      setHealth({ name, loading: false, ok: !!data.ok, checks: data.checks ?? [], error: null });
+    } catch {
+      setHealth({ name, loading: false, ok: false, checks: [], error: 'Lỗi kết nối máy chủ.' });
+    }
+  };
 
   const byPlatform = useMemo(() => {
     const m: Record<string, ChannelRow[]> = {};
@@ -139,7 +169,8 @@ export default function IntegrationsCatalog({
                     <div className="space-y-1.5">
                       {rows.map((c) => (
                         <ChannelItem key={c.id} c={c} showrooms={showrooms} brands={brands}
-                          onEdit={() => setModal({ platform: conn.key, row: c })} onDelete={() => del(c)} />
+                          onEdit={() => setModal({ platform: conn.key, row: c })} onDelete={() => del(c)}
+                          onCheck={conn.key === 'facebook' ? () => runHealth(c) : undefined} />
                       ))}
                       {count === 0 && <div className="text-xs text-slate-400 py-3 text-center">Chưa có {conn.unit} nào. Bấm “Thêm {conn.unit}”.</div>}
                     </div>
@@ -161,13 +192,70 @@ export default function IntegrationsCatalog({
       {showZaloGuide && <ZaloGuideModal onClose={() => setShowZaloGuide(false)} />}
       {showFbGuide && <FacebookGuideModal onClose={() => setShowFbGuide(false)} businessId={fbBusinessId} />}
       {showGoogleGuide && <GoogleSheetGuideModal onClose={() => setShowGoogleGuide(false)} />}
+      {health && <HealthModal h={health} onClose={() => setHealth(null)} />}
     </div>
   );
 }
 
+function HealthModal({ h, onClose }: { h: HealthState; onClose: () => void }) {
+  const overall = h.loading ? null : h.error ? false : h.ok;
+  return (
+    <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
+          <h3 className="font-bold text-slate-900 truncate">Kiểm tra trạng thái · {h.name}</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700"><X size={18} /></button>
+        </div>
+        <div className="p-5 space-y-3">
+          {h.loading ? (
+            <div className="flex items-center gap-2 text-sm text-slate-500 py-4 justify-center">
+              <Loader2 size={16} className="animate-spin" /> Đang kiểm tra kết nối với Facebook…
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold"
+                style={{
+                  background: overall ? '#ecfdf5' : '#fef2f2',
+                  color: overall ? '#047857' : '#b91c1c',
+                }}>
+                {overall ? <CheckCircle2 size={18} /> : <XCircle size={18} />}
+                {overall ? 'Mọi thứ bình thường — kênh đang nhận lead tốt.' : 'Có vấn đề cần xử lý (xem chi tiết bên dưới).'}
+              </div>
+              {h.error ? (
+                <div className="text-sm bg-rose-50 text-rose-600 border border-rose-100 rounded-lg px-3 py-2">{h.error}</div>
+              ) : (
+                <div className="space-y-1.5">
+                  {h.checks.map((c, i) => (
+                    <div key={i} className="flex items-start gap-2.5 text-sm border border-slate-100 rounded-lg px-3 py-2">
+                      <CheckIcon status={c.status} />
+                      <div className="min-w-0">
+                        <div className="font-medium text-slate-800">{c.label}</div>
+                        <div className="text-xs text-slate-500 leading-snug">{c.detail}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+        <div className="flex justify-end px-5 py-3.5 border-t border-slate-100">
+          <GhostBtn onClick={onClose}>Đóng</GhostBtn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CheckIcon({ status }: { status: 'ok' | 'warn' | 'fail' }) {
+  if (status === 'ok') return <CheckCircle2 size={16} className="text-emerald-500 shrink-0 mt-0.5" />;
+  if (status === 'warn') return <AlertTriangle size={16} className="text-amber-500 shrink-0 mt-0.5" />;
+  return <XCircle size={16} className="text-rose-500 shrink-0 mt-0.5" />;
+}
+
 function ChannelItem({
-  c, showrooms, brands, onEdit, onDelete,
-}: { c: ChannelRow; showrooms: ShowroomRow[]; brands: BrandRow[]; onEdit: () => void; onDelete: () => void }) {
+  c, showrooms, brands, onEdit, onDelete, onCheck,
+}: { c: ChannelRow; showrooms: ShowroomRow[]; brands: BrandRow[]; onEdit: () => void; onDelete: () => void; onCheck?: () => void }) {
   const srIds = c.showroom_ids?.length ? c.showroom_ids : (c.showroom_id ? [c.showroom_id] : []);
   const sr = srIds.map((id) => showrooms.find((s) => s.id === id)?.name).filter(Boolean).join(', ') || '—';
   const br = brands.find((b) => b.id === c.brand_id)?.name ?? '—';
@@ -184,6 +272,11 @@ function ChannelItem({
       </div>
       <div className="flex items-center gap-1.5 shrink-0 ml-2">
         <StatusPill active={c.is_active} />
+        {onCheck && (
+          <button title="Kiểm tra trạng thái" onClick={onCheck} className="w-6 h-6 inline-flex items-center justify-center rounded border border-slate-200 hover:bg-slate-50">
+            <Activity size={12} className="text-emerald-600" />
+          </button>
+        )}
         <button title="Sửa" onClick={onEdit} className="w-6 h-6 inline-flex items-center justify-center rounded border border-slate-200 hover:bg-slate-50">
           <Edit2 size={12} style={{ color: '#004B9B' }} />
         </button>

@@ -74,6 +74,88 @@ export async function fetchLeadDetail(leadgenId: string): Promise<{
 
 // Các field webhook fanpage cần để CRM bắt đủ lead: Lead Ads + tin nhắn + bình luận.
 const PAGE_WEBHOOK_FIELDS = 'leadgen,messages,feed';
+const REQUIRED_WEBHOOK_FIELDS = ['leadgen', 'messages', 'feed'];
+
+export interface HealthCheck { label: string; status: 'ok' | 'warn' | 'fail'; detail: string }
+export interface HealthResult { ok: boolean; checks: HealthCheck[] }
+
+/**
+ * Kiểm tra "sức khoẻ" kết nối 1 fanpage: token hệ thống còn sống? webhook còn đăng ký
+ * đủ field? đọc được form lead không? Trả danh sách check để hiện cho admin (không lộ token).
+ */
+export async function checkFacebookPageHealth(pageId: string): Promise<HealthResult> {
+  const checks: HealthCheck[] = [];
+  const token = process.env.FB_SYSTEM_USER_TOKEN;
+
+  if (!token) {
+    checks.push({ label: 'Token hệ thống', status: 'fail', detail: 'Máy chủ chưa cấu hình FB_SYSTEM_USER_TOKEN.' });
+    return { ok: false, checks };
+  }
+
+  // 1) Token còn sống?
+  try {
+    const r = await fetch(`${GRAPH}/me?fields=id,name&access_token=${token}`);
+    const j = await r.json();
+    if (r.ok && j?.id) {
+      checks.push({ label: 'Token hệ thống', status: 'ok', detail: `Còn hiệu lực (${j.name ?? j.id}).` });
+    } else {
+      checks.push({ label: 'Token hệ thống', status: 'fail', detail: j?.error?.message ?? 'Token không phản hồi hợp lệ.' });
+      return { ok: false, checks };
+    }
+  } catch {
+    checks.push({ label: 'Token hệ thống', status: 'fail', detail: 'Không gọi được Facebook (mạng/máy chủ).' });
+    return { ok: false, checks };
+  }
+
+  // 2) Lấy được page token (fanpage nằm trong Business Manager của token)?
+  let pageToken: string | undefined;
+  try {
+    const r = await fetch(`${GRAPH}/${pageId}?fields=access_token,name&access_token=${token}`);
+    const j = await r.json();
+    pageToken = j?.access_token;
+    if (pageToken) {
+      checks.push({ label: 'Quyền trên fanpage', status: 'ok', detail: `Truy cập được fanpage${j?.name ? ` "${j.name}"` : ''}.` });
+    } else {
+      checks.push({ label: 'Quyền trên fanpage', status: 'fail', detail: j?.error?.message ?? 'Không lấy được quyền trang (fanpage đã nằm trong Business Manager chưa?).' });
+      return { ok: false, checks };
+    }
+  } catch {
+    checks.push({ label: 'Quyền trên fanpage', status: 'fail', detail: 'Không gọi được Facebook.' });
+    return { ok: false, checks };
+  }
+
+  // 3) Webhook còn đăng ký đủ field (leadgen/messages/feed)?
+  try {
+    const r = await fetch(`${GRAPH}/${pageId}/subscribed_apps?access_token=${pageToken}`);
+    const j = await r.json();
+    const subs: string[] = (j?.data ?? []).flatMap((d: { subscribed_fields?: string[] }) => d.subscribed_fields ?? []);
+    const missing = REQUIRED_WEBHOOK_FIELDS.filter((f) => !subs.includes(f));
+    if (subs.length === 0) {
+      checks.push({ label: 'Webhook nhận lead', status: 'fail', detail: 'Fanpage chưa đăng ký webhook — lead sẽ KHÔNG về. Bấm Sửa rồi Lưu để đăng ký lại.' });
+    } else if (missing.length > 0) {
+      checks.push({ label: 'Webhook nhận lead', status: 'warn', detail: `Thiếu loại: ${missing.join(', ')}. Bấm Sửa rồi Lưu để đăng ký lại đủ.` });
+    } else {
+      checks.push({ label: 'Webhook nhận lead', status: 'ok', detail: 'Đã đăng ký đủ: form, tin nhắn, bình luận.' });
+    }
+  } catch {
+    checks.push({ label: 'Webhook nhận lead', status: 'warn', detail: 'Không kiểm tra được trạng thái webhook.' });
+  }
+
+  // 4) Đọc được biểu mẫu lead không (quyền leads_retrieval)?
+  try {
+    const r = await fetch(`${GRAPH}/${pageId}/leadgen_forms?fields=id&limit=1&access_token=${pageToken}`);
+    const j = await r.json();
+    if (r.ok && Array.isArray(j?.data)) {
+      checks.push({ label: 'Đọc biểu mẫu lead', status: 'ok', detail: 'Lấy được dữ liệu lead từ form quảng cáo.' });
+    } else {
+      checks.push({ label: 'Đọc biểu mẫu lead', status: 'warn', detail: j?.error?.message ?? 'Chưa đọc được biểu mẫu lead.' });
+    }
+  } catch {
+    checks.push({ label: 'Đọc biểu mẫu lead', status: 'warn', detail: 'Không gọi được Facebook.' });
+  }
+
+  return { ok: !checks.some((c) => c.status === 'fail'), checks };
+}
 
 /**
  * Đăng ký fanpage vào webhook của app (subscribed_apps) để lead về tự động.
