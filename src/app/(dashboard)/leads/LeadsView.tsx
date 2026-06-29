@@ -84,7 +84,7 @@ export default function LeadsView({
   }, []);
 
   return (
-    <div ref={rootRef} className="h-full flex flex-col p-6">
+    <div ref={rootRef} className="h-full flex flex-col p-3 sm:p-6">
       <div
         ref={cardsRef}
         className="shrink-0 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 overflow-hidden"

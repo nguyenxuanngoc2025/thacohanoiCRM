@@ -72,7 +72,7 @@ export default function ReportsView({
   const applyCustom = () => router.push(`/reports?range=custom&from=${cFrom}&to=${cTo}`);
 
   return (
-    <div className="p-6 space-y-5">
+    <div className="p-4 sm:p-6 space-y-5">
       {/* Header + thời gian */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>

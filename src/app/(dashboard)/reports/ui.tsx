@@ -14,7 +14,7 @@ export function Panel({ title, desc, action, children }: {
   title?: string; desc?: string; action?: React.ReactNode; children: React.ReactNode;
 }) {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 sm:p-5">
       {(title || action) && (
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>

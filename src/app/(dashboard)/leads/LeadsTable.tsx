@@ -792,7 +792,7 @@ export default function LeadsTable({
 
   return (
     <div className="h-full flex flex-col bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-      <div className="flex items-center flex-wrap gap-2 px-6 py-3 border-b border-slate-100 shrink-0">
+      <div className="flex items-center flex-wrap gap-2 px-3 sm:px-6 py-3 border-b border-slate-100 shrink-0">
         {TABS.map((t) => (
           <button
             key={t.key}
@@ -885,7 +885,7 @@ export default function LeadsTable({
           >
             <Download size={14} /> Xuất CSV
           </button>
-          <div className="relative">
+          <div className="relative hidden lg:block">
             <button
               ref={colBtnRef}
               onClick={openColMenu}
@@ -968,7 +968,7 @@ export default function LeadsTable({
       </div>
 
       {canAssign && sel.size > 0 && (
-        <div className="flex items-center flex-wrap gap-2 px-6 py-2.5 bg-blue-50 border-b border-blue-100 shrink-0">
+        <div className="flex items-center flex-wrap gap-2 px-3 sm:px-6 py-2.5 bg-blue-50 border-b border-blue-100 shrink-0">
           <span className="text-sm font-semibold text-[#004B9B]">Đã chọn {sel.size} lead</span>
           <select
             value={bulkAssignee}
@@ -1037,7 +1037,62 @@ export default function LeadsTable({
       )}
 
       <div data-table-scroll className="flex-1 min-h-0 overflow-auto">
-        <table className="w-full text-sm">
+        {/* Mobile: danh sách thẻ (bảng nhiều cột không vừa màn hình điện thoại) */}
+        <div className="lg:hidden divide-y divide-slate-100">
+          {rows.map((l) => {
+            const over = isOverdue(l);
+            const contacted = isContacted(l.last_contact_at);
+            return (
+              <div
+                key={l.id}
+                onClick={() => setOpenLead(l)}
+                className={`flex gap-3 px-3 py-3 cursor-pointer ${over ? 'bg-rose-50/60' : 'active:bg-slate-50'}`}
+              >
+                {canAssign && (
+                  <input
+                    type="checkbox"
+                    onClick={(e) => e.stopPropagation()}
+                    checked={sel.has(l.id)}
+                    onChange={() => toggleOne(l.id)}
+                    className="accent-[#004B9B] mt-1 shrink-0"
+                  />
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="font-semibold text-slate-800 truncate">{l.full_name ?? '—'}</div>
+                      <div className="text-sm text-slate-500 tabular-nums">{formatPhoneDisplay(l.phone)}</div>
+                    </div>
+                    <div onClick={(e) => e.stopPropagation()} className="shrink-0">
+                      <StatusPicker lead={l} variant={contacted ? 'class' : 'contacted'} pending={pending} start={start} />
+                    </div>
+                  </div>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
+                    <span>{fmtDate(l.created_at)}</span>
+                    <span className="text-slate-300">·</span>
+                    <span>{sourcePlatform(l.source)}</span>
+                    <span className="text-slate-300">·</span>
+                    <span className="truncate">{l.brand_name}</span>
+                  </div>
+                  <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs">
+                    <span className="text-slate-500">Phụ trách: <span className="text-slate-700">{l.assignee_name ?? 'Chưa giao'}</span></span>
+                    {l.next_contact_at && (
+                      <span className={over ? 'inline-flex items-center gap-1 text-rose-600 font-medium' : 'text-slate-500'}>
+                        {over && <AlertTriangle size={12} />} Hẹn {fmtDay(l.next_contact_at)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          {rows.length === 0 && (
+            <div className="px-4 py-12 text-center text-slate-400">Không có lead nào.</div>
+          )}
+        </div>
+
+        {/* Desktop: bảng đầy đủ cột */}
+        <table className="hidden lg:table w-full text-sm">
           <thead className="sticky top-0 z-10 bg-slate-50 text-slate-500 text-left text-xs uppercase tracking-wide shadow-sm">
             <tr>
               {canAssign && (
