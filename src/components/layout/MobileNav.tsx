@@ -5,14 +5,14 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, Users, UserCheck, HeartHandshake, BarChart3,
-  Settings, LogOut, Key, User, MoreHorizontal,
+  Settings, LogOut, Key, User, MoreHorizontal, FileCheck2,
 } from 'lucide-react';
 import { NAV_ITEMS } from '@/lib/nav';
 import { logout } from '@/app/login/actions';
 import { type UserRole } from '@/types/database';
 
 const ICON_MAP: Record<string, React.ElementType> = {
-  LayoutDashboard, Users, UserCheck, HeartHandshake, BarChart3, Settings,
+  LayoutDashboard, Users, UserCheck, HeartHandshake, BarChart3, Settings, FileCheck2,
 };
 
 const BRAND = '#004B9B';
@@ -21,6 +21,7 @@ export interface MobileNavProps {
   userRole: UserRole;
   userName: string;
   userCode?: string;
+  b10Enabled: boolean;
 }
 
 /**
@@ -29,10 +30,12 @@ export interface MobileNavProps {
  * (in-flow trong cột flex chiều cao cố định → không bao giờ trôi khi cuộn).
  * Tab active có viên nền nổi bật giống mục active của sidebar.
  */
-export default function MobileNav({ userRole, userName, userCode = '' }: MobileNavProps) {
+export default function MobileNav({ userRole, userName, userCode = '', b10Enabled }: MobileNavProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const items = NAV_ITEMS.filter((item) => item.roles.includes(userRole));
+  const items = NAV_ITEMS.filter((item) =>
+    item.roles.includes(userRole) && (!item.requiresB10 || b10Enabled),
+  );
   const [menuOpen, setMenuOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
 

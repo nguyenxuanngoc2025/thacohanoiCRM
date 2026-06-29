@@ -48,6 +48,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       userCode={ROLE_LABELS[role] ?? 'Tư vấn bán hàng'}
       companyName={companyName}
       metrics={metrics}
+      b10Enabled={tenant.b10_enabled}
     >
       {children}
     </DashboardShell>

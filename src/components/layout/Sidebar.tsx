@@ -5,14 +5,14 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, Users, UserCheck, HeartHandshake, BarChart3,
-  Settings, ChevronRight, ChevronLeft, LogOut, Key, User,
+  Settings, ChevronRight, ChevronLeft, LogOut, Key, User, FileCheck2,
 } from 'lucide-react';
 import { NAV_ITEMS } from '@/lib/nav';
 import { logout } from '@/app/login/actions';
 import { type UserRole } from '@/types/database';
 
 const ICON_MAP: Record<string, React.ElementType> = {
-  LayoutDashboard, Users, UserCheck, HeartHandshake, BarChart3, Settings,
+  LayoutDashboard, Users, UserCheck, HeartHandshake, BarChart3, Settings, FileCheck2,
 };
 
 const SIDEBAR_W_OPEN = 248;
@@ -27,6 +27,7 @@ export interface SidebarProps {
   companyName?: string;
   collapsed: boolean;
   onToggleCollapse: () => void;
+  b10Enabled: boolean;
 }
 
 function NavLink({
@@ -78,10 +79,12 @@ function NavLink({
 
 export default function Sidebar({
   userRole, userName, userCode = '',
-  companyName = 'Thaco Auto Hà Nội', collapsed, onToggleCollapse,
+  companyName = 'Thaco Auto Hà Nội', collapsed, onToggleCollapse, b10Enabled,
 }: SidebarProps) {
   const pathname = usePathname();
-  const mainItems = NAV_ITEMS.filter((item) => item.roles.includes(userRole));
+  const mainItems = NAV_ITEMS.filter((item) =>
+    item.roles.includes(userRole) && (!item.requiresB10 || b10Enabled),
+  );
   const [hoverExpanded, setHoverExpanded] = useState(false);
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
