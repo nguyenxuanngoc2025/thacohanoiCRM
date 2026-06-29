@@ -14,7 +14,7 @@ export type RangeKey = 'this_month' | 'last_month' | '30d' | 'custom';
 type Tab = 'overview' | 'tables';
 
 export default function ReportsView({
-  leads, range, from, to, fromMs, toMs,
+  leads, range, from, to, fromMs, toMs, showB10,
 }: {
   leads: ReportLead[];
   range: RangeKey;
@@ -22,6 +22,7 @@ export default function ReportsView({
   to: string;
   fromMs: number;
   toMs: number;
+  showB10: boolean;
 }) {
   const router = useRouter();
   const nowMs = useMemo(() => Date.now(), []);
@@ -140,7 +141,7 @@ export default function ReportsView({
 
       {tab === 'overview'
         ? <OverviewTab leads={filtered} fromMs={fromMs} toMs={toMs} />
-        : <TablesTab leads={filtered} />}
+        : <TablesTab leads={filtered} showB10={showB10} />}
     </div>
   );
 }

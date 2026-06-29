@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { CAN_VIEW_REPORTS } from '@/lib/nav';
 import { getOpenBrandIds } from '@/lib/company-brands';
+import { getTenant } from '@/lib/tenant';
 import type { UserRole } from '@/types/database';
 import type { ReportLead } from '@/lib/reports';
 import ReportsView, { type RangeKey } from './ReportsView';
@@ -19,6 +20,8 @@ interface RawLead {
   last_contact_at: string | null;
   next_contact_at: string | null;
   fail_reason: string | null;
+  b10_status: ReportLead['b10_status'];
+  b10_synced_at: string | null;
   brand: { name: string } | null;
   model: { name: string } | null;
   showroom: { name: string } | null;
@@ -71,10 +74,13 @@ export default async function ReportsPage({
   // Hãng công ty đang mở (whitelist). Lead của hãng đã đóng bị loại khỏi báo cáo/KPI.
   const openBrandIds = await getOpenBrandIds(supabase, me?.company_id ?? null);
 
+  const tenant = await getTenant();
+  const showB10 = tenant?.b10_enabled ?? false;
+
   let reportsQuery = supabase
     .from('leads')
     .select(
-      'status, source, brand_id, model_id, showroom_id, assigned_to, created_at, last_contact_at, next_contact_at, fail_reason, brand:brands(name), model:models(name), showroom:showrooms(name), assignee:users!assigned_to(full_name)',
+      'status, source, brand_id, model_id, showroom_id, assigned_to, created_at, last_contact_at, next_contact_at, fail_reason, b10_status, b10_synced_at, brand:brands(name), model:models(name), showroom:showrooms(name), assignee:users!assigned_to(full_name)',
     )
     .gte('created_at', iso(fromMs))
     .lte('created_at', iso(toMs));
@@ -99,6 +105,8 @@ export default async function ReportsPage({
     last_contact_at: l.last_contact_at,
     next_contact_at: l.next_contact_at,
     fail_reason: l.fail_reason,
+    b10_status: l.b10_status,
+    b10_on: l.b10_synced_at != null,
   }));
 
   return (
@@ -109,6 +117,7 @@ export default async function ReportsPage({
       to={sp.to ?? ymd(toMs)}
       fromMs={fromMs}
       toMs={toMs}
+      showB10={showB10}
     />
   );
 }

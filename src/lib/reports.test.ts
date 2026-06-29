@@ -10,6 +10,7 @@ const base: ReportLead = {
   model_id: 'm1', model_name: 'Sonet',
   showroom_id: 's1', showroom_name: 'KIA HN', assigned_to: 'u1', assignee_name: 'An',
   created_at: '2026-06-10T03:00:00Z', last_contact_at: null, next_contact_at: null, fail_reason: null,
+  b10_on: false, b10_status: null,
 };
 const L = (o: Partial<ReportLead>): ReportLead => ({ ...base, ...o });
 
@@ -224,5 +225,35 @@ describe('statusDistribution', () => {
     expect(d[0]).toEqual({ code: '__none__', label: 'Chưa phân loại', count: 1 });
     expect(d.find((s) => s.code === 'KHĐ')?.count).toBe(2);
     expect(d.find((s) => s.code === 'KHQT')).toBeUndefined();
+  });
+});
+
+describe('chỉ số B10', () => {
+  it('computeKpis đếm Lên B10, %, và phân loại theo b10_status', () => {
+    const leads = [
+      L({ b10_on: true, b10_status: 'KHĐ' }),
+      L({ b10_on: true, b10_status: 'KHQT' }),
+      L({ b10_on: true, b10_status: 'GDTD' }),
+      L({ b10_on: true, b10_status: 'Fail' }),
+      L({ b10_on: false, b10_status: null }),
+    ];
+    const k = computeKpis(leads, NOW);
+    expect(k.b10On).toBe(4);
+    expect(k.b10Rate).toBe(80); // 4/5
+    expect(k.b10Interested).toBe(1); // KHQT·B10
+    expect(k.b10Following).toBe(1);  // GDTD·B10
+    expect(k.b10Won).toBe(1);        // KHĐ·B10
+    expect(k.b10Loai).toBe(1);       // Loại·B10
+  });
+
+  it('groupBySource cộng đúng chỉ số B10 theo nhóm', () => {
+    const leads = [
+      L({ source: 'facebook', b10_on: true, b10_status: 'KHĐ' }),
+      L({ source: 'facebook', b10_on: false, b10_status: null }),
+    ];
+    const fb = groupBySource(leads, NOW).find((r) => r.key === 'Facebook')!;
+    expect(fb.b10On).toBe(1);
+    expect(fb.b10Rate).toBe(50);
+    expect(fb.b10Won).toBe(1);
   });
 });

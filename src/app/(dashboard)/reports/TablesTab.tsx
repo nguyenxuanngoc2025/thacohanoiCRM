@@ -9,7 +9,7 @@ import {
 import { exportXlsx, type SheetData } from '@/lib/xlsx-export';
 import { Panel, Dropdown, BRAND, fmt, type Opt } from './ui';
 
-type MetricKey = 'leads' | 'share' | 'contacted' | 'contactRate' | 'interested' | 'following' | 'won' | 'winRate' | 'fail' | 'failRate' | 'overdue';
+type MetricKey = 'leads' | 'share' | 'contacted' | 'contactRate' | 'interested' | 'following' | 'won' | 'winRate' | 'fail' | 'failRate' | 'overdue' | 'b10On' | 'b10Rate' | 'b10Interested' | 'b10Following' | 'b10Won' | 'b10Loai';
 
 interface MetricCol { key: MetricKey; label: string; pct?: boolean; tone?: string }
 
@@ -28,10 +28,20 @@ const METRICS: MetricCol[] = [
   { key: 'overdue', label: 'Quá hạn', tone: '#be123c' },
 ];
 
+// Cột đối soát B10 — chỉ hiện khi công ty bật b10_enabled.
+const B10_METRICS: MetricCol[] = [
+  { key: 'b10On', label: 'Lên B10', tone: '#0369a1' },
+  { key: 'b10Rate', label: '% B10', pct: true, tone: '#0369a1' },
+  { key: 'b10Interested', label: 'KHQT·B10', tone: '#1d4ed8' },
+  { key: 'b10Following', label: 'GDTD·B10', tone: '#b45309' },
+  { key: 'b10Won', label: 'KHĐ·B10', tone: '#047857' },
+  { key: 'b10Loai', label: 'Loại·B10', tone: '#be123c' },
+];
+
 const DIM_OPTS: Opt[] = (Object.keys(DIMENSION_LABEL) as Dimension[]).map((d) => ({ value: d, label: DIMENSION_LABEL[d] }));
 const ALL_DIMS = Object.keys(DIMENSION_LABEL) as Dimension[];
 
-export default function TablesTab({ leads }: { leads: ReportLead[] }) {
+export default function TablesTab({ leads, showB10 }: { leads: ReportLead[]; showB10: boolean }) {
   const nowMs = useMemo(() => Date.now(), []);
   const [rowDim, setRowDim] = useState<Dimension>('showroom');
   const [colDim, setColDim] = useState<string>(''); // '' = không tách cột (bảng phẳng)
@@ -46,7 +56,8 @@ export default function TablesTab({ leads }: { leads: ReportLead[] }) {
     [leads, rowDim, colDim],
   );
 
-  const visible = METRICS.filter((m) => !hidden.has(m.key));
+  const allMetrics = useMemo(() => (showB10 ? [...METRICS, ...B10_METRICS] : METRICS), [showB10]);
+  const visible = allMetrics.filter((m) => !hidden.has(m.key));
   const toggle = (k: MetricKey) => setHidden((s) => {
     const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n;
   });
@@ -55,7 +66,7 @@ export default function TablesTab({ leads }: { leads: ReportLead[] }) {
   const colOpts = DIM_OPTS.filter((o) => o.value !== rowDim);
   const onRowDim = (d: string) => { setRowDim(d as Dimension); if (d === colDim) setColDim(''); };
 
-  const handleExport = () => exportXlsx('bao-cao-lead', buildSheets(leads, nowMs, rowDim, colDim));
+  const handleExport = () => exportXlsx('bao-cao-lead', buildSheets(leads, nowMs, rowDim, colDim, showB10));
 
   return (
     <div className="space-y-4">
@@ -76,7 +87,7 @@ export default function TablesTab({ leads }: { leads: ReportLead[] }) {
         {!colDim && (
           <div className="flex flex-wrap items-center gap-1.5 mt-2.5 pt-2.5 border-t border-slate-100">
             <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mr-1">Hiện cột</span>
-            {METRICS.map((m) => {
+            {allMetrics.map((m) => {
               const on = !hidden.has(m.key);
               return (
                 <button key={m.key} onClick={() => toggle(m.key)}
@@ -143,6 +154,12 @@ function FlatTable({ rows, cols, firstCol, totals, sortKey, asc, onSort }: {
       case 'fail': return totals.fail;
       case 'failRate': return `${totals.failRate}%`;
       case 'overdue': return totals.overdue;
+      case 'b10On': return totals.b10On;
+      case 'b10Rate': return `${totals.b10Rate}%`;
+      case 'b10Interested': return totals.b10Interested;
+      case 'b10Following': return totals.b10Following;
+      case 'b10Won': return totals.b10Won;
+      case 'b10Loai': return totals.b10Loai;
     }
   };
   const cell = (v: number, pct?: boolean) => (pct ? `${v}%` : fmt(v));
@@ -256,13 +273,36 @@ function PivotTable({ pivot, rowLabel }: { pivot: Pivot; rowLabel: string }) {
 
 // ─── Build workbook ──────────────────────────────────────────────────────────
 
-function flatSheet(leads: ReportLead[], nowMs: number, dim: Dimension): SheetData {
+function flatSheet(leads: ReportLead[], nowMs: number, dim: Dimension, metrics: MetricCol[]): SheetData {
   const rows = groupByDimension(leads, dim, nowMs);
   const totals = computeKpis(leads, nowMs);
-  const header = [DIMENSION_LABEL[dim], ...METRICS.map((m) => m.label)];
-  const body = rows.map((r) => [r.label, ...METRICS.map((m) => r[m.key])]);
-  const totalRow: (string | number)[] = ['Tổng', totals.total, 100, totals.contacted, totals.contactRate, totals.interested, totals.following, totals.won, totals.winRate, totals.fail, totals.failRate, totals.overdue];
+  const header = [DIMENSION_LABEL[dim], ...metrics.map((m) => m.label)];
+  const body = rows.map((r) => [r.label, ...metrics.map((m) => r[m.key] as number)]);
+  const totalRow: (string | number)[] = ['Tổng', ...metrics.map((m) => totalsVal(totals, m.key))];
   return { name: DIMENSION_LABEL[dim], rows: [header, ...body, totalRow] };
+}
+
+// Tổng theo metric key (dùng chung cho xuất Excel).
+function totalsVal(totals: ReturnType<typeof computeKpis>, k: MetricKey): number | string {
+  switch (k) {
+    case 'leads': return totals.total;
+    case 'share': return 100;
+    case 'contacted': return totals.contacted;
+    case 'contactRate': return totals.contactRate;
+    case 'interested': return totals.interested;
+    case 'following': return totals.following;
+    case 'won': return totals.won;
+    case 'winRate': return totals.winRate;
+    case 'fail': return totals.fail;
+    case 'failRate': return totals.failRate;
+    case 'overdue': return totals.overdue;
+    case 'b10On': return totals.b10On;
+    case 'b10Rate': return totals.b10Rate;
+    case 'b10Interested': return totals.b10Interested;
+    case 'b10Following': return totals.b10Following;
+    case 'b10Won': return totals.b10Won;
+    case 'b10Loai': return totals.b10Loai;
+  }
 }
 
 function pivotSheet(leads: ReportLead[], rowDim: Dimension, colDim: Dimension): SheetData {
@@ -273,12 +313,13 @@ function pivotSheet(leads: ReportLead[], rowDim: Dimension, colDim: Dimension): 
   return { name: `${DIMENSION_LABEL[rowDim]} x ${DIMENSION_LABEL[colDim]}`, rows: [header, ...body, totalRow] };
 }
 
-function buildSheets(leads: ReportLead[], nowMs: number, rowDim: Dimension, colDim: string): SheetData[] {
+function buildSheets(leads: ReportLead[], nowMs: number, rowDim: Dimension, colDim: string, showB10: boolean): SheetData[] {
   const sheets: SheetData[] = [];
+  const metrics = showB10 ? [...METRICS, ...B10_METRICS] : METRICS;
   // Sheet đầu = bảng đang xem.
   if (colDim) sheets.push(pivotSheet(leads, rowDim, colDim as Dimension));
   // Mỗi chiều 1 sheet chỉ số đầy đủ.
-  for (const d of ALL_DIMS) sheets.push(flatSheet(leads, nowMs, d));
+  for (const d of ALL_DIMS) sheets.push(flatSheet(leads, nowMs, d, metrics));
   return sheets;
 }
 

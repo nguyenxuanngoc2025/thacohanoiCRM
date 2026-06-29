@@ -17,6 +17,8 @@ export interface ReportLead {
   last_contact_at: string | null;
   next_contact_at: string | null;
   fail_reason: string | null;
+  b10_status: LeadStatus | null;
+  b10_on: boolean;
 }
 
 export const isWon = (l: ReportLead): boolean => l.status === 'KHĐ';
@@ -43,6 +45,12 @@ export interface Kpis {
   overdue: number;
   fail: number;
   failRate: number;
+  b10On: number; // số lead đã lên B10
+  b10Rate: number; // % lead lên B10
+  b10Interested: number; // KHQT trên B10
+  b10Following: number; // GDTD trên B10
+  b10Won: number; // KHĐ trên B10
+  b10Loai: number; // Fail (loại) trên B10
 }
 
 export function computeKpis(leads: ReportLead[], nowMs: number): Kpis {
@@ -53,6 +61,11 @@ export function computeKpis(leads: ReportLead[], nowMs: number): Kpis {
   const won = leads.filter(isWon).length;
   const fail = leads.filter(isFail).length;
   const overdue = leads.filter((l) => isOverdue(l, nowMs)).length;
+  const b10On = leads.filter((l) => l.b10_on).length;
+  const b10Interested = leads.filter((l) => l.b10_status === 'KHQT').length;
+  const b10Following = leads.filter((l) => l.b10_status === 'GDTD').length;
+  const b10Won = leads.filter((l) => l.b10_status === 'KHĐ').length;
+  const b10Loai = leads.filter((l) => l.b10_status === 'Fail').length;
   return {
     total,
     contacted,
@@ -64,6 +77,12 @@ export function computeKpis(leads: ReportLead[], nowMs: number): Kpis {
     overdue,
     fail,
     failRate: rate(fail, total),
+    b10On,
+    b10Rate: rate(b10On, total),
+    b10Interested,
+    b10Following,
+    b10Won,
+    b10Loai,
   };
 }
 
@@ -104,6 +123,12 @@ export interface GroupRow {
   fail: number;
   failRate: number;
   overdue: number;
+  b10On: number;
+  b10Rate: number;
+  b10Interested: number;
+  b10Following: number;
+  b10Won: number;
+  b10Loai: number;
 }
 
 function groupBy(
@@ -121,6 +146,7 @@ function groupBy(
       row = {
         key, label: labelOf(l), leads: 0, share: 0, contacted: 0, contactRate: 0,
         interested: 0, following: 0, won: 0, winRate: 0, fail: 0, failRate: 0, overdue: 0,
+        b10On: 0, b10Rate: 0, b10Interested: 0, b10Following: 0, b10Won: 0, b10Loai: 0,
       };
       map.set(key, row);
     }
@@ -131,6 +157,11 @@ function groupBy(
     if (isWon(l)) row.won += 1;
     if (isFail(l)) row.fail += 1;
     if (isOverdue(l, nowMs)) row.overdue += 1;
+    if (l.b10_on) row.b10On += 1;
+    if (l.b10_status === 'KHQT') row.b10Interested += 1;
+    if (l.b10_status === 'GDTD') row.b10Following += 1;
+    if (l.b10_status === 'KHĐ') row.b10Won += 1;
+    if (l.b10_status === 'Fail') row.b10Loai += 1;
   }
   const rows = [...map.values()];
   for (const r of rows) {
@@ -138,6 +169,7 @@ function groupBy(
     r.contactRate = rate(r.contacted, r.leads);
     r.winRate = rate(r.won, r.leads);
     r.failRate = rate(r.fail, r.leads);
+    r.b10Rate = rate(r.b10On, r.leads);
   }
   // Nhiều lead trước; cùng số lead thì tỉ lệ chốt cao trước.
   rows.sort((a, b) => b.leads - a.leads || b.winRate - a.winRate);
