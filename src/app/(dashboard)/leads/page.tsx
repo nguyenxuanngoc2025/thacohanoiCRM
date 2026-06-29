@@ -25,10 +25,12 @@ interface RawLead {
   brand_id: string;
   model_id: string | null;
   showroom_id: string | null;
+  sales_team_id: string | null;
   assigned_to: string | null;
   brand: { name: string } | null;
   model: { name: string } | null;
   showroom: { name: string } | null;
+  sales_team: { name: string } | null;
   assignee: { full_name: string } | null;
 }
 
@@ -52,7 +54,7 @@ export default async function LeadsPage() {
   let leadsQuery = supabase
     .from('leads')
     .select(
-      'id, full_name, phone, source, status, created_at, last_contact_at, next_contact_at, last_note, fail_reason, no_answer_count, b10_status, b10_synced_at, brand_id, model_id, showroom_id, assigned_to, brand:brands(name), model:models(name), showroom:showrooms(name), assignee:users!assigned_to(full_name)',
+      'id, full_name, phone, source, status, created_at, last_contact_at, next_contact_at, last_note, fail_reason, no_answer_count, b10_status, b10_synced_at, brand_id, model_id, showroom_id, sales_team_id, assigned_to, brand:brands(name), model:models(name), showroom:showrooms(name), sales_team:sales_teams(name), assignee:users!assigned_to(full_name)',
     );
   if (openBrandIds.length) leadsQuery = leadsQuery.in('brand_id', openBrandIds);
 
@@ -102,6 +104,8 @@ export default async function LeadsPage() {
     model_name: l.model?.name ?? null,
     showroom_id: l.showroom_id,
     showroom_name: l.showroom?.name ?? null,
+    sales_team_id: l.sales_team_id,
+    team_name: l.sales_team?.name ?? null,
     assigned_to: l.assigned_to,
     assignee_name: l.assignee?.full_name ?? null,
     contact_count: contactCount[l.id] ?? 0,

@@ -32,6 +32,8 @@ export interface LeadRow {
   model_name: string | null;
   showroom_id: string | null;
   showroom_name: string | null;
+  sales_team_id: string | null;
+  team_name: string | null;
   assigned_to: string | null;
   assignee_name: string | null;
   contact_count: number;
@@ -89,7 +91,7 @@ export function applyScope(leads: LeadRow[], f: Filters): LeadRow[] {
 
 type Tab = 'all' | 'pending' | 'contacted' | 'overdue';
 type ColKey =
-  | 'time' | 'name' | 'phone' | 'showroom' | 'brand' | 'model' | 'platform' | 'assignee'
+  | 'time' | 'name' | 'phone' | 'showroom' | 'team' | 'brand' | 'model' | 'platform' | 'assignee'
   | 'contacted' | 'class' | 'contactedAt' | 'note' | 'source' | 'next' | 'count'
   | 'b10on' | 'b10class';
 
@@ -106,6 +108,7 @@ function compare(key: ColKey, a: LeadRow, b: LeadRow): number {
     case 'name': return (a.full_name ?? '').localeCompare(b.full_name ?? '', 'vi');
     case 'phone': return a.phone.localeCompare(b.phone);
     case 'showroom': return (a.showroom_name ?? '').localeCompare(b.showroom_name ?? '', 'vi');
+    case 'team': return (a.team_name ?? '').localeCompare(b.team_name ?? '', 'vi');
     case 'brand': return a.brand_name.localeCompare(b.brand_name, 'vi');
     case 'model': return (a.model_name ?? '').localeCompare(b.model_name ?? '', 'vi');
     case 'assignee': return (a.assignee_name ?? '').localeCompare(b.assignee_name ?? '', 'vi');
@@ -135,6 +138,7 @@ const COLS: ColDef[] = [
   { key: 'platform', label: 'Nguồn', pad: 'px-4' },
   { key: 'brand', label: 'Thương hiệu', pad: 'px-4' },
   { key: 'showroom', label: 'Showroom', pad: 'px-4' },
+  { key: 'team', label: 'Phòng bán hàng', pad: 'px-4' },
   { key: 'assignee', label: 'Phụ trách', pad: 'px-4' },
   { key: 'source', label: 'Chi tiết kênh', pad: 'px-4' },
   { key: 'model', label: 'Dòng xe', pad: 'px-4' },
@@ -741,7 +745,7 @@ export default function LeadsTable({
   const exportCsv = () => {
     const headers = [
       'Thời gian', 'Khách hàng', 'SĐT', 'Trạng thái', 'Phân loại', 'Lý do loại',
-      'Nguồn', 'Chi tiết kênh', 'Thương hiệu', 'Dòng xe', 'Showroom', 'Phụ trách',
+      'Nguồn', 'Chi tiết kênh', 'Thương hiệu', 'Dòng xe', 'Showroom', 'Phòng bán hàng', 'Phụ trách',
       'Số lần LH', 'Gọi hụt', 'Hẹn gọi lại', 'Nội dung liên hệ',
     ];
     const cell = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
@@ -749,7 +753,7 @@ export default function LeadsTable({
       fmtDate(l.created_at), l.full_name ?? '', formatPhoneDisplay(l.phone),
       isContacted(l.last_contact_at) ? 'Đã liên hệ' : 'Chưa liên hệ', l.status ?? '', l.fail_reason ?? '',
       sourcePlatform(l.source), sourceLabel(l.source), l.brand_name, l.model_name ?? '',
-      l.showroom_name ?? '', l.assignee_name ?? '', l.contact_count, l.no_answer_count,
+      l.showroom_name ?? '', l.team_name ?? '', l.assignee_name ?? '', l.contact_count, l.no_answer_count,
       l.next_contact_at ? fmtDay(l.next_contact_at) : '', l.last_note ?? '',
     ].map(cell).join(','));
     const csv = '\uFEFF' + [headers.map(cell).join(','), ...lines].join('\r\n');
@@ -791,6 +795,7 @@ export default function LeadsTable({
       case 'name': return <span className="font-medium text-slate-800">{l.full_name ?? '—'}</span>;
       case 'phone': return <span className="text-slate-600">{formatPhoneDisplay(l.phone)}</span>;
       case 'showroom': return <span className="text-slate-600">{l.showroom_name ?? '—'}</span>;
+      case 'team': return <span className="text-slate-600">{l.team_name ?? '—'}</span>;
       case 'brand': return <span className="text-slate-600">{l.brand_name}</span>;
       case 'model': return <ModelPicker lead={l} models={models} pending={pending} start={start} />;
       case 'assignee': return <span className="text-slate-600">{l.assignee_name ?? '—'}</span>;
@@ -1097,7 +1102,7 @@ export default function LeadsTable({
                     <span className="truncate">{l.brand_name}</span>
                   </div>
                   <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs">
-                    <span className="text-slate-500">Phụ trách: <span className="text-slate-700">{l.assignee_name ?? 'Chưa giao'}</span></span>
+                    <span className="text-slate-500">Phòng: <span className="text-slate-700">{l.team_name ?? 'Chưa phân'}</span> · Phụ trách: <span className="text-slate-700">{l.assignee_name ?? 'Chưa giao'}</span></span>
                     {l.next_contact_at && (
                       <span className={over ? 'inline-flex items-center gap-1 text-rose-600 font-medium' : 'text-slate-500'}>
                         {over && <AlertTriangle size={12} />} Hẹn {fmtDay(l.next_contact_at)}
