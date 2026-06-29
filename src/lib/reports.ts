@@ -1,4 +1,5 @@
 import { STATUS_LABEL, type LeadStatus } from './lead-status';
+import { sourcePlatform } from './source';
 
 /** Lead tối giản cho tính toán báo cáo (lấy từ bảng leads, đã join tên brand/showroom/TVBH). */
 export interface ReportLead {
@@ -139,7 +140,8 @@ function groupBy(
 }
 
 export function groupBySource(leads: ReportLead[], nowMs: number): GroupRow[] {
-  return groupBy(leads, (l) => l.source ?? '__none__', (l) => l.source ?? 'Không rõ nguồn', nowMs);
+  // Gom theo NGUỒN CHÍNH (Facebook, Zalo OA…) — fb_message/fb_comment/lead ads chỉ là chi tiết kênh.
+  return groupBy(leads, (l) => l.source ? sourcePlatform(l.source) : '__none__', (l) => l.source ? sourcePlatform(l.source) : 'Không rõ nguồn', nowMs);
 }
 
 export function groupByShowroom(leads: ReportLead[], nowMs: number): GroupRow[] {
@@ -229,7 +231,7 @@ function dimKey(l: ReportLead, dim: Dimension): [string, string] {
     case 'showroom': return [l.showroom_id ?? '__none__', l.showroom_name ?? 'Chưa gán showroom'];
     case 'brand': return [l.brand_id, l.brand_name];
     case 'model': return [l.model_id ?? '__none__', l.model_name ?? 'Chưa gán dòng xe'];
-    case 'source': return [l.source ?? '__none__', l.source ?? 'Không rõ nguồn'];
+    case 'source': return l.source ? [sourcePlatform(l.source), sourcePlatform(l.source)] : ['__none__', 'Không rõ nguồn'];
     case 'assignee': return [l.assigned_to ?? '__none__', l.assignee_name ?? 'Chưa giao'];
     case 'status': return [l.status ?? '__none__', l.status ? STATUS_LABEL[l.status] : 'Chưa phân loại'];
   }

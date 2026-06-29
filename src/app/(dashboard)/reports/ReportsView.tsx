@@ -4,6 +4,7 @@ import React, { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Users, PhoneCall, TrendingUp, FileSignature, Clock, XCircle, LayoutDashboard, Table2 } from 'lucide-react';
 import { computeKpis, type ReportLead } from '@/lib/reports';
+import { sourcePlatform } from '@/lib/source';
 import { STATUS_LABEL, type LeadStatus } from '@/lib/lead-status';
 import { Dropdown, uniqOpts, BRAND, fmt, type Opt } from './ui';
 import OverviewTab from './OverviewTab';
@@ -42,7 +43,8 @@ export default function ReportsView({
     [leads, brand],
   );
   const showroomOpts = useMemo<Opt[]>(() => uniqOpts(leads, (l) => [l.showroom_id, l.showroom_name]), [leads]);
-  const sourceOpts = useMemo<Opt[]>(() => uniqOpts(leads, (l) => [l.source, l.source]), [leads]);
+  // Nguồn = nguồn marketing CHÍNH (Facebook, Google…). fb_message/fb_comment/lead ads chỉ là chi tiết kênh.
+  const sourceOpts = useMemo<Opt[]>(() => uniqOpts(leads, (l) => [l.source ? sourcePlatform(l.source) : null, l.source ? sourcePlatform(l.source) : null]), [leads]);
   const assigneeOpts = useMemo<Opt[]>(() => uniqOpts(leads, (l) => [l.assigned_to, l.assignee_name]), [leads]);
   const statusOpts = useMemo<Opt[]>(
     () => uniqOpts(leads, (l) => [l.status, l.status ? STATUS_LABEL[l.status as LeadStatus] : null]),
@@ -59,7 +61,7 @@ export default function ReportsView({
       (!brand || l.brand_id === brand) &&
       (!model || l.model_id === model) &&
       (!showroom || l.showroom_id === showroom) &&
-      (!source || l.source === source) &&
+      (!source || (l.source ? sourcePlatform(l.source) === source : false)) &&
       (!assignee || l.assigned_to === assignee) &&
       (!status || l.status === status)),
     [leads, brand, model, showroom, source, assignee, status],

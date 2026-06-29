@@ -81,12 +81,24 @@ describe('groupBySource', () => {
       L({ source: null }),
     ];
     const rows = groupBySource(leads, NOW);
-    expect(rows[0].key).toBe('facebook');
+    expect(rows[0].key).toBe('Facebook');
     expect(rows[0].leads).toBe(2);
     expect(rows[0].won).toBe(1);
     expect(rows[0].winRate).toBe(50);
     const none = rows.find((r) => r.key === '__none__');
     expect(none?.label).toBe('Không rõ nguồn');
+  });
+
+  it('gom fb_message/fb_comment vào chung nguồn Facebook (không tách thành nguồn riêng)', () => {
+    const leads = [
+      L({ source: 'facebook' }),
+      L({ source: 'fb_message' }),
+      L({ source: 'fb_comment' }),
+    ];
+    const rows = groupBySource(leads, NOW);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].key).toBe('Facebook');
+    expect(rows[0].leads).toBe(3);
   });
 
   it('tính đủ chỉ số phân tích: tỉ trọng, đã LH %, theo dõi, loại %, quá hạn', () => {
@@ -96,7 +108,7 @@ describe('groupBySource', () => {
       L({ source: 'facebook', status: 'Fail' }),
       L({ source: 'google', status: 'KHĐ', last_contact_at: '2026-06-11T00:00:00Z' }),
     ];
-    const fb = groupBySource(leads, NOW).find((r) => r.key === 'facebook')!;
+    const fb = groupBySource(leads, NOW).find((r) => r.key === 'Facebook')!;
     expect(fb.leads).toBe(3);
     expect(fb.share).toBe(75); // 3/4
     expect(fb.contacted).toBe(1);
