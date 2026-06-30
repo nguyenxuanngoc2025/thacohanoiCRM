@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import {
-  LayoutDashboard, Building2, TrendingUp, Activity, ScrollText, Car, Settings,
+  LayoutDashboard, Building2, TrendingUp, Activity, ScrollText, Tags, Settings,
 } from 'lucide-react';
 import { getCurrentRole } from '@/lib/platform-guard';
 
@@ -13,7 +13,7 @@ const TABS = [
   { href: '/admin/revenue', label: 'Doanh thu', icon: TrendingUp },
   { href: '/admin/usage', label: 'Sử dụng', icon: Activity },
   { href: '/admin/audit', label: 'Nhật ký', icon: ScrollText },
-  { href: '/admin/catalog', label: 'Thương hiệu & dòng xe', icon: Car },
+  { href: '/admin/catalog', label: 'Thương hiệu & dòng xe', icon: Tags },
   { href: '/admin/settings', label: 'Cấu hình', icon: Settings },
 ];
 
