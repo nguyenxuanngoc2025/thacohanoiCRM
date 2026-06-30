@@ -1,17 +1,20 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import {
+  LayoutDashboard, Building2, TrendingUp, Activity, ScrollText, Car, Settings,
+} from 'lucide-react';
 import { getCurrentRole } from '@/lib/platform-guard';
 
 export const dynamic = 'force-dynamic';
 
 const TABS = [
-  { href: '/admin/overview', label: 'Tổng quan' },
-  { href: '/admin/companies', label: 'Công ty' },
-  { href: '/admin/revenue', label: 'Doanh thu' },
-  { href: '/admin/usage', label: 'Sử dụng' },
-  { href: '/admin/audit', label: 'Nhật ký' },
-  { href: '/admin/catalog', label: 'Thương hiệu & dòng xe' },
-  { href: '/admin/settings', label: 'Cấu hình' },
+  { href: '/admin/overview', label: 'Tổng quan', icon: LayoutDashboard },
+  { href: '/admin/companies', label: 'Công ty', icon: Building2 },
+  { href: '/admin/revenue', label: 'Doanh thu', icon: TrendingUp },
+  { href: '/admin/usage', label: 'Sử dụng', icon: Activity },
+  { href: '/admin/audit', label: 'Nhật ký', icon: ScrollText },
+  { href: '/admin/catalog', label: 'Thương hiệu & dòng xe', icon: Car },
+  { href: '/admin/settings', label: 'Cấu hình', icon: Settings },
 ];
 
 export default async function PlatformAdminLayout({ children }: { children: React.ReactNode }) {
@@ -34,15 +37,19 @@ export default async function PlatformAdminLayout({ children }: { children: Reac
           <p className="text-[11px]" style={{ color: 'rgba(255,255,255,0.55)' }}>Quản trị toàn bộ công ty</p>
         </div>
         <nav className="flex-1 p-2 space-y-1">
-          {TABS.map((t) => (
-            <Link
-              key={t.href}
-              href={t.href}
-              className="block px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-white/80 hover:bg-white/10 hover:text-white"
-            >
-              {t.label}
-            </Link>
-          ))}
+          {TABS.map((t) => {
+            const Icon = t.icon;
+            return (
+              <Link
+                key={t.href}
+                href={t.href}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-white/80 hover:bg-white/10 hover:text-white"
+              >
+                <Icon size={18} className="shrink-0 opacity-80" />
+                {t.label}
+              </Link>
+            );
+          })}
         </nav>
       </aside>
       <main className="flex-1 min-w-0">{children}</main>

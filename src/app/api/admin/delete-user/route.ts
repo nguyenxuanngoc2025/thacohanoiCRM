@@ -1,5 +1,26 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { createServiceClient, createClient } from '@/lib/supabase/server';
+
+// auth.users dùng CHUNG cho mọi dự án trên Supabase self-hosted này. Các schema dự án khác
+// cũng có bảng users (id = auth.users.id). Nếu tài khoản còn profile ở schema khác thì login
+// vẫn đang được dự án đó dùng → KHÔNG được xoá đăng nhập, chỉ thu hồi quyền trong CRM.
+const SIBLING_SCHEMAS = ['erp_tb', 'mkt_budget'];
+
+// Tài khoản còn được dự án khác dùng? Quét bảng users của từng schema anh em theo id.
+async function isUsedByOtherProject(userId: string): Promise<boolean> {
+  for (const schema of SIBLING_SCHEMAS) {
+    const client = createSupabaseClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { autoRefreshToken: false, persistSession: false }, db: { schema } }
+    );
+    const { data, error } = await client.from('users').select('id').eq('id', userId).maybeSingle();
+    if (error) continue; // schema không có bảng users / không truy cập được → bỏ qua, coi như không dùng
+    if (data) return true;
+  }
+  return false;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -24,11 +45,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Không tìm thấy tài khoản trong công ty của bạn.' }, { status: 404 });
     }
 
-    // Vô hiệu hoá + đánh dấu đã xoá (giữ row cho audit + FK leads.assigned_to), rồi xoá đăng nhập auth.
+    // Vô hiệu hoá + đánh dấu đã xoá (giữ row cho audit + FK leads.assigned_to). Thao tác này đã đủ
+    // chặn tài khoản dùng trong CRM (login kiểm tra is_active của profile).
     const { error: profileError } = await service.from('users').update({ is_active: false, deleted_at: new Date().toISOString() }).eq('id', userId);
     if (profileError) return NextResponse.json({ error: profileError.message }, { status: 500 });
 
-    // Nếu auth user đã bị xoá từ lần trước thì coi như xong (idempotent) — chỉ cần profile is_active=false.
+    // Chỉ xoá đăng nhập CHUNG khi tài khoản KHÔNG còn dùng ở dự án khác — tránh làm mất login bên đó.
+    if (await isUsedByOtherProject(userId)) {
+      return NextResponse.json({ success: true, authKept: true });
+    }
+
+    // Tài khoản chỉ thuộc CRM → xoá hẳn đăng nhập. Đã xoá từ trước thì coi như xong (idempotent).
     const { error: authError } = await service.auth.admin.deleteUser(userId);
     if (authError && !/not found/i.test(authError.message)) {
       return NextResponse.json({ error: authError.message }, { status: 500 });
