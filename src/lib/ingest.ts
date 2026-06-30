@@ -218,11 +218,16 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
 
       const teamCands: StrategyCandidate[] = [];
       for (const tid of teamPool) {
-        // Đếm lead active CHUNG (không tách theo kênh).
-        const { count } = await db.from('leads').select('id', { count: 'exact', head: true })
+        // Đếm lead active CHUNG (không tách theo kênh). Áp mốc effectiveFrom giống cấp 1 để
+        // tải không bị lệch bởi lead cũ trước lần đổi cấu hình.
+        let teamCountQ = db.from('leads').select('id', { count: 'exact', head: true })
           .eq('sales_team_id', tid).or('status.is.null,status.neq.Fail');
-        const { data: last } = await db.from('leads').select('created_at')
-          .eq('sales_team_id', tid).order('created_at', { ascending: false }).limit(1).maybeSingle();
+        if (effectiveFrom) teamCountQ = teamCountQ.gte('created_at', effectiveFrom);
+        const { count } = await teamCountQ;
+        let teamLastQ = db.from('leads').select('created_at')
+          .eq('sales_team_id', tid).order('created_at', { ascending: false }).limit(1);
+        if (effectiveFrom) teamLastQ = teamLastQ.gte('created_at', effectiveFrom);
+        const { data: last } = await teamLastQ.maybeSingle();
         teamCands.push({
           id: tid, activeLeadCount: count ?? 0,
           sharePct: shareByTeam.get(tid) ?? 0,
@@ -243,10 +248,15 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
         const shareByUser = new Map<string, number>((uMeta ?? []).map((u) => [u.id, Number(u.assign_share_pct) || 0]));
         const tvbhCands: StrategyCandidate[] = [];
         for (const id of tvbhIds) {
-          const { count } = await db.from('leads').select('id', { count: 'exact', head: true })
+          // Áp mốc effectiveFrom giống cấp 1 và cấp 2 → cân bằng tải TVBH sau khi đổi cấu hình.
+          let tvbhCountQ = db.from('leads').select('id', { count: 'exact', head: true })
             .eq('assigned_to', id).or('status.is.null,status.neq.Fail');
-          const { data: last } = await db.from('leads').select('created_at')
-            .eq('assigned_to', id).order('created_at', { ascending: false }).limit(1).maybeSingle();
+          if (effectiveFrom) tvbhCountQ = tvbhCountQ.gte('created_at', effectiveFrom);
+          const { count } = await tvbhCountQ;
+          let tvbhLastQ = db.from('leads').select('created_at')
+            .eq('assigned_to', id).order('created_at', { ascending: false }).limit(1);
+          if (effectiveFrom) tvbhLastQ = tvbhLastQ.gte('created_at', effectiveFrom);
+          const { data: last } = await tvbhLastQ.maybeSingle();
           tvbhCands.push({
             id, activeLeadCount: count ?? 0,
             sharePct: shareByUser.get(id) ?? 0,

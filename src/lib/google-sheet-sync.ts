@@ -58,7 +58,7 @@ export async function syncSheetChannel(
   try {
     const accessToken = await getToken(cfg.connection_id);
     for (const tab of tabList) {
-      const range = tab.title ? `${tab.title}!A1:Z5000` : 'A1:Z5000';
+      const range = tab.title ? `${tab.title}!A1:Z10000` : 'A1:Z10000';
       const sheetRows = await readSheetValues({ accessToken, spreadsheetId: channel.page_id, range });
       for (const r of sheetRows.slice(1)) { // bỏ header
         const phone = r[cfg.phone_col] ?? '';

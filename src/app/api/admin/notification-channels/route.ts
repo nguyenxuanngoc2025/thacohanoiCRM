@@ -45,6 +45,17 @@ export async function POST(request: NextRequest) {
       ? body.events.filter((e: string) => VALID_EVENTS.includes(e))
       : ['new_lead'];
     const scope = body.scope === 'management' ? 'management' : 'sales';
+    // Cô lập đa công ty: showroom / phòng bán hàng phải thuộc CÙNG công ty với admin.
+    if (scope === 'management' && body.showroom_id) {
+      const { data: sr } = await service.from('showrooms')
+        .select('id').eq('id', body.showroom_id).eq('company_id', companyId).maybeSingle();
+      if (!sr) return NextResponse.json({ error: 'Showroom không thuộc công ty của bạn.' }, { status: 403 });
+    }
+    if (scope === 'sales' && body.sales_team_id) {
+      const { data: team } = await service.from('sales_teams')
+        .select('id').eq('id', body.sales_team_id).eq('company_id', companyId).maybeSingle();
+      if (!team) return NextResponse.json({ error: 'Phòng bán hàng không thuộc công ty của bạn.' }, { status: 403 });
+    }
     const row = {
       channel,
       name,

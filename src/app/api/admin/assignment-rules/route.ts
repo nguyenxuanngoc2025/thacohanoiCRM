@@ -38,6 +38,19 @@ export async function POST(request: NextRequest) {
     if (strategy === 'specific_user' && !body.specific_user_id) {
       return NextResponse.json({ error: 'Chọn TVBH cụ thể cho luật cố định' }, { status: 400 });
     }
+    // Cô lập đa công ty: TVBH chỉ định và showroom phải thuộc CÙNG công ty với admin.
+    if (strategy === 'specific_user' && body.specific_user_id) {
+      const { data: targetUser } = await service.from('users')
+        .select('company_id').eq('id', body.specific_user_id).maybeSingle();
+      if (!targetUser || targetUser.company_id !== companyId) {
+        return NextResponse.json({ error: 'TVBH không thuộc công ty của bạn.' }, { status: 403 });
+      }
+    }
+    if (body.showroom_id) {
+      const { data: sr } = await service.from('showrooms')
+        .select('id').eq('id', body.showroom_id).eq('company_id', companyId).maybeSingle();
+      if (!sr) return NextResponse.json({ error: 'Showroom không thuộc công ty của bạn.' }, { status: 403 });
+    }
     const row = {
       showroom_id: body.showroom_id || null,
       strategy,
