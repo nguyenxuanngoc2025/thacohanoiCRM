@@ -3,6 +3,7 @@ import { createServiceClient, createClient } from '@/lib/supabase/server';
 import type { UserRole } from '@/types/database';
 import { roleNeedsShowroom, roleNeedsBrand, roleNeedsSalesTeam, isCreatableRole } from '@/lib/nav';
 import { usernameToEmail } from '@/lib/account-email';
+import { resetEffectiveFromForShowroom } from '@/lib/assign-effective';
 
 export async function POST(request: NextRequest) {
   try {
@@ -147,6 +148,19 @@ export async function POST(request: NextRequest) {
       if (syncShowrooms.length > 0) {
         await service.from('user_showrooms').insert(syncShowrooms.map((showroom_id) => ({ user_id: userId, showroom_id })));
       }
+    }
+
+    // Đổi % chỉ tiêu TVBH (cấp 3) → đặt lại mốc hiệu lực phân bổ để có tác dụng ngay.
+    if (Number.isFinite(Number(assign_share_pct))) {
+      let srId = teamShowroomId;
+      if (!srId) {
+        const { data: u } = await service.from('users').select('sales_team_id').eq('id', userId).maybeSingle();
+        if (u?.sales_team_id) {
+          const { data: tm } = await service.from('sales_teams').select('showroom_id').eq('id', u.sales_team_id).maybeSingle();
+          srId = tm?.showroom_id ?? null;
+        }
+      }
+      await resetEffectiveFromForShowroom(service, srId);
     }
 
     return NextResponse.json({ success: true });

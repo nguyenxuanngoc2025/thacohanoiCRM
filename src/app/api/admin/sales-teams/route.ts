@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { requireAdmin } from '@/lib/admin-guard';
+import { resetEffectiveFromForShowroom } from '@/lib/assign-effective';
 
 // CRUD phòng bán hàng (sales_teams) + chiến lược chia TVBH + % share phòng.
 // op: create | update | delete | set-allocation (cũ) | set-strategy
@@ -53,6 +54,9 @@ export async function POST(request: NextRequest) {
       }
       const { error } = await service.from('sales_teams').update(updates).eq('id', body.sales_team_id).eq('company_id', companyId);
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+      // Đổi % / kiểu chia cấp 2-3 → đặt lại mốc hiệu lực để có tác dụng ngay (không bị lead cũ kéo lệch).
+      const { data: t } = await service.from('sales_teams').select('showroom_id').eq('id', body.sales_team_id).maybeSingle();
+      await resetEffectiveFromForShowroom(service, t?.showroom_id);
       return NextResponse.json({ success: true });
     }
 
