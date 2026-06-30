@@ -204,12 +204,12 @@ function NotifModal(
 
   return (
     <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 shrink-0">
           <h3 className="font-bold text-slate-900">{isNew ? 'Thêm kênh thông báo' : 'Sửa kênh thông báo'}</h3>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700"><X size={18} /></button>
         </div>
-        <div className="p-5 space-y-4">
+        <div className="p-5 space-y-4 overflow-y-auto">
           <Field label="Loại kênh">
             <Select value={channel} onChange={(e) => setChannel(e.target.value as 'zalo' | 'telegram')}>
               <option value="zalo">Zalo</option>
@@ -267,7 +267,7 @@ function NotifModal(
           <Toggle checked={isActive} onChange={setIsActive} label="Kênh đang hoạt động" />
           {error && <div className="text-sm bg-rose-50 text-rose-600 border border-rose-100 rounded-lg px-3 py-2">{error}</div>}
         </div>
-        <div className="flex justify-end gap-2 px-5 py-3.5 border-t border-slate-100">
+        <div className="flex justify-end gap-2 px-5 py-3.5 border-t border-slate-100 shrink-0">
           <GhostBtn onClick={onClose} disabled={busy}>Hủy</GhostBtn>
           <PrimaryBtn onClick={submit} disabled={busy}>{busy ? 'Đang lưu...' : 'Lưu'}</PrimaryBtn>
         </div>
