@@ -41,7 +41,7 @@ export interface BrandOption {
 export interface SalesTeamOption {
   id: string;
   showroom_id: string;
-  brand_id: string;
+  brand_id: string | null;
   label: string;
 }
 

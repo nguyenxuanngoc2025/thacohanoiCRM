@@ -93,12 +93,17 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
     if (modelId) modelName = models.find((m) => m.id === modelId)?.name ?? null;
   }
 
-  // Phòng bán hàng (sales_teams) của ĐÚNG thương hiệu fanpage, trong các showroom ứng viên.
-  const { data: teamsAll } = await db
+  // Phòng bán hàng (sales_teams) nhận lead của hãng fanpage này, trong các showroom ứng viên:
+  //  - phòng khoá đúng hãng (brand_id = brand fanpage), HOẶC
+  //  - phòng đa hãng (brand_id NULL) — bán mọi hãng của showroom.
+  let teamsQ = db
     .from('sales_teams')
     .select('id, showroom_id')
-    .in('showroom_id', candidateShowroomIds)
-    .eq('brand_id', channel.brand_id);
+    .in('showroom_id', candidateShowroomIds);
+  teamsQ = channel.brand_id
+    ? teamsQ.or(`brand_id.eq.${channel.brand_id},brand_id.is.null`)
+    : teamsQ.is('brand_id', null);
+  const { data: teamsAll } = await teamsQ;
 
   const teamsByShowroom = new Map<string, string[]>();
   const teamIds: string[] = [];

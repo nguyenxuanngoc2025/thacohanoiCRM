@@ -91,17 +91,20 @@ export async function POST(request: NextRequest) {
     // op === 'create'
     const name = (body.name as string)?.trim();
     const showroomId = body.showroom_id as string;
-    const brandId = body.brand_id as string;
-    if (!name || !showroomId || !brandId) {
-      return NextResponse.json({ error: 'Thiếu tên phòng, showroom hoặc thương hiệu.' }, { status: 400 });
+    // brand_id để trống = phòng ĐA HÃNG (bán mọi hãng của showroom).
+    const brandId = (body.brand_id as string) || null;
+    if (!name || !showroomId) {
+      return NextResponse.json({ error: 'Thiếu tên phòng hoặc showroom.' }, { status: 400 });
     }
     // Showroom phải thuộc công ty admin.
     const { data: sr } = await service.from('showrooms').select('id').eq('id', showroomId).eq('company_id', companyId).maybeSingle();
     if (!sr) return NextResponse.json({ error: 'Showroom không thuộc công ty của bạn.' }, { status: 400 });
-    // Thương hiệu phải là thương hiệu showroom thực sự kinh doanh.
-    const { data: sb } = await service.from('showroom_brands')
-      .select('brand_id').eq('showroom_id', showroomId).eq('brand_id', brandId).maybeSingle();
-    if (!sb) return NextResponse.json({ error: 'Showroom này không kinh doanh thương hiệu đã chọn.' }, { status: 400 });
+    // Nếu khoá 1 hãng: hãng phải là hãng showroom thực sự kinh doanh (bỏ qua khi đa hãng).
+    if (brandId) {
+      const { data: sb } = await service.from('showroom_brands')
+        .select('brand_id').eq('showroom_id', showroomId).eq('brand_id', brandId).maybeSingle();
+      if (!sb) return NextResponse.json({ error: 'Showroom này không kinh doanh thương hiệu đã chọn.' }, { status: 400 });
+    }
 
     const { data, error } = await service.from('sales_teams')
       .insert({

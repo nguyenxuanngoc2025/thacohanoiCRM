@@ -32,7 +32,8 @@ export interface ModelRow {
 export interface SalesTeamRow {
   id: string;
   showroom_id: string;
-  brand_id: string;
+  // NULL = phòng đa hãng (bán mọi thương hiệu của showroom).
+  brand_id: string | null;
   name: string;
   head_user_id: string | null;
   is_default: boolean;
