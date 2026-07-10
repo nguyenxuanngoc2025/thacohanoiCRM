@@ -18,19 +18,40 @@ export function bestB10Status(a: LeadStatus | null, b: LeadStatus | null): LeadS
   return rankOf(b) > rankOf(a) ? b : a;
 }
 
-/** Chuẩn hoá giá trị kết quả từ file về mã chuẩn; rỗng/lạ → null. */
+/**
+ * Chuẩn hoá giá trị kết quả từ file B10 về mã chuẩn của ta; rỗng/lạ → null.
+ * Nhận cả mã nội bộ (KHQT/GDTD/…) LẪN trạng thái DDMS Sales Funnel tiếng Anh
+ * xuất từ B10 (cột "Trạng thái cuối"), ánh xạ theo TB 85/2025/TB-THACO AUTO KM HN:
+ *   - Contact  (Khách hàng liên hệ)          → KHQT
+ *   - Prospect (Khách hàng quan tâm)         → KHQT
+ *   - Appointment / Test drive / Sales offer / Booking (Giao dịch theo dõi) → GDTD
+ *   - Fail                                    → Fail
+ * "KHĐ" (Ký hợp đồng) KHÔNG đến từ funnel — chỉ set qua luồng hợp đồng riêng,
+ * nên trạng thái tối đa suy từ file B10 là GDTD.
+ */
 export function normalizeB10Status(raw: string | null): LeadStatus | null {
   if (!raw) return null;
-  const v = raw.trim().toLowerCase();
+  const v = raw.trim().toLowerCase().replace(/\s+/g, ' ');
   if (!v) return null;
   const map: Record<string, LeadStatus> = {
+    // Mã nội bộ
     khqt: 'KHQT',
     gdtd: 'GDTD',
     'khđ': 'KHĐ',
     'chưa lh được': 'Chưa LH được',
     fail: 'Fail',
+    // Trạng thái DDMS Sales Funnel → định nghĩa của ta
+    contact: 'KHQT',
+    prospect: 'KHQT',
+    appointment: 'GDTD',
+    'test drive': 'GDTD',
+    testdrive: 'GDTD',
+    'sales offer': 'GDTD',
+    salesoffer: 'GDTD',
+    booking: 'GDTD',
   };
-  return map[v] ?? null;
+  // Thử khớp trực tiếp, rồi thử bỏ hết khoảng trắng (vd "salesoffer").
+  return map[v] ?? map[v.replace(/\s+/g, '')] ?? null;
 }
 
 export interface B10Row { phone: string; status: string | null; note?: string | null }

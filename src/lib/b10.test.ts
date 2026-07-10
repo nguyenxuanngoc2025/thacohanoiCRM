@@ -34,6 +34,26 @@ describe('normalizeB10Status', () => {
     expect(normalizeB10Status(null)).toBeNull();
     expect(normalizeB10Status('xyz')).toBeNull();
   });
+
+  it('trạng thái DDMS Sales Funnel → định nghĩa của ta (TB 85/2025)', () => {
+    // Khách hàng liên hệ / quan tâm → KHQT
+    expect(normalizeB10Status('Contact')).toBe('KHQT');
+    expect(normalizeB10Status('Prospect')).toBe('KHQT');
+    // Giao dịch theo dõi (warm/hot/booking) → GDTD
+    expect(normalizeB10Status('Appointment')).toBe('GDTD');
+    expect(normalizeB10Status('Test Drive')).toBe('GDTD');
+    expect(normalizeB10Status('Sales Offer')).toBe('GDTD');
+    expect(normalizeB10Status('Booking')).toBe('GDTD');
+    // Fail giữ nguyên
+    expect(normalizeB10Status('Fail')).toBe('Fail');
+  });
+
+  it('DDMS: không phân biệt hoa/thường, thừa khoảng trắng, thiếu khoảng trắng', () => {
+    expect(normalizeB10Status(' prospect ')).toBe('KHQT');
+    expect(normalizeB10Status('SALES  OFFER')).toBe('GDTD');
+    expect(normalizeB10Status('testdrive')).toBe('GDTD');
+    expect(normalizeB10Status('salesoffer')).toBe('GDTD');
+  });
 });
 
 // thêm vào cuối app/src/lib/b10.test.ts
