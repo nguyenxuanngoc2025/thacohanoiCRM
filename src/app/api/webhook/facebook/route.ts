@@ -23,6 +23,12 @@ export async function POST(request: NextRequest) {
     // Đọc body GỐC để xác thực chữ ký (HMAC tính trên đúng chuỗi này).
     const rawBody = await request.text();
 
+    // CHẨN ĐOÁN: mọi POST tới đây đều ghi lại (kể cả trước khi kiểm chữ ký) để phân biệt
+    // "FB không gửi gì" với "gửi tới nhưng sai chữ ký". In đầu payload (đủ soi page_id/recipient).
+    console.log(
+      `[fb-webhook] POST nhận: bytes=${rawBody.length} sig=${request.headers.get('x-hub-signature-256') ? 'có' : 'thiếu'} head=${rawBody.slice(0, 220)}`,
+    );
+
     // Kiểm chữ ký X-Hub-Signature-256 chống lead giả (ai biết page_id công khai cũng
     // POST được). Có FB_APP_SECRET → bắt buộc đúng chữ ký; chưa cấu hình → bỏ qua kiểm
     // (fail-open) để không chặn lead thật khi env chưa set.
@@ -31,7 +37,7 @@ export async function POST(request: NextRequest) {
     const appSecret = await getFbAppSecret();
     if (appSecret) {
       if (!verifyFbSignature(rawBody, request.headers.get('x-hub-signature-256'), appSecret)) {
-        console.warn('[fb-webhook] chữ ký không hợp lệ — bỏ qua payload.');
+        console.warn(`[fb-webhook] chữ ký không hợp lệ — bỏ qua. head=${rawBody.slice(0, 220)}`);
         return NextResponse.json({ ok: false }, { status: 200 }); // 200 để FB không retry bão
       }
     } else {
