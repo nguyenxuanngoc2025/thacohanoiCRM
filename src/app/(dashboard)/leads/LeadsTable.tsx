@@ -134,7 +134,7 @@ const COLS: ColDef[] = [
   { key: 'contacted', label: 'Trạng thái', pad: 'px-4' },
   { key: 'class', label: 'Phân loại', pad: 'px-4' },
   { key: 'b10on', label: 'B10', pad: 'px-4' },
-  { key: 'b10class', label: 'Kết quả B10', pad: 'px-4' },
+  { key: 'b10class', label: 'Trạng thái B10', pad: 'px-4' },
   { key: 'platform', label: 'Nguồn', pad: 'px-4' },
   { key: 'brand', label: 'Thương hiệu', pad: 'px-4' },
   { key: 'showroom', label: 'Showroom', pad: 'px-4' },
