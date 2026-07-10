@@ -4,8 +4,11 @@
 const PLACEHOLDERS = ['khách lẻ', 'khách hàng'];
 
 // Từ khoá marketing (dạng đã bỏ dấu, lowercase) — so trên chuỗi đã bỏ dấu.
+// KHÔNG dùng 'nhan' (khớp chuỗi con): tên người thật "Nhân"/"Nhanh"/"Nhàn" cũng dính.
+// Các slug-form "nhận_..." đã bị bắt bởi luật dấu gạch dưới bên dưới; câu marketing có
+// dấu cách ("nhận báo giá") vẫn dính 'bao gia'.
 const MARKETING = [
-  'bao gia', 'lan banh', 'khuyen mai', 'nhan', 'dang ky', 'form', 'uu dai',
+  'bao gia', 'lan banh', 'khuyen mai', 'dang ky', 'form', 'uu dai',
 ];
 
 function stripDiacritics(s: string): string {

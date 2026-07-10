@@ -6,6 +6,9 @@ describe('looksLikePersonName', () => {
     expect(looksLikePersonName('Nguyễn Văn A')).toBe(true);
     expect(looksLikePersonName('Nguyễn tá quang')).toBe(true);
     expect(looksLikePersonName('Lão Già')).toBe(true); // biệt danh vẫn coi là tên người
+    // Tên chứa "nhân/nhanh" là tên người thật, KHÔNG được coi là "nhận" marketing.
+    expect(looksLikePersonName('Hũu Nhân')).toBe(true);
+    expect(looksLikePersonName('Đào Trọng Nhanh')).toBe(true);
   });
 
   it('trống / null / placeholder → false (cần tra)', () => {
