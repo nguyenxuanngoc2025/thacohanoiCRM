@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import LeadsTable, { type LeadRow, type Filters, EMPTY_FILTERS, applyScope } from './LeadsTable';
 import { isContacted } from '@/lib/lead-status';
+import { createClient } from '@/lib/supabase/client';
 
 export interface StatCard {
   label: string;
@@ -38,9 +40,30 @@ export default function LeadsView({
   b10Enabled: boolean;
   isTvbh: boolean;
 }) {
+  const router = useRouter();
   const rootRef = useRef<HTMLDivElement>(null);
   const cardsRef = useRef<HTMLDivElement>(null);
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
+
+  // Realtime: có lead mới/đổi → tự lấy lại dữ liệu (bỏ F5). Debounce để gộp nhiều thay đổi
+  // liên tiếp thành 1 lần refresh, giữ nguyên bộ lọc (state client không mất). RLS đã gác:
+  // chỉ nhận thay đổi của lead trong phạm vi user. router.refresh() lấy đúng dữ liệu enriched.
+  useEffect(() => {
+    const supabase = createClient();
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const bump = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => router.refresh(), 600);
+    };
+    const channel = supabase
+      .channel('leads-realtime')
+      .on('postgres_changes', { event: '*', schema: 'crm_thacoauto', table: 'leads' }, bump)
+      .subscribe();
+    return () => {
+      if (timer) clearTimeout(timer);
+      supabase.removeChannel(channel);
+    };
+  }, [router]);
 
   // Tập lead theo bộ lọc phạm vi → KPI cards tính từ đây để "nhảy" theo filter.
   const scoped = useMemo(() => applyScope(leads, filters), [leads, filters]);

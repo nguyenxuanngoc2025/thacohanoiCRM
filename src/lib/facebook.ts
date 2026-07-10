@@ -72,6 +72,72 @@ export async function fetchLeadDetail(leadgenId: string): Promise<{
   };
 }
 
+export interface BackfillLead {
+  leadgenId: string;
+  createdTime: string; // ISO — thời điểm gốc trên Facebook
+  fullName: string | null;
+  phone: string | null;
+  formName: string | null;
+  adName: string | null;
+  campaignName: string | null;
+  raw: unknown;
+}
+
+/**
+ * Kéo TẤT CẢ lead form của 1 fanpage phát sinh SAU mốc `sinceUnix` (giây epoch).
+ * Dùng cho backfill khi kênh được kết nối trễ hơn thời điểm lead xuất hiện → webhook
+ * chưa nhận được. Duyệt từng biểu mẫu + phân trang; lỗi 1 form thì bỏ qua form đó.
+ */
+export async function fetchPageLeadsSince(pageId: string, sinceUnix: number): Promise<BackfillLead[]> {
+  const token = process.env.FB_SYSTEM_USER_TOKEN;
+  if (!token) throw new Error('Thiếu FB_SYSTEM_USER_TOKEN');
+
+  const pr = await fetch(`${GRAPH}/${pageId}?fields=access_token&access_token=${token}`);
+  const pj = await pr.json();
+  const pageToken: string | undefined = pj?.access_token;
+  if (!pageToken) throw new Error(pj?.error?.message ?? 'Không lấy được page token');
+
+  // Liệt kê biểu mẫu (phân trang).
+  const forms: { id: string; name: string }[] = [];
+  let formsUrl = `${GRAPH}/${pageId}/leadgen_forms?fields=id,name&limit=100&access_token=${pageToken}`;
+  while (formsUrl) {
+    const r = await fetch(formsUrl);
+    const j = await r.json();
+    if (!r.ok) { console.error('[facebook] list forms lỗi:', j?.error); break; }
+    for (const f of j?.data ?? []) forms.push({ id: f.id, name: f.name });
+    formsUrl = j?.paging?.next ?? '';
+  }
+
+  const out: BackfillLead[] = [];
+  const filtering = encodeURIComponent(
+    JSON.stringify([{ field: 'time_created', operator: 'GREATER_THAN', value: sinceUnix }]),
+  );
+  for (const form of forms) {
+    let url = `${GRAPH}/${form.id}/leads?fields=id,created_time,field_data,ad_name,campaign_name&filtering=${filtering}&limit=100&access_token=${pageToken}`;
+    while (url) {
+      const r = await fetch(url);
+      const j = await r.json();
+      if (!r.ok) { console.error('[facebook] list leads lỗi:', form.name, j?.error); break; }
+      for (const lead of j?.data ?? []) {
+        const fields: FbLeadField[] = lead?.field_data ?? [];
+        const get = (keys: string[]) => fields.find((f) => keys.includes(f.name))?.values?.[0] ?? null;
+        out.push({
+          leadgenId: String(lead.id),
+          createdTime: lead.created_time,
+          fullName: get(['full_name', 'name', 'họ_và_tên']),
+          phone: get(['phone_number', 'phone', 'số_điện_thoại']),
+          formName: form.name,
+          adName: typeof lead.ad_name === 'string' ? lead.ad_name : null,
+          campaignName: typeof lead.campaign_name === 'string' ? lead.campaign_name : null,
+          raw: lead,
+        });
+      }
+      url = j?.paging?.next ?? '';
+    }
+  }
+  return out;
+}
+
 // Các field webhook fanpage cần để CRM bắt đủ lead: Lead Ads + tin nhắn + bình luận.
 const PAGE_WEBHOOK_FIELDS = 'leadgen,messages,feed';
 const REQUIRED_WEBHOOK_FIELDS = ['leadgen', 'messages', 'feed'];

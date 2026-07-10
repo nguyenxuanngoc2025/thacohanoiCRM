@@ -276,8 +276,10 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
     .eq('round', 1)
     .eq('is_active', true)
     .maybeSingle();
+  // Backfill: neo hạn liên hệ vào mốc GỐC (created_at_override) thay vì now() để SLA đúng lịch sử.
+  const baseTime = payload.created_at_override ? new Date(payload.created_at_override).getTime() : Date.now();
   const nextContactAt = sla
-    ? new Date(Date.now() + sla.first_response_hours * 3600 * 1000).toISOString()
+    ? new Date(baseTime + sla.first_response_hours * 3600 * 1000).toISOString()
     : null;
 
   const { data: inserted, error } = await db
@@ -299,6 +301,8 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
       next_contact_at: nextContactAt,
       fb_lead_id: payload.fb_lead_id ?? null,
       external_payload: payload.external_payload ?? null,
+      // Backfill lead lịch sử: đặt đúng thời điểm gốc (không có override → DB tự điền now()).
+      ...(payload.created_at_override ? { created_at: payload.created_at_override } : {}),
     })
     .select('id')
     .single();
@@ -308,7 +312,8 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
   // Đẩy thông báo Zalo: CHỈ group của ĐÚNG PHÒNG đã chọn + có sự kiện 'new_lead'.
   // Nhóm BLĐ (scope='management') KHÔNG nhận từng lead — chỉ nhận báo cáo. Lead chưa thuộc
   // phòng nào (chosenTeamId null) → không có group để báo → bỏ qua.
-  const { data: notifChannels } = chosenTeamId
+  // Backfill lead lịch sử: bỏ qua toàn bộ thông báo để không spam nhóm Zalo bằng lead cũ.
+  const { data: notifChannels } = chosenTeamId && !payload.suppress_notify
     ? await db
         .from('notification_channels')
         .select('id, channel, target, events, sales_team_id, scope')
