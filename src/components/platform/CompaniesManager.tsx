@@ -37,6 +37,33 @@ async function toggleShowroom(companyId: string, showroomId: string, isActive: b
   return { ok: res.ok, error: data?.error };
 }
 
+async function createShowroom(companyId: string, body: Record<string, unknown>): Promise<{ ok: boolean; error?: string; id?: string }> {
+  const res = await fetch(`/api/platform/companies/${companyId}/showrooms`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  return { ok: res.ok, error: data?.error, id: data?.id };
+}
+
+async function updateShowroom(companyId: string, body: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
+  const res = await fetch(`/api/platform/companies/${companyId}/showrooms`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  return { ok: res.ok, error: data?.error };
+}
+
+async function deleteShowroom(companyId: string, showroomId: string): Promise<{ ok: boolean; error?: string }> {
+  const res = await fetch(`/api/platform/companies/${companyId}/showrooms`, {
+    method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ showroom_id: showroomId }),
+  });
+  const data = await res.json().catch(() => ({}));
+  return { ok: res.ok, error: data?.error };
+}
+
+type SrItem = { id: string; name: string; code: string | null; is_active: boolean; brand_ids: string[] };
+
 export default function CompaniesManager({
   companies, brands,
 }: { companies: PlatformCompany[]; brands: PlatformBrand[] }) {
@@ -406,18 +433,18 @@ function QuotaModal({
   const [b10Enabled, setB10Enabled] = useState(company.b10_enabled);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [srList, setSrList] = useState<{ id: string; name: string; code: string | null; is_active: boolean }[]>([]);
+  const [srList, setSrList] = useState<SrItem[]>([]);
   const [srBusy, setSrBusy] = useState<string | null>(null);
+  const [srEdit, setSrEdit] = useState<SrItem | null>(null); // null = không mở; object = sửa
+  const [srAdding, setSrAdding] = useState(false);
 
-  React.useEffect(() => {
-    let active = true;
-    (async () => {
-      const res = await fetch(`/api/platform/companies/${company.id}/view`);
-      const json = await res.json().catch(() => ({}));
-      if (active && res.ok) setSrList(json.showrooms ?? []);
-    })();
-    return () => { active = false; };
+  const reloadSr = React.useCallback(async () => {
+    const res = await fetch(`/api/platform/companies/${company.id}/view`);
+    const json = await res.json().catch(() => ({}));
+    if (res.ok) setSrList((json.showrooms ?? []) as SrItem[]);
   }, [company.id]);
+
+  React.useEffect(() => { reloadSr(); }, [reloadSr]);
 
   const onToggleSr = async (sid: string, next: boolean) => {
     setSrBusy(sid);
@@ -426,7 +453,22 @@ function QuotaModal({
     if (!r.ok) { setError(r.error ?? 'Lỗi bật/tắt showroom'); return; }
     setSrList((prev) => prev.map((s) => (s.id === sid ? { ...s, is_active: next } : s)));
   };
+
+  const onDeleteSr = async (s: SrItem) => {
+    if (!window.confirm(`Xoá vĩnh viễn showroom "${s.name}"? Không thể hoàn tác.`)) return;
+    setSrBusy(s.id);
+    const r = await deleteShowroom(company.id, s.id);
+    setSrBusy(null);
+    if (!r.ok) { setError(r.error ?? 'Lỗi xoá showroom'); return; }
+    setError(null);
+    setSrList((prev) => prev.filter((x) => x.id !== s.id));
+  };
+
   const srActiveCount = srList.filter((s) => s.is_active).length;
+  const srTotal = srList.length;
+  const quotaReached = srTotal >= Number(company.max_showrooms);
+  // Brand công ty được cấp (đã lưu) → tập chọn được khi gán cho showroom.
+  const grantedBrands = brands.filter((b) => company.brand_ids.includes(b.id));
 
   const toggleBrand = (id: string) =>
     setBrandIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -446,9 +488,10 @@ function QuotaModal({
   };
 
   return (
+    <>
     <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-        <div className="px-5 py-3.5 border-b border-slate-100">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="px-5 py-3.5 border-b border-slate-100 sticky top-0 bg-white z-10">
           <h3 className="font-bold text-slate-900">Quota — {company.name}</h3>
         </div>
         <div className="p-5 space-y-4">
@@ -476,24 +519,40 @@ function QuotaModal({
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">
-              Showroom hoạt động <span className="text-slate-400 font-normal">({srActiveCount}/{company.max_showrooms})</span>
-            </label>
-            <p className="text-xs text-slate-400 mb-2">Tắt showroom vượt hạn mức: bot ngừng báo, ẩn khỏi app, nhưng lead vẫn nhận ngầm. Bật lại là khôi phục.</p>
-            <div className="space-y-1.5 max-h-56 overflow-y-auto">
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-sm font-medium text-slate-700">
+                Showroom <span className="text-slate-400 font-normal">({srActiveCount} bật / {srTotal} tổng · trần {company.max_showrooms})</span>
+              </label>
+              <button type="button" onClick={() => setSrAdding(true)} disabled={quotaReached}
+                className="text-xs font-medium px-2.5 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                style={{ color: '#004B9B' }}
+                title={quotaReached ? 'Đã đạt trần showroom — nâng quota trước.' : undefined}>
+                + Thêm showroom
+              </button>
+            </div>
+            <p className="text-xs text-slate-400 mb-2">Tắt = ẩn khỏi app, bot ngừng báo, lead vẫn nhận ngầm (khôi phục được). Xoá = vĩnh viễn, chỉ khi không còn lead/nhân sự.</p>
+            <div className="space-y-1.5 max-h-64 overflow-y-auto">
               {srList.map((s) => (
                 <div key={s.id}
                   className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg border"
                   style={{ borderColor: s.is_active ? '#004B9B' : '#e2e8f0', background: s.is_active ? '#e6f0fa' : '#f8fafc' }}>
-                  <span className="text-sm font-medium text-slate-700">
+                  <span className="text-sm font-medium text-slate-700 min-w-0 truncate">
                     {s.name}{s.code && <span className="text-slate-400 font-mono text-xs"> · {s.code}</span>}
+                    {!s.is_active && <span className="ml-1.5 text-xs font-normal text-rose-500">(tắt)</span>}
                   </span>
-                  <button type="button" disabled={srBusy === s.id}
-                    onClick={() => onToggleSr(s.id, !s.is_active)}
-                    className="text-xs font-medium px-2.5 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-50"
-                    style={{ color: s.is_active ? '#e11d48' : '#166534' }}>
-                    {srBusy === s.id ? '...' : s.is_active ? 'Tắt' : 'Bật'}
-                  </button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button type="button" disabled={srBusy === s.id} onClick={() => setSrEdit(s)}
+                      className="text-xs font-medium px-2 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-50"
+                      style={{ color: '#004B9B' }}>Sửa</button>
+                    <button type="button" disabled={srBusy === s.id} onClick={() => onToggleSr(s.id, !s.is_active)}
+                      className="text-xs font-medium px-2 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-50"
+                      style={{ color: s.is_active ? '#d97706' : '#166534' }}>
+                      {srBusy === s.id ? '...' : s.is_active ? 'Tắt' : 'Bật'}
+                    </button>
+                    <button type="button" disabled={srBusy === s.id} onClick={() => onDeleteSr(s)}
+                      className="text-xs font-medium px-2 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-50"
+                      style={{ color: '#e11d48' }}>Xoá</button>
+                  </div>
                 </div>
               ))}
               {srList.length === 0 && <p className="text-sm text-slate-400">Chưa có showroom.</p>}
@@ -518,6 +577,99 @@ function QuotaModal({
           <button onClick={submit} disabled={busy}
             className="text-sm font-medium px-4 py-2 rounded-lg text-white" style={{ background: '#004B9B' }}>
             {busy ? 'Đang lưu...' : 'Lưu'}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    {(srAdding || srEdit) && (
+      <ShowroomEditModal
+        companyId={company.id}
+        grantedBrands={grantedBrands}
+        editing={srEdit}
+        onClose={() => { setSrAdding(false); setSrEdit(null); }}
+        onSaved={async () => { setSrAdding(false); setSrEdit(null); setError(null); await reloadSr(); }}
+      />
+    )}
+    </>
+  );
+}
+
+function ShowroomEditModal({
+  companyId, grantedBrands, editing, onClose, onSaved,
+}: {
+  companyId: string;
+  grantedBrands: PlatformBrand[];
+  editing: SrItem | null; // null = tạo mới
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [name, setName] = useState(editing?.name ?? '');
+  const [code, setCode] = useState(editing?.code ?? '');
+  const [brandIds, setBrandIds] = useState<string[]>(editing?.brand_ids ?? []);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const toggleBrand = (id: string) =>
+    setBrandIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+
+  const submit = async () => {
+    setError(null);
+    if (!name.trim()) { setError('Nhập tên showroom.'); return; }
+    setBusy(true);
+    const payload = { name: name.trim(), code: code.trim() || null, brand_ids: brandIds };
+    const r = editing
+      ? await updateShowroom(companyId, { showroom_id: editing.id, ...payload })
+      : await createShowroom(companyId, payload);
+    setBusy(false);
+    if (!r.ok) { setError(r.error ?? 'Lỗi'); return; }
+    onSaved();
+  };
+
+  return (
+    <div className="fixed inset-0 z-[410] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+        <div className="px-5 py-3.5 border-b border-slate-100">
+          <h3 className="font-bold text-slate-900">{editing ? 'Sửa showroom' : 'Thêm showroom'}</h3>
+        </div>
+        <div className="p-5 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Tên showroom</label>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Showroom Trường Chinh"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Mã <span className="text-slate-400 font-normal">(tuỳ chọn)</span></label>
+            <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="TC"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">Thương hiệu tại showroom</label>
+            <div className="space-y-1.5">
+              {grantedBrands.map((b) => {
+                const checked = brandIds.includes(b.id);
+                return (
+                  <label key={b.id}
+                    className="flex items-center gap-2.5 px-3 py-2 rounded-lg border cursor-pointer"
+                    style={{ borderColor: checked ? '#004B9B' : '#e2e8f0', background: checked ? '#e6f0fa' : '#fff' }}>
+                    <input type="checkbox" checked={checked} onChange={() => toggleBrand(b.id)} className="accent-[#004B9B]" />
+                    <span className="text-sm font-medium text-slate-700">{b.name}</span>
+                  </label>
+                );
+              })}
+              {grantedBrands.length === 0 && (
+                <p className="text-sm text-slate-400">Công ty chưa được cấp thương hiệu nào. Lưu quota với thương hiệu trước.</p>
+              )}
+            </div>
+          </div>
+          {error && <div className="text-sm bg-rose-50 text-rose-600 border border-rose-100 rounded-lg px-3 py-2">{error}</div>}
+        </div>
+        <div className="flex justify-end gap-2 px-5 py-3.5 border-t border-slate-100">
+          <button onClick={onClose} disabled={busy}
+            className="text-sm font-medium px-4 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50">Hủy</button>
+          <button onClick={submit} disabled={busy}
+            className="text-sm font-medium px-4 py-2 rounded-lg text-white" style={{ background: '#004B9B' }}>
+            {busy ? 'Đang lưu...' : editing ? 'Lưu' : 'Thêm'}
           </button>
         </div>
       </div>

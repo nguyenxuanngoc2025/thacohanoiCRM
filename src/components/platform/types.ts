@@ -67,7 +67,7 @@ export interface CompanyOption {
 
 export interface CompanyViewData {
   company: { id: string; name: string; subdomain: string | null; plan_status: string; max_showrooms: number };
-  showrooms: { id: string; name: string; code: string | null; is_active: boolean }[];
+  showrooms: { id: string; name: string; code: string | null; is_active: boolean; brand_ids: string[] }[];
   users: { id: string; full_name: string; email: string; role: string; is_active: boolean }[];
   leadTotal: number;
   statusCount: Record<string, number>;

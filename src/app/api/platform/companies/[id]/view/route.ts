@@ -30,6 +30,18 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     statusCount[l.status] = (statusCount[l.status] ?? 0) + 1;
   }
 
+  // Brand đã gán cho từng showroom (để mở modal sửa showroom bên platform admin).
+  const srIds = (showrooms ?? []).map((s) => (s as { id: string }).id);
+  const { data: srBrandRows } = srIds.length
+    ? await service.from('showroom_brands').select('showroom_id, brand_id').in('showroom_id', srIds)
+    : { data: [] as { showroom_id: string; brand_id: string }[] };
+  const brandIdsBySr: Record<string, string[]> = {};
+  for (const r of (srBrandRows ?? []) as { showroom_id: string; brand_id: string }[]) {
+    (brandIdsBySr[r.showroom_id] ??= []).push(r.brand_id);
+  }
+  const showroomsOut = ((showrooms ?? []) as { id: string; name: string; code: string | null; is_active: boolean }[])
+    .map((s) => ({ ...s, brand_ids: brandIdsBySr[s.id] ?? [] }));
+
   const srName: Record<string, string> = {};
   for (const s of (showrooms ?? []) as { id: string; name: string }[]) srName[s.id] = s.name;
 
@@ -48,7 +60,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
   return NextResponse.json({
     company,
-    showrooms: showrooms ?? [],
+    showrooms: showroomsOut,
     users: users ?? [],
     leadTotal: (allLeadStatus ?? []).length,
     statusCount,
