@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { checkCronSecret } from '@/lib/cron-auth';
 import { buildPeriodReport, type ReportLead } from '@/lib/daily-report';
-import { getMutedTeamIdsGlobal, isBrandClosed } from '@/lib/company-brands';
+import { getMutedTeamIdsGlobal, getInactiveShowroomIdsGlobal, isBrandClosed } from '@/lib/company-brands';
 
 export const dynamic = 'force-dynamic';
 
@@ -65,7 +65,9 @@ export async function POST(request: NextRequest) {
     openByCompany.set(String(row.company_id), arr);
   }
   const mutedTeamIds = await getMutedTeamIdsGlobal(db);
+  const inactiveSrIds = await getInactiveShowroomIdsGlobal(db);
   const openLeads = (leads ?? []).filter((l) => {
+    if (inactiveSrIds.has(String((l.showroom_id as string | null) ?? ''))) return false;
     const cid = (l.company_id as string | null) ?? null;
     if (!cid) return true;
     return !isBrandClosed(openByCompany.get(cid) ?? [], (l.brand_id as string | null) ?? null);
@@ -96,7 +98,7 @@ export async function POST(request: NextRequest) {
   const teamSeedIds = period === 'daily'
     ? [...new Set((channels ?? []).filter((c) => has(c) && c.scope === 'sales' && c.sales_team_id && !mutedTeamIds.has(c.sales_team_id as string)).map((c) => c.sales_team_id as string))]
     : [];
-  const showroomSeedIds = [...new Set((channels ?? []).filter((c) => has(c) && c.scope === 'management' && c.showroom_id).map((c) => c.showroom_id as string))];
+  const showroomSeedIds = [...new Set((channels ?? []).filter((c) => has(c) && c.scope === 'management' && c.showroom_id && !inactiveSrIds.has(c.showroom_id as string)).map((c) => c.showroom_id as string))];
   const [{ data: teamRows }, { data: srRows }] = await Promise.all([
     teamSeedIds.length ? db.from('sales_teams').select('id, name').in('id', teamSeedIds) : Promise.resolve({ data: [] as { id: string; name: string }[] }),
     showroomSeedIds.length ? db.from('showrooms').select('id, name').in('id', showroomSeedIds) : Promise.resolve({ data: [] as { id: string; name: string }[] }),
