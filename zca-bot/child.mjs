@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { Zalo } from 'zca-js';
-import { createDb, decrypt, maybeEnrich, parseStyledText, fetchGroups } from './lib.mjs';
+import { createDb, decrypt, maybeEnrich, runEnrichOnly, parseStyledText, fetchGroups } from './lib.mjs';
 
 const companyId = process.argv[2];
 if (!companyId) { console.error('[child] thiếu companyId'); process.exit(1); }
@@ -50,8 +50,58 @@ async function resolveSendTarget(api, target, threadType) {
   return uid;
 }
 
+// Gửi 1 tin thật (áp nhịp chống spam). Đặt lastSentAt/nextGap sau khi xử lý.
+async function processSend(api, n, max) {
+  let text = n.payload?.text;
+  const groupId = n.payload?.target
+    ?? (await db.from('notification_channels').select('target').eq('id', n.channel_id).maybeSingle()).data?.target
+    ?? null;
+  if (!text || !groupId) {
+    await db.from('notifications').update({
+      status: 'failed', attempts: (n.attempts ?? 0) + 1,
+      last_error: !text ? 'thiếu payload.text' : 'thiếu group_id',
+    }).eq('id', n.id);
+    return;
+  }
+  text = await maybeEnrich(db, api, n);
+  const { msg, styles } = parseStyledText(text);
+  try {
+    // thread_type: 1 = nhóm (mặc định), 0 = cá nhân (cảnh báo hệ thống về Zalo cá nhân).
+    const threadType = n.payload?.thread_type === 0 ? 0 : 1;
+    const sendTo = await resolveSendTarget(api, groupId, threadType);
+    if (!sendTo) throw new Error(`không tra được UID Zalo cho ${groupId} (SĐT chưa có Zalo / chưa kết bạn với bot)`);
+    await api.sendMessage(styles.length ? { msg, styles } : { msg }, sendTo, threadType);
+    await db.from('notifications').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', n.id);
+    console.log('[child]', companyId, 'gửi OK', n.id, '→', sendTo, 'type', threadType);
+  } catch (e) {
+    const attempts = (n.attempts ?? 0) + 1;
+    await db.from('notifications').update({
+      status: attempts >= max ? 'failed' : 'pending',
+      attempts, last_error: String(e?.message ?? e).slice(0, 500),
+    }).eq('id', n.id);
+    console.error('[child]', companyId, 'gửi lỗi', n.id, e?.message);
+  }
+  lastSentAt = Date.now();
+  nextGap = randomGap();
+}
+
+// Xử lý 1 việc tra tên độc lập (enrich_only): tra Zalo + ghi tên, KHÔNG gửi tin, KHÔNG áp nhịp gửi.
+async function processEnrich(api, n, max) {
+  try {
+    await runEnrichOnly(db, api, n);
+    await db.from('notifications').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', n.id);
+    console.log('[child]', companyId, 'tra tên OK', n.id);
+  } catch (e) {
+    const attempts = (n.attempts ?? 0) + 1;
+    await db.from('notifications').update({
+      status: attempts >= max ? 'failed' : 'pending',
+      attempts, last_error: String(e?.message ?? e).slice(0, 500),
+    }).eq('id', n.id);
+    console.error('[child]', companyId, 'tra tên lỗi', n.id, e?.message);
+  }
+}
+
 async function tick(api) {
-  if (Date.now() - lastSentAt < nextGap) return;
   const ids = await companyChannelIds();
   if (!ids.length) return;
   const max = parseInt(MAX_ATTEMPTS, 10);
@@ -64,41 +114,15 @@ async function tick(api) {
     .order('created_at', { ascending: true })
     .limit(20);
   if (error) { console.error('[child] poll lỗi:', error.message); return; }
+  const list = pending ?? [];
 
-  for (const n of pending ?? []) {
-    let text = n.payload?.text;
-    const groupId = n.payload?.target
-      ?? (await db.from('notification_channels').select('target').eq('id', n.channel_id).maybeSingle()).data?.target
-      ?? null;
-    if (!text || !groupId) {
-      await db.from('notifications').update({
-        status: 'failed', attempts: (n.attempts ?? 0) + 1,
-        last_error: !text ? 'thiếu payload.text' : 'thiếu group_id',
-      }).eq('id', n.id);
-      continue;
-    }
-    text = await maybeEnrich(db, api, n);
-    const { msg, styles } = parseStyledText(text);
-    try {
-      // thread_type: 1 = nhóm (mặc định), 0 = cá nhân (cảnh báo hệ thống về Zalo cá nhân).
-      const threadType = n.payload?.thread_type === 0 ? 0 : 1;
-      const sendTo = await resolveSendTarget(api, groupId, threadType);
-      if (!sendTo) throw new Error(`không tra được UID Zalo cho ${groupId} (SĐT chưa có Zalo / chưa kết bạn với bot)`);
-      await api.sendMessage(styles.length ? { msg, styles } : { msg }, sendTo, threadType);
-      await db.from('notifications').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', n.id);
-      console.log('[child]', companyId, 'gửi OK', n.id, '→', sendTo, 'type', threadType);
-    } catch (e) {
-      const attempts = (n.attempts ?? 0) + 1;
-      await db.from('notifications').update({
-        status: attempts >= max ? 'failed' : 'pending',
-        attempts, last_error: String(e?.message ?? e).slice(0, 500),
-      }).eq('id', n.id);
-      console.error('[child]', companyId, 'gửi lỗi', n.id, e?.message);
-    }
-    lastSentAt = Date.now();
-    nextGap = randomGap();
-    break;
-  }
+  // Ưu tiên gửi tin thật khi tới nhịp (real-time). Dùng thời gian NGHỈ giữa 2 tin để tra tên
+  // (enrich_only) — việc nền, nhẹ, không phát tin nên không sợ spam. Mỗi tick xử lý 1 việc.
+  const gapReady = Date.now() - lastSentAt >= nextGap;
+  const sendTask = list.find((n) => !n.payload?.enrich_only);
+  if (sendTask && gapReady) { await processSend(api, sendTask, max); return; }
+  const enrichTask = list.find((n) => n.payload?.enrich_only);
+  if (enrichTask) { await processEnrich(api, enrichTask, max); }
 }
 
 async function main() {

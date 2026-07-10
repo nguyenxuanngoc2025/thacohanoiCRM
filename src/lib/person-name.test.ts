@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { looksLikePersonName } from './person-name';
+import { looksLikePersonName, leadNeedsNameEnrich } from './person-name';
 
 describe('looksLikePersonName', () => {
   it('tên người thật → true (giữ nguyên, không tra)', () => {
@@ -26,5 +26,31 @@ describe('looksLikePersonName', () => {
     expect(looksLikePersonName('bao gia xe')).toBe(false);
     expect(looksLikePersonName('Đăng ký nhận ưu đãi')).toBe(false);
     expect(looksLikePersonName('khuyen mai thang 6')).toBe(false);
+  });
+});
+
+describe('leadNeedsNameEnrich', () => {
+  const base = { full_name: null, phone: '+84981515513', name_locked: false, name_enriched_at: null };
+
+  it('lead tên trống, có SĐT, chưa khoá, chưa thử → cần tra', () => {
+    expect(leadNeedsNameEnrich({ ...base })).toBe(true);
+    expect(leadNeedsNameEnrich({ ...base, full_name: 'Báo giá lăn bánh' })).toBe(true);
+  });
+
+  it('tên người thật → KHÔNG tra', () => {
+    expect(leadNeedsNameEnrich({ ...base, full_name: 'Nguyễn Văn A' })).toBe(false);
+  });
+
+  it('không có SĐT → KHÔNG tra (không tra được Zalo)', () => {
+    expect(leadNeedsNameEnrich({ ...base, phone: null })).toBe(false);
+    expect(leadNeedsNameEnrich({ ...base, phone: '  ' })).toBe(false);
+  });
+
+  it('user đã khoá tên → KHÔNG ghi đè', () => {
+    expect(leadNeedsNameEnrich({ ...base, name_locked: true })).toBe(false);
+  });
+
+  it('đã thử tra rồi → KHÔNG tra lại (tránh lặp vô hạn)', () => {
+    expect(leadNeedsNameEnrich({ ...base, name_enriched_at: '2026-07-10T00:00:00Z' })).toBe(false);
   });
 });

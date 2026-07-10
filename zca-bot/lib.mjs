@@ -43,29 +43,53 @@ export function pickZaloName(u) {
   return s || null;
 }
 
+/**
+ * Lõi tra tên Zalo cho 1 lead: tra SĐT → nếu có tên thì ghi vào lead (trừ khi user đã khoá tên
+ * name_locked, hoặc tên hiện tại không còn là badName). Luôn đóng dấu name_enriched_at sau khi THỬ
+ * (kể cả SĐT không có Zalo) để job quét không tra lại lead đó vô hạn. Trả tên Zalo tra được (hoặc null).
+ */
+async function enrichLeadName(db, api, e, { auto = false } = {}) {
+  const localPhone = e.phone.startsWith('+84') ? '0' + e.phone.slice(3) : e.phone;
+  const nowIso = new Date().toISOString();
+  try {
+    const found = await api.findUser(localPhone);
+    const zaloName = pickZaloName(found);
+    const { data: lead } = await db.from('leads')
+      .select('full_name, name_locked').eq('id', e.leadId).maybeSingle();
+    if (zaloName) {
+      // Chỉ ghi đè khi user CHƯA khoá tên và tên hiện tại vẫn là tên rác (badName/trống).
+      if (lead && !lead.name_locked && (lead.full_name === e.badName || !lead.full_name?.trim())) {
+        await db.from('leads').update({ full_name: zaloName, name_enriched_at: nowIso }).eq('id', e.leadId);
+        await db.from('lead_logs').insert({ lead_id: e.leadId, type: 'system',
+          content: `Bù tên từ Zalo${auto ? ' (quét tự động)' : ''}: ${e.badName} → ${zaloName}` });
+      } else {
+        await db.from('leads').update({ name_enriched_at: nowIso }).eq('id', e.leadId);
+      }
+      return zaloName;
+    }
+    await db.from('leads').update({ name_enriched_at: nowIso }).eq('id', e.leadId);
+    await db.from('lead_logs').insert({ lead_id: e.leadId, type: 'system', content: 'SĐT không có Zalo / tên ẩn — giữ tên gốc.' });
+  } catch (err) {
+    console.error('[zca] findUser lỗi', e.leadId, err?.message);
+  }
+  return null;
+}
+
 // --- Bù tên Zalo cho lead tên rác (payload.enrich) TRƯỚC khi gửi ---
 export async function maybeEnrich(db, api, n) {
   let text = n.payload?.text;
   const e = n.payload?.enrich;
   if (!e?.phone || !e?.leadId || !e?.badName) return text;
-  const localPhone = e.phone.startsWith('+84') ? '0' + e.phone.slice(3) : e.phone;
-  try {
-    const found = await api.findUser(localPhone);
-    const zaloName = pickZaloName(found);
-    if (zaloName) {
-      const { data: lead } = await db.from('leads').select('full_name').eq('id', e.leadId).maybeSingle();
-      if (lead && (lead.full_name === e.badName || !lead.full_name?.trim())) {
-        await db.from('leads').update({ full_name: zaloName }).eq('id', e.leadId);
-        await db.from('lead_logs').insert({ lead_id: e.leadId, type: 'system', content: `Bù tên từ Zalo: ${e.badName} → ${zaloName}` });
-      }
-      text = text.replace(e.badName, zaloName);
-    } else {
-      await db.from('lead_logs').insert({ lead_id: e.leadId, type: 'system', content: 'SĐT không có Zalo / tên ẩn — giữ tên gốc.' });
-    }
-  } catch (err) {
-    console.error('[zca] findUser lỗi', e.leadId, err?.message);
-  }
+  const zaloName = await enrichLeadName(db, api, e);
+  if (zaloName) text = text.replace(e.badName, zaloName);
   return text;
+}
+
+// --- Việc tra tên độc lập (payload.enrich_only, do cron xếp): CHỈ tra + ghi tên, KHÔNG gửi tin ---
+export async function runEnrichOnly(db, api, n) {
+  const e = n.payload?.enrich;
+  if (!e?.phone || !e?.leadId || !e?.badName) return;
+  await enrichLeadName(db, api, e, { auto: true });
 }
 
 // --- Đổi tag <b>/<i> → styles Zalo. Offset theo độ dài chuỗi JS. Chạy SAU maybeEnrich. ---

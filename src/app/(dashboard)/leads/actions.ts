@@ -145,7 +145,10 @@ export async function renameLead(leadId: string, fullName: string | null) {
   const name = fullName?.trim() || null;
   // .select() để biết số dòng thực đổi: nếu RLS chặn (ngoài phạm vi quyền) thì trả 0 dòng KHÔNG kèm lỗi
   // → phải báo thất bại thật, tránh "đã lưu" giả mà DB không đổi.
-  const { data, error } = await db.from('leads').update({ full_name: name }).eq('id', leadId).select('id');
+  // name_locked=true: user đã tự quyết tên → job tra Zalo tự động KHÔNG ghi đè nữa.
+  const { data, error } = await db.from('leads')
+    .update({ full_name: name, name_locked: true })
+    .eq('id', leadId).select('id');
   if (error) return { ok: false as const, error: error.message };
   if (!data || data.length === 0) return { ok: false as const, error: 'Bạn không có quyền sửa lead này.' };
 

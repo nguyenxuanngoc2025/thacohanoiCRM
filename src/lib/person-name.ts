@@ -22,3 +22,24 @@ export function looksLikePersonName(name: string | null | undefined): boolean {
   if (MARKETING.some((kw) => noDiac.includes(kw))) return false;
   return true;
 }
+
+export interface NameEnrichCandidate {
+  full_name: string | null;
+  phone: string | null;
+  name_locked: boolean | null;
+  name_enriched_at: string | null;
+}
+
+/**
+ * Lead có cần job tra tên Zalo tự động xử lý không?
+ *   - Phải có SĐT (để findUser).
+ *   - Chưa bị user khoá tên (name_locked).
+ *   - Chưa từng thử tra (name_enriched_at null) → chỉ thử 1 lần, tránh tra lặp vô hạn.
+ *   - Tên hiện tại là rác/trống (không giống tên người).
+ */
+export function leadNeedsNameEnrich(lead: NameEnrichCandidate): boolean {
+  if (!lead.phone?.trim()) return false;
+  if (lead.name_locked) return false;
+  if (lead.name_enriched_at) return false;
+  return !looksLikePersonName(lead.full_name);
+}

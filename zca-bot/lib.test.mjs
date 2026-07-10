@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { extractGroupIds, parseStyledText, encrypt, decrypt } from './lib.mjs';
+import { extractGroupIds, parseStyledText, encrypt, decrypt, maybeEnrich, runEnrichOnly } from './lib.mjs';
 
 beforeAll(() => { process.env.TOKEN_ENC_KEY = 'test-key-123'; });
 
@@ -36,6 +36,66 @@ describe('parseStyledText', () => {
   it('tag lẻ không đóng → giữ nguyên ký tự', () => {
     const { msg } = parseStyledText('a <b>b');
     expect(msg).toBe('a <b>b');
+  });
+});
+
+// Mock db (chainable) + api.findUser cho test tra tên Zalo.
+function makeDb(lead) {
+  const updates = [];
+  const logs = [];
+  const db = {
+    from(table) {
+      return {
+        select() { return this; },
+        eq() { return this; },
+        maybeSingle: async () => ({ data: table === 'leads' ? lead : null }),
+        update(patch) { return { eq: async () => { if (table === 'leads') updates.push(patch); } }; },
+        insert: async (row) => { if (table === 'lead_logs') logs.push(row); },
+      };
+    },
+  };
+  return { db, updates, logs };
+}
+const apiWith = (name) => ({ findUser: async () => (name ? { display_name: name } : null) });
+const enrichPayload = (overrides = {}) => ({
+  payload: { enrich: { leadId: 'L1', phone: '+84981515513', badName: 'Khách lẻ', ...overrides } },
+});
+
+describe('runEnrichOnly (tra tên độc lập)', () => {
+  it('có tên Zalo + chưa khoá + tên rác → ghi tên + đóng dấu name_enriched_at', async () => {
+    const { db, updates, logs } = makeDb({ full_name: 'Khách lẻ', name_locked: false });
+    await runEnrichOnly(db, apiWith('Ngọc Nguyễn'), enrichPayload());
+    expect(updates.some((u) => u.full_name === 'Ngọc Nguyễn' && u.name_enriched_at)).toBe(true);
+    expect(logs.some((l) => /Ngọc Nguyễn/.test(l.content))).toBe(true);
+  });
+
+  it('user đã khoá tên → KHÔNG ghi đè, chỉ đóng dấu đã thử', async () => {
+    const { db, updates } = makeDb({ full_name: 'Tên user tự đặt', name_locked: true });
+    await runEnrichOnly(db, apiWith('Ngọc Nguyễn'), enrichPayload());
+    expect(updates.some((u) => 'full_name' in u)).toBe(false);
+    expect(updates.some((u) => u.name_enriched_at)).toBe(true);
+  });
+
+  it('SĐT không có Zalo → chỉ đóng dấu đã thử (tránh tra lại)', async () => {
+    const { db, updates } = makeDb({ full_name: 'Khách lẻ', name_locked: false });
+    await runEnrichOnly(db, apiWith(null), enrichPayload());
+    expect(updates.some((u) => 'full_name' in u)).toBe(false);
+    expect(updates.some((u) => u.name_enriched_at)).toBe(true);
+  });
+});
+
+describe('maybeEnrich (thay tên trong text trước khi gửi)', () => {
+  it('thay badName trong text bằng tên Zalo', async () => {
+    const { db } = makeDb({ full_name: 'Khách lẻ', name_locked: false });
+    const n = { payload: { text: 'Lead mới: Khách lẻ', enrich: { leadId: 'L1', phone: '+84981515513', badName: 'Khách lẻ' } } };
+    const out = await maybeEnrich(db, apiWith('Ngọc Nguyễn'), n);
+    expect(out).toBe('Lead mới: Ngọc Nguyễn');
+  });
+
+  it('không có payload.enrich → giữ nguyên text', async () => {
+    const { db } = makeDb({ full_name: 'x', name_locked: false });
+    const out = await maybeEnrich(db, apiWith('Y'), { payload: { text: 'giữ nguyên' } });
+    expect(out).toBe('giữ nguyên');
   });
 });
 
