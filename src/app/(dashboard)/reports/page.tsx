@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { CAN_VIEW_REPORTS } from '@/lib/nav';
-import { getOpenBrandIds } from '@/lib/company-brands';
+import { getOpenBrandIds, getInactiveShowroomIds } from '@/lib/company-brands';
 import { getTenant } from '@/lib/tenant';
 import type { UserRole } from '@/types/database';
 import type { ReportLead } from '@/lib/reports';
@@ -73,6 +73,8 @@ export default async function ReportsPage({
 
   // Hãng công ty đang mở (whitelist). Lead của hãng đã đóng bị loại khỏi báo cáo/KPI.
   const openBrandIds = await getOpenBrandIds(supabase, me?.company_id ?? null);
+  // Showroom đang TẮT → loại lead của nó khỏi báo cáo/KPI (mirror hãng đóng).
+  const inactiveSrIds = new Set(await getInactiveShowroomIds(supabase, me?.company_id ?? null));
 
   const tenant = await getTenant();
   const showB10 = tenant?.b10_enabled ?? false;
@@ -107,7 +109,7 @@ export default async function ReportsPage({
     fail_reason: l.fail_reason,
     b10_status: l.b10_status,
     b10_on: l.b10_synced_at != null,
-  }));
+  })).filter((l) => !inactiveSrIds.has(String(l.showroom_id ?? '')));
 
   return (
     <ReportsView

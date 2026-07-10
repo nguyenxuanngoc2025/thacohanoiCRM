@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import AssignView, { type UnassignedLead, type TvbhLoad } from './AssignView';
 import { CAN_ASSIGN } from '@/lib/nav';
-import { getOpenBrandIds } from '@/lib/company-brands';
+import { getOpenBrandIds, getInactiveShowroomIds } from '@/lib/company-brands';
 import { type UserRole } from '@/types/database';
 
 export const dynamic = 'force-dynamic';
@@ -32,6 +32,9 @@ export default async function AssignPage() {
 
   // Hãng công ty đang mở (whitelist). Lead của hãng đã đóng bị ẩn khỏi hàng chờ + đếm tải.
   const openBrandIds = await getOpenBrandIds(supabase, me?.company_id ?? null);
+  // Showroom đang TẮT → ẩn lead + TVBH + đếm tải của nó (mirror hãng đóng).
+  const inactiveSrIds = new Set(await getInactiveShowroomIds(supabase, me?.company_id ?? null));
+  const srActive = (sid: string | null | undefined) => !inactiveSrIds.has(String(sid ?? ''));
 
   let unassignedQuery = supabase
     .from('leads')
@@ -39,7 +42,7 @@ export default async function AssignPage() {
     .is('assigned_to', null);
   let openLeadsQuery = supabase
     .from('leads')
-    .select('assigned_to')
+    .select('assigned_to, showroom_id')
     .not('assigned_to', 'is', null)
     .or(OPEN_LEADS);
   if (openBrandIds.length) {
@@ -64,15 +67,16 @@ export default async function AssignPage() {
     openLeadsQuery,
   ]);
 
-  // Đếm lead đang mở theo TVBH
+  // Đếm lead đang mở theo TVBH (bỏ lead thuộc showroom tắt)
   const loadMap: Record<string, number> = {};
-  for (const r of (openLeads ?? []) as { assigned_to: string }[]) {
+  for (const r of (openLeads ?? []) as { assigned_to: string; showroom_id: string | null }[]) {
+    if (!srActive(r.showroom_id)) continue;
     loadMap[r.assigned_to] = (loadMap[r.assigned_to] ?? 0) + 1;
   }
 
   const tvbh: TvbhLoad[] = ((rawTvbh ?? []) as unknown as {
     id: string; full_name: string; showroom_id: string | null; showroom: { name: string } | null;
-  }[]).map((t) => ({
+  }[]).filter((t) => srActive(t.showroom_id)).map((t) => ({
     id: t.id,
     full_name: t.full_name,
     showroom_id: t.showroom_id,
@@ -80,17 +84,19 @@ export default async function AssignPage() {
     open_count: loadMap[t.id] ?? 0,
   }));
 
-  const leads: UnassignedLead[] = ((rawUnassigned ?? []) as unknown as RawUnassigned[]).map((l) => ({
-    id: l.id,
-    full_name: l.full_name,
-    phone: l.phone,
-    source: l.source,
-    created_at: l.created_at,
-    showroom_id: l.showroom_id,
-    brand_name: l.brand?.name ?? '—',
-    model_name: l.model?.name ?? null,
-    showroom_name: l.showroom?.name ?? null,
-  }));
+  const leads: UnassignedLead[] = ((rawUnassigned ?? []) as unknown as RawUnassigned[])
+    .filter((l) => srActive(l.showroom_id))
+    .map((l) => ({
+      id: l.id,
+      full_name: l.full_name,
+      phone: l.phone,
+      source: l.source,
+      created_at: l.created_at,
+      showroom_id: l.showroom_id,
+      brand_name: l.brand?.name ?? '—',
+      model_name: l.model?.name ?? null,
+      showroom_name: l.showroom?.name ?? null,
+    }));
 
   return <AssignView leads={leads} tvbh={tvbh} />;
 }
