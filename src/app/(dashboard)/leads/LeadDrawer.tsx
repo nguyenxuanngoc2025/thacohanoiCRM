@@ -31,13 +31,14 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 }
 
 export default function LeadDrawer({
-  lead, models, assignees, teams, canManage, onClose,
+  lead, models, assignees, teams, canManage, b10Enabled, onClose,
 }: {
   lead: LeadRow;
   models: ModelOption[];
   assignees: AssigneeOption[];
   teams: TeamOption[];
   canManage: boolean;
+  b10Enabled: boolean;
   onClose: () => void;
 }) {
   const [status, setStatus] = useState<LeadStatus | ''>(lead.status ?? '');
@@ -57,7 +58,6 @@ export default function LeadDrawer({
   const showroomTeams = teams.filter(
     (t) => t.showroom_id === lead.showroom_id && t.brand_ids.includes(lead.brand_id)
   );
-  const hasB10 = lead.b10_on || !!lead.b10_status || !!lead.b10_care_note;
   // Phụ trách: lọc TVBH theo phòng đã chọn (nếu có) để chỉ giao trong đúng phòng; chưa phân phòng → liệt kê tất cả.
   const teamAssignees = salesTeamId
     ? assignees.filter((a) => a.sales_team_id === salesTeamId)
@@ -233,18 +233,16 @@ export default function LeadDrawer({
             {lead.status === 'Fail' && lead.fail_reason && <InfoRow label="Lý do loại" value={lead.fail_reason} />}
           </section>
 
-          {/* Đối soát B10 (chỉ xem) */}
-          {hasB10 && (
+          {/* Đối soát B10 (chỉ xem) — luôn hiện khi công ty bật B10, kể cả chưa đối soát */}
+          {b10Enabled && (
             <section className="rounded-xl border border-slate-200 p-3">
               <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">Đối soát B10 (DDMS)</div>
-              <InfoRow label="Đã lên B10" value={lead.b10_on ? 'Rồi' : 'Chưa'} />
-              {lead.b10_status && <InfoRow label="Trạng thái B10" value={STATUS_LABEL[lead.b10_status]} />}
-              {lead.b10_care_note && (
-                <div className="py-1.5 text-sm">
-                  <div className="text-slate-400 mb-1">Nội dung chăm sóc</div>
-                  <div className="text-slate-700 whitespace-pre-wrap">{lead.b10_care_note}</div>
-                </div>
-              )}
+              <InfoRow label="Đã lên B10" value={lead.b10_on ? 'Rồi' : 'Chưa đối soát'} />
+              <InfoRow label="Trạng thái B10" value={lead.b10_status ? STATUS_LABEL[lead.b10_status] : 'Chưa có trên B10'} />
+              <div className="py-1.5 text-sm">
+                <div className="text-slate-400 mb-1">Nội dung chăm sóc</div>
+                <div className="text-slate-700 whitespace-pre-wrap">{lead.b10_care_note || '—'}</div>
+              </div>
             </section>
           )}
           </div>

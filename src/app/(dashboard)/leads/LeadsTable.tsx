@@ -1216,6 +1216,7 @@ export default function LeadsTable({
           assignees={assignees}
           teams={teams}
           canManage={canCreate}
+          b10Enabled={b10Enabled}
           onClose={() => setOpenLead(null)}
         />
       )}
