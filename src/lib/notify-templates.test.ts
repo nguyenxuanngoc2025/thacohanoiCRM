@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { renderNewLead, renderOverdue, renderDailySr, renderDailyMgmt, maskPhone } from './notify-templates';
+import { renderNewLead, renderLeadAssigned, renderLeadsAssignedSummary, renderOverdue, renderDailySr, renderDailyMgmt, maskPhone } from './notify-templates';
 
 describe('notify-templates', () => {
   it('maskPhone: hiển thị 10 chữ số (0...) + che 3 số cuối', () => {
@@ -43,10 +43,17 @@ describe('notify-templates', () => {
     expect(t).not.toContain('**Nguyễn');   // không còn marker ** trên tên
   });
 
-  it('renderNewLead: thiếu tên → "Khách lẻ"; chưa giao → "Chưa được phân giao"', () => {
+  it('renderNewLead: thiếu tên → "Khách lẻ"; chưa giao → nhấn mạnh IN HOA + lời nhắc phân giao', () => {
     const t = renderNewLead({ showroom: 'Mazda', fullName: null, phone: '+84909', source: null, model: null, assignee: null });
     expect(t).toContain('Khách lẻ');
-    expect(t).toContain('Chưa được phân giao');
+    expect(t).toContain('<b>CHƯA ĐƯỢC PHÂN GIAO</b>');
+    expect(t).toContain('<i>Vào hệ thống phân giao cho TVBH.</i>');
+  });
+
+  it('renderNewLead: đã có TVBH → KHÔNG có dòng nhắc phân giao (tránh nhân đôi)', () => {
+    const t = renderNewLead({ showroom: 'KIA', fullName: 'A', phone: '+8490', source: 'facebook', model: 'Sonet', assignee: 'B' });
+    expect(t).not.toContain('CHƯA ĐƯỢC PHÂN GIAO');
+    expect(t).not.toContain('Vào hệ thống phân giao');
   });
 
   it('renderNewLead: luôn hiện dòng xe quan tâm; chưa dò ra → "chưa xác định"', () => {
@@ -68,6 +75,33 @@ describe('notify-templates', () => {
     const gg = renderNewLead({ showroom: 'KIA', fullName: 'A', phone: '+8490', source: 'google', model: 'Sonet', assignee: 'B' });
     expect(gg).toContain('Nguồn: Google');
     expect(gg).not.toContain('Nguồn: Google ·');
+  });
+
+  it('renderLeadAssigned: tiêu đề PHÂN GIAO, SĐT che, TVBH + lời nhắc chăm sóc đậm, không emoji', () => {
+    const t = renderLeadAssigned({ showroom: 'KIA Hà Nội', fullName: 'Nguyễn Văn A', phone: '+84901234567', model: 'Sonet', assignee: 'Trần B' });
+    expect(t).toContain('<b>PHÂN GIAO — KIA Hà Nội</b>');
+    expect(t).toContain('<b>Nguyễn Văn A</b>');
+    expect(t).toContain('0901234***');
+    expect(t).not.toContain('0901234567');
+    expect(t).toContain('Dòng xe quan tâm: Sonet');
+    expect(t).toContain('Giao cho: <b>Trần B</b>');
+    expect(t).toContain('<b>Yêu cầu vào chăm sóc ngay.</b>');
+    expect(t).not.toMatch(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u);
+  });
+
+  it('renderLeadAssigned: thiếu tên → Khách lẻ; chưa dò xe → chưa xác định', () => {
+    const t = renderLeadAssigned({ showroom: 'Mazda', fullName: null, phone: '+8490', model: null, assignee: 'C' });
+    expect(t).toContain('Khách lẻ');
+    expect(t).toContain('Dòng xe quan tâm: chưa xác định');
+  });
+
+  it('renderLeadsAssignedSummary: tổng đậm + liệt kê TVBH/số lead + lời nhắc đậm', () => {
+    const t = renderLeadsAssignedSummary('KIA Hà Nội', 5, [{ name: 'An', count: 2 }, { name: 'Bình', count: 3 }]);
+    expect(t).toContain('<b>PHÂN GIAO — KIA Hà Nội</b>');
+    expect(t).toContain('<b>5</b> lead vừa được giao:');
+    expect(t).toContain('• An — 2 lead');
+    expect(t).toContain('• Bình — 3 lead');
+    expect(t).toContain('<b>Yêu cầu các TVBH vào chăm sóc ngay.</b>');
   });
 
   it('renderOverdue: tóm tắt tổng + chưa giao + lâu nhất, nêu lead gấp, SĐT che', () => {

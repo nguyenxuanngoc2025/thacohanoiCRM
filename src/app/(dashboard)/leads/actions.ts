@@ -6,6 +6,7 @@ import { STATUS_OPTIONS, type LeadStatus } from '@/lib/lead-status';
 import { normalizePhone } from '@/lib/phone';
 import { pickNextAssignee, type AssigneeLoad } from '@/lib/assign';
 import { CAN_CREATE_LEAD, CAN_ASSIGN, CAN_MANAGE_STAFF } from '@/lib/nav';
+import { notifyLeadAssigned, notifyLeadsAssignedBulk } from '@/lib/notify-assign';
 import { type UserRole } from '@/types/database';
 
 const VALID = new Set<LeadStatus>(STATUS_OPTIONS.map((s) => s.code));
@@ -286,6 +287,9 @@ export async function reassignLead(leadId: string, newAssigneeId: string | null)
     content: `Đổi người phụ trách: ${oldN} → ${newN}.`,
   });
 
+  // Báo Zalo nhóm phòng khi giao cho 1 TVBH (kể cả đổi A→B). Gỡ phụ trách (null) thì không báo.
+  if (newAssigneeId) await notifyLeadAssigned(leadId, newAssigneeId);
+
   revalidatePath('/leads');
   revalidatePath('/assign');
   return { ok: true as const };
@@ -380,6 +384,11 @@ export async function bulkReassign(leadIds: string[], newAssigneeId: string | nu
     }))
   );
 
+  // Báo Zalo: 1 tin tóm tắt/phòng (chống dội nhóm). Gỡ phụ trách (null) thì không báo.
+  if (newAssigneeId) {
+    await notifyLeadsAssignedBulk(leadIds.map((id) => ({ leadId: id, assigneeId: newAssigneeId })));
+  }
+
   revalidatePath('/leads');
   revalidatePath('/assign');
   return { ok: true as const, updated: leadIds.length };
@@ -471,6 +480,9 @@ export async function createLead(input: NewLeadInput) {
     type: 'system',
     content: 'Tạo lead thủ công.',
   });
+
+  // Báo Zalo nhóm phòng khi tạo lead đã có TVBH (nhắc vào chăm sóc). Không TVBH thì không báo.
+  if (input.assignedTo) await notifyLeadAssigned(inserted.id, input.assignedTo);
 
   revalidatePath('/leads');
   return { ok: true as const, id: inserted.id };
@@ -607,6 +619,7 @@ export async function autoDistributeLeads(): Promise<AutoDistributeResult> {
 
   let assigned = 0;
   let skipped = 0;
+  const assignedPairs: { leadId: string; assigneeId: string }[] = [];
   for (const lead of unassigned as { id: string; showroom_id: string | null }[]) {
     const candidates = tvbhs.filter((t) => (lead.showroom_id ? t.showroom_id === lead.showroom_id : true));
     const pick = pickNextAssignee(candidates.map((c) => ({ id: c.id, activeLeadCount: load[c.id] ?? 0 })));
@@ -615,6 +628,7 @@ export async function autoDistributeLeads(): Promise<AutoDistributeResult> {
     if (error) { skipped += 1; continue; }
     load[pick] = (load[pick] ?? 0) + 1;
     assigned += 1;
+    assignedPairs.push({ leadId: lead.id, assigneeId: pick });
     await db.from('lead_logs').insert({
       lead_id: lead.id,
       user_id: user.id,
@@ -622,6 +636,9 @@ export async function autoDistributeLeads(): Promise<AutoDistributeResult> {
       content: 'Tự động phân giao (chia đều).',
     });
   }
+
+  // Báo Zalo: 1 tin tóm tắt/phòng cho các lead vừa chia.
+  if (assignedPairs.length > 0) await notifyLeadsAssignedBulk(assignedPairs);
 
   revalidatePath('/leads');
   revalidatePath('/assign');

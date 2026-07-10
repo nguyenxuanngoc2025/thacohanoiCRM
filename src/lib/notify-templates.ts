@@ -40,7 +40,9 @@ export function renderNewLead(i: NewLeadInput): string {
   const nguon = detail !== '—' ? `${platform} · ${detail}` : platform;
   // Luôn hiển thị dòng xe; chưa dò ra thì ghi rõ "chưa xác định".
   const xe = i.model?.trim() || 'chưa xác định';
-  const tinhTrang = i.assignee?.trim() ? `Đã giao cho ${i.assignee.trim()}` : 'Chưa được phân giao';
+  const assigned = !!i.assignee?.trim();
+  // Chưa có TVBH → nhấn mạnh IN HOA để quản lý thấy ngay cần phân giao gấp.
+  const tinhTrang = assigned ? `Đã giao cho ${i.assignee!.trim()}` : 'CHƯA ĐƯỢC PHÂN GIAO';
   const lines = [
     `<b>LEAD MỚI — ${i.showroom}</b>`,
     `KH: <b>${ten}</b> · ${maskPhone(i.phone)}`,
@@ -48,6 +50,8 @@ export function renderNewLead(i: NewLeadInput): string {
     `Dòng xe quan tâm: ${xe}`,
     `Tình trạng: <b>${tinhTrang}</b>`,
   ];
+  // Lời nhắc hành động khi lead chưa có người phụ trách.
+  if (!assigned) lines.push('<i>Vào hệ thống phân giao cho TVBH.</i>');
   // Khách cũ đã có trên B10 → cảnh báo rõ để TVBH/quản lý có căn cứ phân giao.
   if (i.b10Prior) {
     const st = i.b10Prior.status?.trim();
@@ -59,6 +63,43 @@ export function renderNewLead(i: NewLeadInput): string {
     }
   }
   return lines.join('\n');
+}
+
+export interface LeadAssignedInput {
+  showroom: string;
+  fullName: string | null;
+  phone: string;
+  model: string | null;
+  assignee: string;
+}
+
+// Tin "đã phân giao" — bắn vào nhóm phòng khi lead được giao cho 1 TVBH, nhắc vào chăm sóc.
+export function renderLeadAssigned(i: LeadAssignedInput): string {
+  const ten = i.fullName?.trim() || 'Khách lẻ';
+  const xe = i.model?.trim() || 'chưa xác định';
+  return [
+    `<b>PHÂN GIAO — ${i.showroom}</b>`,
+    `KH: <b>${ten}</b> · ${maskPhone(i.phone)}`,
+    `Dòng xe quan tâm: ${xe}`,
+    `Giao cho: <b>${i.assignee}</b>`,
+    '<b>Yêu cầu vào chăm sóc ngay.</b>',
+  ].join('\n');
+}
+
+export interface AssignedCount {
+  name: string;   // tên TVBH
+  count: number;  // số lead vừa giao cho người này
+}
+
+// Tin tóm tắt phân giao hàng loạt (bulkReassign / autoDistribute) — 1 tin/phòng, chống dội nhóm.
+export function renderLeadsAssignedSummary(showroom: string, total: number, perAssignee: AssignedCount[]): string {
+  const rows = perAssignee.map((a) => `• ${a.name} — ${a.count} lead`);
+  return [
+    `<b>PHÂN GIAO — ${showroom}</b>`,
+    `<b>${total}</b> lead vừa được giao:`,
+    ...rows,
+    '<b>Yêu cầu các TVBH vào chăm sóc ngay.</b>',
+  ].join('\n');
 }
 
 export interface OverdueItem {
