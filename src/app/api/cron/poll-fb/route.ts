@@ -2,6 +2,11 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { checkCronSecret } from '@/lib/cron-auth';
 import { getPageToken, pollPageMessages, pollPageComments } from '@/lib/fb-poll';
+import {
+  setPlatformSetting,
+  FB_POLL_MESSAGES_HEARTBEAT_KEY,
+  FB_POLL_COMMENTS_HEARTBEAT_KEY,
+} from '@/lib/platform-settings';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,6 +58,12 @@ export async function POST(request: NextRequest) {
       errors.push({ page: pageId, error: e instanceof Error ? e.message : String(e) });
     }
   }
+
+  // Nhịp tim: ghi mốc chạy gần nhất để dashboard "Tình trạng hệ thống" + watchdog biết cron còn sống.
+  await setPlatformSetting(
+    mode === 'comments' ? FB_POLL_COMMENTS_HEARTBEAT_KEY : FB_POLL_MESSAGES_HEARTBEAT_KEY,
+    new Date().toISOString(),
+  );
 
   return NextResponse.json({ ok: true, mode, scanned, fresh, dup, errors });
 }

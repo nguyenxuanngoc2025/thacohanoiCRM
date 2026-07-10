@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import {
-  Users, ShieldCheck, Building2, Plug, ListChecks, GitBranch, Bell, ScrollText, Boxes,
+  Users, ShieldCheck, Building2, Plug, ListChecks, GitBranch, Bell, ScrollText, Boxes, Activity,
 } from 'lucide-react';
 import AccountsManager, { RoleReference, type StaffRow, type ShowroomOption, type SalesTeamOption } from './AccountsManager';
 import IntegrationsCatalog from './IntegrationsCatalog';
@@ -12,6 +12,7 @@ import AssignmentManager from './AssignmentManager';
 import NotificationsManager from './NotificationsManager';
 import ActivityLog from './ActivityLog';
 import SalesTeamsManager from './SalesTeamsManager';
+import SystemHealthPanel from './SystemHealthPanel';
 import type {
   ShowroomRow, BrandRow, ModelRow, ChannelRow, AssignmentRuleRow, SlaRow, NotifChannelRow, LeadLogRow, SalesTeamRow,
 } from './types';
@@ -22,7 +23,7 @@ type ItemKey =
   | 'accounts' | 'roles' | 'org' | 'teams'
   | 'integrations'
   | 'pipeline' | 'assignment'
-  | 'notifications' | 'audit';
+  | 'health' | 'notifications' | 'audit';
 
 interface NavItem { key: ItemKey; label: string; icon: React.ElementType; }
 interface NavGroup { title: string; items: NavItem[]; }
@@ -53,6 +54,7 @@ const NAV: NavGroup[] = [
   {
     title: 'Hệ thống',
     items: [
+      { key: 'health', label: 'Tình trạng hệ thống', icon: Activity },
       { key: 'notifications', label: 'Thông báo', icon: Bell },
       { key: 'audit', label: 'Nhật ký hoạt động', icon: ScrollText },
     ],
@@ -167,6 +169,7 @@ export default function SettingsClient({
         {active === 'assignment' && (
           <AssignmentManager showrooms={showrooms} salesTeams={salesTeams} staff={staff} rules={assignmentRules} sla={slaConfig} companyId={companyId} />
         )}
+        {active === 'health' && <SystemHealthPanel />}
         {active === 'notifications' && <NotificationsManager channels={notifChannels} showrooms={showrooms} salesTeams={salesTeams} zaloBotSession={zaloBotSession} />}
         {active === 'audit' && <ActivityLog logs={recentLogs} staff={staff} />}
       </div>
