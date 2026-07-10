@@ -46,6 +46,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'since không hợp lệ' }, { status: 400 });
   }
   const bodyPageIds: string[] = Array.isArray(body.pageIds) ? body.pageIds.map(String) : [];
+  // limit (tuỳ chọn): chỉ nạp N lead MỚI NHẤT của mỗi page (sau khi lọc theo since).
+  const limit = Number.isInteger(body.limit) && (body.limit as number) > 0 ? (body.limit as number) : null;
 
   // Kênh đang hoạt động; scope theo công ty của admin (platform_owner phải chỉ định pageIds).
   const { data: chans } = await service
@@ -74,7 +76,13 @@ export async function POST(req: NextRequest) {
   for (const pageId of pages) {
     let fetched = 0, ingested = 0, deduped = 0, failed = 0, noPhone = 0;
     try {
-      const leads = await fetchPageLeadsSince(pageId, sinceUnix);
+      let leads = await fetchPageLeadsSince(pageId, sinceUnix);
+      // Chỉ lấy N lead mới nhất khi có limit (sắp giảm dần theo thời điểm tạo trên FB).
+      if (limit) {
+        leads = [...leads]
+          .sort((a, b) => Date.parse(b.createdTime) - Date.parse(a.createdTime))
+          .slice(0, limit);
+      }
       fetched = leads.length;
       for (const l of leads) {
         if (!l.phone) { noPhone++; continue; }
