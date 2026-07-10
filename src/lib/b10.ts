@@ -55,15 +55,19 @@ export function normalizeB10Status(raw: string | null): LeadStatus | null {
 }
 
 export interface B10Row { phone: string; status: string | null; note?: string | null }
-export interface B10Lead { id: string; phone: string; b10_status: LeadStatus | null }
+// status = trạng thái chính TVBH đặt trong app (để quyết định có tự nâng hay không).
+export interface B10Lead { id: string; phone: string; b10_status: LeadStatus | null; status: LeadStatus | null }
 // b10_care_note: null = không có nội dung mới để ghi (giữ nguyên giá trị cũ trong DB).
-export interface B10Update { id: string; b10_status: LeadStatus | null; b10_care_note: string | null }
+// new_status: null = KHÔNG đổi trạng thái chính; có giá trị = nâng trạng thái chính lên mức này.
+export interface B10Update { id: string; b10_status: LeadStatus | null; b10_care_note: string | null; new_status: LeadStatus | null }
 export interface B10Summary {
   totalRows: number;
   matched: number;     // số dòng khớp lead trong phạm vi & đã cập nhật
   notFound: number;    // SĐT không có lead nào trong công ty (hoặc thiếu SĐT)
   outOfScope: number;  // SĐT có lead trong công ty nhưng ngoài phạm vi người import
   unrecognized: string[]; // giá trị kết quả lạ (distinct)
+  statusRaised: number; // số lead được tự nâng trạng thái chính (do TVBH chưa phân loại)
+  conflicts: number;    // số lead B10 cao hơn nhưng TVBH đã phân loại → chỉ báo, KHÔNG tự sửa
 }
 export interface B10Result { updates: B10Update[]; summary: B10Summary }
 
@@ -86,6 +90,7 @@ export function reconcileB10(
 
   // Gộp best theo lead id (nhiều dòng có thể trỏ cùng 1 khách).
   const merged = new Map<string, LeadStatus | null>(); // id → best b10_status mới
+  const leadById = new Map<string, B10Lead>();         // id → lead (để đọc trạng thái chính hiện tại)
   const notes = new Map<string, string>();             // id → nội dung chăm sóc mới nhất (không rỗng)
   const unrecognized = new Set<string>();
   let matched = 0, notFound = 0, outOfScope = 0;
@@ -98,6 +103,7 @@ export function reconcileB10(
       if (companyPhones.has(p)) outOfScope += 1; else notFound += 1;
       continue;
     }
+    leadById.set(lead.id, lead);
     const code = normalizeB10Status(row.status);
     if (row.status && row.status.trim() && code === null) unrecognized.add(row.status.trim());
     const current = merged.has(lead.id) ? merged.get(lead.id)! : lead.b10_status;
@@ -108,11 +114,28 @@ export function reconcileB10(
     matched += 1;
   }
 
-  const updates: B10Update[] = [...merged.entries()].map(([id, b10_status]) => ({
-    id, b10_status, b10_care_note: notes.get(id) ?? null,
-  }));
+  // Phương án A: chỉ TỰ nâng trạng thái chính khi TVBH CHƯA phân loại (đang trống
+  // hoặc "Chưa LH được"). Nếu TVBH đã phân loại mà B10 cao hơn → coi là điểm lệch,
+  // CHỈ đếm để báo, KHÔNG tự sửa (không lật quyết định của con người, vd Fail/KHĐ).
+  let statusRaised = 0, conflicts = 0;
+  const updates: B10Update[] = [...merged.entries()].map(([id, b10_status]) => {
+    const lead = leadById.get(id)!;
+    const cur = lead.status;
+    const editable = cur == null || cur === 'Chưa LH được';
+    let new_status: LeadStatus | null = null;
+    if (editable) {
+      const raised = bestB10Status(cur, b10_status); // không bao giờ tụt hạng
+      if (raised !== cur) { new_status = raised; statusRaised += 1; }
+    } else if (b10_status && B10_RANK[b10_status] > B10_RANK[cur]) {
+      conflicts += 1;
+    }
+    return { id, b10_status, b10_care_note: notes.get(id) ?? null, new_status };
+  });
   return {
     updates,
-    summary: { totalRows: rows.length, matched, notFound, outOfScope, unrecognized: [...unrecognized] },
+    summary: {
+      totalRows: rows.length, matched, notFound, outOfScope,
+      unrecognized: [...unrecognized], statusRaised, conflicts,
+    },
   };
 }

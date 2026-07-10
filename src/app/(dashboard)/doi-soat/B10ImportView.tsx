@@ -6,7 +6,7 @@ import * as XLSX from 'xlsx';
 import { Upload, FileCheck2, Loader2 } from 'lucide-react';
 
 interface Mapping { phone_col: string; status_col: string; note_col?: string }
-interface Summary { totalRows: number; matched: number; notFound: number; outOfScope: number; unrecognized: string[] }
+interface Summary { totalRows: number; matched: number; notFound: number; outOfScope: number; unrecognized: string[]; statusRaised: number; conflicts: number }
 
 export default function B10ImportView({ savedMapping }: { savedMapping: Mapping | null }) {
   const [headers, setHeaders] = useState<string[]>([]);
@@ -99,6 +99,8 @@ export default function B10ImportView({ savedMapping }: { savedMapping: Mapping 
           <h2 className="font-semibold text-slate-800">Kết quả đối soát</h2>
           <Stat label="Tổng dòng đọc được" value={summary.totalRows} />
           <Stat label="Khớp & cập nhật" value={summary.matched} tone="#047857" />
+          <Stat label="Tự nâng phân loại (TVBH chưa cập nhật)" value={summary.statusRaised} tone="#004B9B" />
+          <Stat label="Lệch B10 cao hơn (đã báo, chưa tự sửa)" value={summary.conflicts} tone={summary.conflicts > 0 ? '#b45309' : undefined} />
           <Stat label="Không tìm thấy lead" value={summary.notFound} />
           <Stat label="Ngoài phạm vi" value={summary.outOfScope} />
           {summary.unrecognized.length > 0 && (

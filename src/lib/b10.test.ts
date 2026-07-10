@@ -61,8 +61,8 @@ import { reconcileB10, type B10Row, type B10Lead } from './b10';
 
 describe('reconcileB10', () => {
   const scoped: B10Lead[] = [
-    { id: 'l1', phone: '0900000001', b10_status: null },
-    { id: 'l2', phone: '0900000002', b10_status: 'KHQT' },
+    { id: 'l1', phone: '0900000001', b10_status: null, status: null },
+    { id: 'l2', phone: '0900000002', b10_status: 'KHQT', status: 'KHQT' },
   ];
   // companyPhones = khoá định danh +84… (cùng dạng app lưu trong DB).
   const companyPhones = new Set(['+84900000001', '+84900000002', '+84900000003']);
@@ -120,5 +120,54 @@ describe('reconcileB10', () => {
     const r = reconcileB10(rows, scoped, companyPhones);
     expect(r.updates.find((u) => u.id === 'l1')!.b10_care_note).toBe('Đã gọi, hẹn xem xe');
     expect(r.updates.find((u) => u.id === 'l2')!.b10_care_note).toBeNull();
+  });
+});
+
+describe('reconcileB10 — tự nâng trạng thái chính (phương án A)', () => {
+  const companyPhones = new Set(['+84900000001', '+84900000002', '+84900000003', '+84900000004']);
+
+  it('TVBH chưa phân loại (status=null) → tự nâng theo B10, đếm statusRaised', () => {
+    const scoped: B10Lead[] = [{ id: 'l1', phone: '0900000001', b10_status: null, status: null }];
+    const r = reconcileB10([{ phone: '0900000001', status: 'Prospect' }], scoped, companyPhones);
+    expect(r.updates.find((u) => u.id === 'l1')!.new_status).toBe('KHQT');
+    expect(r.summary.statusRaised).toBe(1);
+    expect(r.summary.conflicts).toBe(0);
+  });
+
+  it('status="Chưa LH được" → coi như chưa phân loại, vẫn tự nâng', () => {
+    const scoped: B10Lead[] = [{ id: 'l1', phone: '0900000001', b10_status: null, status: 'Chưa LH được' }];
+    const r = reconcileB10([{ phone: '0900000001', status: 'Booking' }], scoped, companyPhones);
+    expect(r.updates.find((u) => u.id === 'l1')!.new_status).toBe('GDTD');
+    expect(r.summary.statusRaised).toBe(1);
+  });
+
+  it('TVBH đã phân loại (KHQT) mà B10 cao hơn (GDTD) → KHÔNG tự sửa, đếm conflicts', () => {
+    const scoped: B10Lead[] = [{ id: 'l1', phone: '0900000001', b10_status: 'KHQT', status: 'KHQT' }];
+    const r = reconcileB10([{ phone: '0900000001', status: 'Appointment' }], scoped, companyPhones);
+    expect(r.updates.find((u) => u.id === 'l1')!.new_status).toBeNull();
+    expect(r.summary.statusRaised).toBe(0);
+    expect(r.summary.conflicts).toBe(1);
+  });
+
+  it('TVBH đã đặt Fail mà B10 báo GDTD → KHÔNG lật quyết định, chỉ đếm conflicts', () => {
+    const scoped: B10Lead[] = [{ id: 'l1', phone: '0900000001', b10_status: null, status: 'Fail' }];
+    const r = reconcileB10([{ phone: '0900000001', status: 'Test Drive' }], scoped, companyPhones);
+    expect(r.updates.find((u) => u.id === 'l1')!.new_status).toBeNull();
+    expect(r.summary.conflicts).toBe(1);
+  });
+
+  it('B10 thấp hơn hoặc bằng trạng thái hiện tại → không nâng, không lệch', () => {
+    const scoped: B10Lead[] = [{ id: 'l1', phone: '0900000001', b10_status: 'GDTD', status: 'GDTD' }];
+    const r = reconcileB10([{ phone: '0900000001', status: 'Prospect' }], scoped, companyPhones);
+    expect(r.updates.find((u) => u.id === 'l1')!.new_status).toBeNull();
+    expect(r.summary.statusRaised).toBe(0);
+    expect(r.summary.conflicts).toBe(0);
+  });
+
+  it('chưa phân loại + B10 giá trị lạ (không nhận ra) → không nâng', () => {
+    const scoped: B10Lead[] = [{ id: 'l1', phone: '0900000001', b10_status: null, status: null }];
+    const r = reconcileB10([{ phone: '0900000001', status: 'đang xử lý' }], scoped, companyPhones);
+    expect(r.updates.find((u) => u.id === 'l1')!.new_status).toBeNull();
+    expect(r.summary.statusRaised).toBe(0);
   });
 });

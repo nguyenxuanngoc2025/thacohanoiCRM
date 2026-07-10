@@ -74,14 +74,18 @@ export default function LeadsView({
     const pending = total - contacted;
     const rate = total ? Math.round((contacted / total) * 100) : 0;
     const gdtd = scoped.filter((l) => l.status === 'GDTD').length;
-    return [
+    const list: StatCard[] = [
       { label: 'Tổng lead', value: total, accent: true },
       { label: 'Chưa liên hệ', value: pending },
       { label: 'Đã liên hệ', value: contacted },
       { label: 'Tỷ lệ liên hệ', value: `${rate}%` },
       { label: 'GDTD', value: gdtd },
     ];
-  }, [scoped]);
+    if (b10Enabled) {
+      list.push({ label: 'Đã lên B10', value: scoped.filter((l) => l.b10_on).length });
+    }
+    return list;
+  }, [scoped, b10Enabled]);
 
   useEffect(() => {
     const scroller = rootRef.current?.querySelector<HTMLElement>('[data-table-scroll]');
@@ -114,7 +118,7 @@ export default function LeadsView({
     <div ref={rootRef} className="h-full flex flex-col p-3 sm:p-6">
       <div
         ref={cardsRef}
-        className="shrink-0 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 overflow-hidden"
+        className={`shrink-0 grid grid-cols-2 md:grid-cols-3 ${cards.length >= 6 ? 'lg:grid-cols-6' : 'lg:grid-cols-5'} gap-3 overflow-hidden`}
         style={{ transition: 'opacity 0.15s, transform 0.15s', willChange: 'opacity, transform, max-height' }}
       >
         {cards.map((c) => (
