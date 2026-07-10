@@ -165,7 +165,9 @@ async function tick(api) {
     // Đổi marker **đậm** → style đậm Zalo (sau bù tên để offset khớp text cuối).
     const { msg, styles } = parseStyledText(text);
     try {
-      await api.sendMessage(styles.length ? { msg, styles } : { msg }, groupId, 1); // 1 = ThreadType.Group
+      // thread_type: 1 = nhóm (mặc định), 0 = cá nhân (cảnh báo hệ thống gửi Zalo cá nhân).
+      const threadType = n.payload?.thread_type === 0 ? 0 : 1;
+      await api.sendMessage(styles.length ? { msg, styles } : { msg }, groupId, threadType);
       await db.from('notifications').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', n.id);
       console.log('[zca-bot] gửi OK', n.id, '→', groupId);
     } catch (e) {

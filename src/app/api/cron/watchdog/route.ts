@@ -16,6 +16,7 @@ export const dynamic = 'force-dynamic';
  */
 
 const REALERT_MS = 6 * 3600 * 1000; // báo lại cùng lỗi sau 6 giờ
+const WATCHDOG_ALERT_TARGET_KEY = 'watchdog_alert_target';
 
 interface WatchState { sig: string; at: number }
 
@@ -79,20 +80,41 @@ export async function POST(request: NextRequest) {
     (mgmtByCompany.get(c.company_id) ?? mgmtByCompany.set(c.company_id, []).get(c.company_id)!).push({ id: c.id, channel: c.channel, target: c.target });
   }
 
+  // Đích cảnh báo cá nhân (Zalo cá nhân người vận hành) — ưu tiên hơn nhóm BLĐ nếu đã cấu hình.
+  // platform_settings['watchdog_alert_target'] = {"target":"<uid>","thread_type":0,"label":"..."}
+  let personal: { target: string; thread_type: number } | null = null;
+  try {
+    const raw = await getPlatformSetting(WATCHDOG_ALERT_TARGET_KEY);
+    const j = raw ? (JSON.parse(raw) as { target?: string; thread_type?: number }) : null;
+    if (j?.target) personal = { target: j.target, thread_type: j.thread_type === 0 ? 0 : 1 };
+  } catch { personal = null; }
+
+  // Dựng các dòng notifications cho 1 tin cảnh báo, theo đích cá nhân hoặc nhóm BLĐ.
+  const buildInserts = (
+    companyId: string,
+    text: string,
+  ): Record<string, unknown>[] | null => {
+    if (personal) {
+      return [{
+        channel: 'zalo', channel_id: null, status: 'pending',
+        payload: { event: 'system_alert', target: personal.target, thread_type: personal.thread_type, text },
+      }];
+    }
+    const channels = mgmtByCompany.get(companyId) ?? [];
+    if (channels.length === 0) return null;
+    return channels.map((c) => ({
+      channel: c.channel, channel_id: c.id, status: 'pending',
+      payload: { event: 'system_alert', target: c.target, thread_type: 1, text },
+    }));
+  };
+
   const summary: { company: string; overall: string; sent: boolean; reason: string }[] = [];
 
   for (const companyId of companyIds) {
-    const channels = mgmtByCompany.get(companyId) ?? [];
     const { data: comp } = await service.from('companies').select('name').eq('id', companyId).maybeSingle();
     const companyName = (comp as { name?: string } | null)?.name ?? 'Công ty';
 
     const health = await gatherSystemHealth(companyId);
-
-    if (channels.length === 0) {
-      // Chưa có nhóm BLĐ để nhận cảnh báo → chỉ ghi nhận, không đẩy tin.
-      summary.push({ company: companyName, overall: health.overall, sent: false, reason: 'no_management_group' });
-      continue;
-    }
 
     const sig = failSignature(health);
     const stateKey = `watchdog:${companyId}`;
@@ -108,29 +130,25 @@ export async function POST(request: NextRequest) {
       const changed = !prev || prev.sig !== sig;
       const staleEnough = prev ? Date.now() - prev.at > REALERT_MS : true;
       if (changed || staleEnough) {
-        const text = buildAlertText(companyName, health);
-        await service.from('notifications').insert(
-          channels.map((c) => ({
-            channel: c.channel, channel_id: c.id, status: 'pending',
-            payload: { event: 'system_alert', target: c.target, text },
-          })),
-        );
+        const inserts = buildInserts(companyId, buildAlertText(companyName, health));
+        if (!inserts) {
+          summary.push({ company: companyName, overall: health.overall, sent: false, reason: 'no_target' });
+          continue;
+        }
+        await service.from('notifications').insert(inserts);
         await setPlatformSetting(stateKey, JSON.stringify({ sig, at: Date.now() } satisfies WatchState));
         sent = true;
         reason = changed ? 'new_failure' : 'realert_6h';
       }
     } else if (prev && prev.sig) {
       // Trước có lỗi, giờ hết → báo khôi phục 1 lần rồi xoá dấu.
-      const text = buildRecoverText(companyName);
-      await service.from('notifications').insert(
-        channels.map((c) => ({
-          channel: c.channel, channel_id: c.id, status: 'pending',
-          payload: { event: 'system_alert', target: c.target, text },
-        })),
-      );
+      const inserts = buildInserts(companyId, buildRecoverText(companyName));
+      if (inserts) {
+        await service.from('notifications').insert(inserts);
+        sent = true;
+        reason = 'recovered';
+      }
       await setPlatformSetting(stateKey, JSON.stringify({ sig: '', at: Date.now() } satisfies WatchState));
-      sent = true;
-      reason = 'recovered';
     }
 
     summary.push({ company: companyName, overall: health.overall, sent, reason });
