@@ -92,13 +92,16 @@ export default function LeadsView({
     const cardsEl = cardsRef.current;
     if (!scroller || !cardsEl) return;
 
+    // Chiều cao thật của hàng card (đo trước khi set maxHeight) — dùng làm mốc thu gọn
+    // để không kẹp/cụt nội dung dù 1 hay 2 hàng card.
+    const baseH = cardsEl.scrollHeight;
     let raf = 0;
     const apply = () => {
       raf = 0;
       const p = Math.min(scroller.scrollTop / THRESHOLD, 1); // 0 = hiện đủ, 1 = ẩn hết
       cardsEl.style.opacity = String(1 - p);
-      cardsEl.style.maxHeight = `${(1 - p) * 200}px`;
-      cardsEl.style.marginBottom = `${(1 - p) * 24}px`;
+      cardsEl.style.maxHeight = `${(1 - p) * baseH}px`;
+      cardsEl.style.marginBottom = `${(1 - p) * 20}px`;
       cardsEl.style.transform = `translateY(${-p * 12}px)`;
       cardsEl.style.pointerEvents = p > 0.8 ? 'none' : 'auto';
     };
@@ -118,17 +121,17 @@ export default function LeadsView({
     <div ref={rootRef} className="h-full flex flex-col p-3 sm:p-6">
       <div
         ref={cardsRef}
-        className={`shrink-0 grid grid-cols-2 md:grid-cols-3 ${cards.length >= 6 ? 'lg:grid-cols-6' : 'lg:grid-cols-5'} gap-3 overflow-hidden`}
+        className={`shrink-0 grid grid-cols-3 ${cards.length >= 6 ? 'md:grid-cols-6' : 'md:grid-cols-5'} gap-2 overflow-hidden`}
         style={{ transition: 'opacity 0.15s, transform 0.15s', willChange: 'opacity, transform, max-height' }}
       >
         {cards.map((c) => (
           <div
             key={c.label}
-            className="rounded-xl border border-slate-200 bg-white px-4 py-3.5"
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2"
           >
-            <div className="text-[11px] font-medium uppercase tracking-wider text-slate-400">{c.label}</div>
+            <div className="text-[10px] font-medium uppercase tracking-wide text-slate-400 truncate">{c.label}</div>
             <div
-              className="text-2xl font-semibold mt-1 tabular-nums"
+              className="text-lg font-semibold mt-0.5 tabular-nums"
               style={{ color: c.accent ? '#004B9B' : '#0f172a' }}
             >
               {c.value}
