@@ -538,17 +538,20 @@ function QuotaModal({
                   style={{ borderColor: s.is_active ? '#004B9B' : '#e2e8f0', background: s.is_active ? '#e6f0fa' : '#f8fafc' }}>
                   <span className="text-sm font-medium text-slate-700 min-w-0 truncate">
                     {s.name}{s.code && <span className="text-slate-400 font-mono text-xs"> · {s.code}</span>}
-                    {!s.is_active && <span className="ml-1.5 text-xs font-normal text-rose-500">(tắt)</span>}
                   </span>
-                  <div className="flex items-center gap-1 shrink-0">
+                  <div className="flex items-center gap-2 shrink-0">
+                    {/* Công tắc trượt: phải/xanh = đang hoạt động; trái/xám = đã tắt */}
+                    <button type="button" role="switch" aria-checked={s.is_active} disabled={srBusy === s.id}
+                      onClick={() => onToggleSr(s.id, !s.is_active)}
+                      title={s.is_active ? 'Đang hoạt động — bấm để tắt' : 'Đã tắt — bấm để bật'}
+                      className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 shrink-0"
+                      style={{ background: s.is_active ? '#16a34a' : '#cbd5e1' }}>
+                      <span className="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform"
+                        style={{ transform: s.is_active ? 'translateX(18px)' : 'translateX(2px)' }} />
+                    </button>
                     <button type="button" disabled={srBusy === s.id} onClick={() => setSrEdit(s)}
                       className="text-xs font-medium px-2 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-50"
                       style={{ color: '#004B9B' }}>Sửa</button>
-                    <button type="button" disabled={srBusy === s.id} onClick={() => onToggleSr(s.id, !s.is_active)}
-                      className="text-xs font-medium px-2 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-50"
-                      style={{ color: s.is_active ? '#d97706' : '#166534' }}>
-                      {srBusy === s.id ? '...' : s.is_active ? 'Tắt' : 'Bật'}
-                    </button>
                     <button type="button" disabled={srBusy === s.id} onClick={() => onDeleteSr(s)}
                       className="text-xs font-medium px-2 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-50"
                       style={{ color: '#e11d48' }}>Xoá</button>
