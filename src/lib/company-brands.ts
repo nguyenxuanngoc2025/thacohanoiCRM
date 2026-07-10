@@ -65,3 +65,38 @@ export async function getMutedTeamIdsGlobal(supabase: DbClient): Promise<Set<str
   }
   return muted;
 }
+
+/**
+ * Showroom có đang bị TẮT không (theo danh sách showroom inactive của công ty).
+ * Ngược nghĩa isBrandClosed: ở đây danh sách là tập ĐÓNG (inactive), check IN.
+ * showroomId null → false (không có showroom để chặn).
+ */
+export function isShowroomInactive(inactiveShowroomIds: string[], showroomId: string | null): boolean {
+  return !!showroomId && inactiveShowroomIds.includes(showroomId);
+}
+
+/**
+ * showroom_id[] đang TẮT của 1 công ty. Company NULL → [] (platform_owner không lọc).
+ */
+export async function getInactiveShowroomIds(supabase: DbClient, companyId: string | null): Promise<string[]> {
+  if (!companyId) return [];
+  const { data } = await supabase
+    .from('showrooms')
+    .select('id, is_active')
+    .eq('company_id', companyId);
+  return (data ?? [])
+    .filter((s) => (s as { is_active: boolean }).is_active === false)
+    .map((s) => String((s as { id: string }).id));
+}
+
+/**
+ * Tập showroom_id đang TẮT của TẤT CẢ công ty (dùng cho cron cross-company).
+ */
+export async function getInactiveShowroomIdsGlobal(supabase: DbClient): Promise<Set<string>> {
+  const { data } = await supabase.from('showrooms').select('id, is_active');
+  const set = new Set<string>();
+  for (const s of data ?? []) {
+    if ((s as { is_active: boolean }).is_active === false) set.add(String((s as { id: string }).id));
+  }
+  return set;
+}
