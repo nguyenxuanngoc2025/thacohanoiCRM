@@ -163,7 +163,7 @@ function EditTeamModal({
     try {
       const body = isNew
         ? { op: 'create', name: name.trim(), showroom_id: showroomId, brand_id: brandId || null, head_user_id: headUserId || null }
-        : { op: 'update', id: init!.id, name: name.trim(), head_user_id: headUserId || null };
+        : { op: 'update', id: init!.id, name: name.trim(), brand_id: brandId || null, head_user_id: headUserId || null };
       const res = await fetch('/api/admin/sales-teams', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -191,29 +191,27 @@ function EditTeamModal({
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#004B9B]" placeholder="Phòng KIA 1" />
           </Field>
           {isNew ? (
-            <>
-              <Field label="Showroom">
-                <select value={showroomId} onChange={(e) => { setShowroomId(e.target.value); setBrandId(''); }}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#004B9B] bg-white">
-                  <option value="">— Chọn showroom —</option>
-                  {showrooms.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
-              </Field>
-              <Field label="Thương hiệu">
-                <select value={brandId} onChange={(e) => setBrandId(e.target.value)} disabled={!showroomId}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#004B9B] bg-white disabled:bg-slate-50 disabled:text-slate-400">
-                  <option value="">{!showroomId ? '— Chọn showroom trước —' : 'Tất cả thương hiệu (đa hãng)'}</option>
-                  {brandOptions.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-                </select>
-                <p className="text-[11px] text-slate-400 mt-1">Để trống = phòng bán mọi thương hiệu của showroom; chọn 1 hãng = phòng chỉ nhận lead hãng đó.</p>
-              </Field>
-            </>
+            <Field label="Showroom">
+              <select value={showroomId} onChange={(e) => { setShowroomId(e.target.value); setBrandId(''); }}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#004B9B] bg-white">
+                <option value="">— Chọn showroom —</option>
+                {showrooms.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </Field>
           ) : (
             <div className="text-xs text-slate-500">
-              {showrooms.find((s) => s.id === init!.showroom_id)?.name} · {init!.brand_id ? brands.find((b) => b.id === init!.brand_id)?.name : 'Đa hãng'}
-              <span className="text-slate-400"> (không đổi được showroom/thương hiệu của phòng)</span>
+              Showroom: <span className="font-medium text-slate-700">{showrooms.find((s) => s.id === init!.showroom_id)?.name}</span>
+              <span className="text-slate-400"> (không đổi được showroom của phòng)</span>
             </div>
           )}
+          <Field label="Thương hiệu">
+            <select value={brandId} onChange={(e) => setBrandId(e.target.value)} disabled={!showroomId}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#004B9B] bg-white disabled:bg-slate-50 disabled:text-slate-400">
+              <option value="">{!showroomId ? '— Chọn showroom trước —' : 'Tất cả thương hiệu (đa hãng)'}</option>
+              {brandOptions.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+            <p className="text-[11px] text-slate-400 mt-1">Để trống = phòng bán mọi thương hiệu của showroom; chọn 1 hãng = phòng chỉ nhận lead hãng đó.</p>
+          </Field>
           <Field label="Trưởng phòng (TP Phòng)">
             <select value={headUserId} onChange={(e) => setHeadUserId(e.target.value)}
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#004B9B] bg-white">

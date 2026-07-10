@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
     // Cô lập đa công ty: phòng sửa/xoá/đặt tỷ trọng phải thuộc CÙNG công ty với admin.
     if (op === 'update' || op === 'delete' || op === 'set-allocation' || op === 'set-strategy') {
       const { data: own } = await service.from('sales_teams')
-        .select('id, is_default').eq('id', body.id ?? body.sales_team_id).eq('company_id', companyId).maybeSingle();
+        .select('id, is_default, showroom_id').eq('id', body.id ?? body.sales_team_id).eq('company_id', companyId).maybeSingle();
       if (!own) return NextResponse.json({ error: 'Phòng bán hàng không thuộc công ty của bạn.' }, { status: 404 });
 
       if (op === 'delete') {
@@ -76,10 +76,23 @@ export async function POST(request: NextRequest) {
     }
 
     if (op === 'update') {
+      const own = await service.from('sales_teams')
+        .select('showroom_id').eq('id', body.id).eq('company_id', companyId).maybeSingle();
       const updates: Record<string, unknown> = {};
       if (typeof body.name === 'string' && body.name.trim()) updates.name = body.name.trim();
       if (body.head_user_id !== undefined) updates.head_user_id = body.head_user_id || null;
       if (Number.isFinite(body.sort_order)) updates.sort_order = body.sort_order;
+      // Đổi thương hiệu phòng (kể cả phòng mặc định): '' / null = đa hãng; nếu khoá hãng thì
+      // phải là hãng showroom thực sự kinh doanh.
+      if (body.brand_id !== undefined) {
+        const brandId = (body.brand_id as string) || null;
+        if (brandId) {
+          const { data: sb } = await service.from('showroom_brands')
+            .select('brand_id').eq('showroom_id', own.data?.showroom_id).eq('brand_id', brandId).maybeSingle();
+          if (!sb) return NextResponse.json({ error: 'Showroom này không kinh doanh thương hiệu đã chọn.' }, { status: 400 });
+        }
+        updates.brand_id = brandId;
+      }
       if (Object.keys(updates).length === 0) {
         return NextResponse.json({ error: 'Không có thay đổi nào.' }, { status: 400 });
       }
