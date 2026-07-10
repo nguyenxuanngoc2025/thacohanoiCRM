@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   computeKpis, computeFunnel, groupBySource, groupByAssignee, groupByModel,
   dailyTrend, failReasons, statusDistribution, isOverdue, crossShowroomBrand, crossDimension,
+  effectiveStatus,
   type ReportLead,
 } from './reports';
 
@@ -48,6 +49,26 @@ describe('computeKpis', () => {
       L({ status: 'Fail', next_contact_at: '2026-06-20T00:00:00Z' }), // đã loại → không tính
     ];
     expect(computeKpis(leads, NOW).overdue).toBe(1);
+  });
+});
+
+describe('effectiveStatus — trạng thái cuối cho báo cáo (best app vs B10)', () => {
+  it('lấy mức cao hơn giữa status app và b10_status', () => {
+    expect(effectiveStatus(L({ status: 'KHQT', b10_status: 'GDTD' }))).toBe('GDTD');
+    expect(effectiveStatus(L({ status: 'GDTD', b10_status: 'KHQT' }))).toBe('GDTD');
+    expect(effectiveStatus(L({ status: null, b10_status: 'KHĐ' }))).toBe('KHĐ');
+    expect(effectiveStatus(L({ status: 'Fail', b10_status: null }))).toBe('Fail');
+    expect(effectiveStatus(L({ status: null, b10_status: null }))).toBeNull();
+  });
+
+  it('KPIs dùng trạng thái cuối: B10 nâng lead lên GDTD/KHĐ dù app chưa cập nhật', () => {
+    const leads = [
+      L({ status: 'KHQT', b10_status: 'KHĐ', last_contact_at: '2026-06-11T00:00:00Z' }), // won theo B10
+      L({ status: null, b10_status: 'GDTD' }), // following theo B10
+    ];
+    const k = computeKpis(leads, NOW);
+    expect(k.won).toBe(1);
+    expect(k.following).toBe(1);
   });
 });
 

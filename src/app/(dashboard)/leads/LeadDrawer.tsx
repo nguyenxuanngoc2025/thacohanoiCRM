@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useTransition } from 'react';
-import { X, PhoneCall, RefreshCw, Clock, Save, Pencil, Check } from 'lucide-react';
+import { X, PhoneCall, RefreshCw, Clock, Save, Pencil, Check, History } from 'lucide-react';
 import { formatPhoneDisplay } from '@/lib/phone';
 import { sourceLabel, sourcePlatform } from '@/lib/source';
 import { STATUS_OPTIONS, type LeadStatus } from '@/lib/lead-status';
@@ -180,6 +180,11 @@ export default function LeadDrawer({
               </div>
             )}
             <div className="text-sm text-slate-500 mt-0.5">{formatPhoneDisplay(lead.phone)}</div>
+            {b10Enabled && lead.b10_status && (
+              <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 text-xs font-medium">
+                <History size={12} /> KH cũ · B10: {lead.b10_status}
+              </span>
+            )}
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700 p-1 -mr-1 shrink-0">
             <X size={20} />

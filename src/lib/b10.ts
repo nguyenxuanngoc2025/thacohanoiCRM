@@ -55,6 +55,37 @@ export function normalizeB10Status(raw: string | null): LeadStatus | null {
 }
 
 export interface B10Row { phone: string; status: string | null; note?: string | null }
+
+/** 1 bản ghi kho B10 (theo SĐT chuẩn hoá +84…), độc lập với lead. */
+export interface B10ArchiveRecord { phone: string; b10_status: LeadStatus | null; care_note: string | null }
+
+/**
+ * Gom TẤT CẢ dòng file B10 thành bản ghi kho theo SĐT chuẩn hoá `+84…`:
+ * - `b10_status`: trạng thái tốt nhất (không tụt hạng) giữa mọi dòng cùng SĐT.
+ * - `care_note`: gộp ĐỦ mọi nội dung chăm sóc không rỗng, theo thứ tự file, bỏ trùng.
+ * Bỏ qua dòng thiếu SĐT. Khác `reconcileB10`: KHÔNG cần biết lead — lưu toàn bộ để tra cứu sau.
+ */
+export function aggregateB10Archive(rows: B10Row[]): B10ArchiveRecord[] {
+  const status = new Map<string, LeadStatus | null>();
+  const notes = new Map<string, string[]>();
+  for (const row of rows) {
+    const p = normalizePhone(row.phone);
+    if (!p) continue;
+    const code = normalizeB10Status(row.status);
+    const cur = status.has(p) ? status.get(p)! : null;
+    status.set(p, bestB10Status(cur, code));
+    const note = (row.note ?? '').trim();
+    if (note) {
+      const arr = notes.get(p) ?? [];
+      if (!arr.includes(note)) arr.push(note);
+      notes.set(p, arr);
+    }
+  }
+  return [...status.keys()].map((phone) => {
+    const arr = notes.get(phone);
+    return { phone, b10_status: status.get(phone) ?? null, care_note: arr && arr.length ? arr.join('\n') : null };
+  });
+}
 // status = trạng thái chính TVBH đặt trong app (để quyết định có tự nâng hay không).
 export interface B10Lead { id: string; phone: string; b10_status: LeadStatus | null; status: LeadStatus | null }
 // b10_care_note: null = không có nội dung mới để ghi (giữ nguyên giá trị cũ trong DB).

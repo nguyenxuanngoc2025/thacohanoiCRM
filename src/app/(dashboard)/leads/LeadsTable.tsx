@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import {
   PhoneCall, Check, ChevronUp, ChevronDown, ChevronsUpDown, ChevronLeft,
   SlidersHorizontal, UserPlus, Search, Download, AlertTriangle, ListFilter, Trash2,
-  GripVertical, Pin,
+  GripVertical, Pin, History,
 } from 'lucide-react';
 import { formatPhoneDisplay } from '@/lib/phone';
 import { matchesQuery } from '@/lib/search';
@@ -809,7 +809,14 @@ export default function LeadsTable({
           ? <span className="text-slate-500 line-clamp-1 max-w-[240px] inline-block align-bottom" title={l.b10_care_note}>{l.b10_care_note}</span>
           : <span className="text-slate-300">—</span>;
       case 'time': return <span className="text-slate-500">{fmtDate(l.created_at)}</span>;
-      case 'name': return <span className="font-medium text-slate-800">{l.full_name ?? '—'}</span>;
+      case 'name': return (
+        <span className="inline-flex items-center gap-1.5">
+          <span className="font-medium text-slate-800">{l.full_name ?? '—'}</span>
+          {b10Enabled && l.b10_status && (
+            <History size={13} className="text-amber-500 shrink-0" aria-label="Khách cũ đã có trên B10" />
+          )}
+        </span>
+      );
       case 'phone': return <span className="text-slate-600">{formatPhoneDisplay(l.phone)}</span>;
       case 'showroom': return <span className="text-slate-600">{l.showroom_name ?? '—'}</span>;
       case 'team': return <span className="text-slate-600">{l.team_name ?? '—'}</span>;
@@ -1104,7 +1111,12 @@ export default function LeadsTable({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <div className="font-semibold text-slate-800 truncate">{l.full_name ?? '—'}</div>
+                      <div className="font-semibold text-slate-800 truncate inline-flex items-center gap-1.5">
+                        {l.full_name ?? '—'}
+                        {b10Enabled && l.b10_status && (
+                          <History size={13} className="text-amber-500 shrink-0" aria-label="Khách cũ đã có trên B10" />
+                        )}
+                      </div>
                       <div className="text-sm text-slate-500 tabular-nums">{formatPhoneDisplay(l.phone)}</div>
                     </div>
                     <div onClick={(e) => e.stopPropagation()} className="shrink-0">

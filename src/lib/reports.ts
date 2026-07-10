@@ -1,5 +1,6 @@
 import { STATUS_LABEL, type LeadStatus } from './lead-status';
 import { sourcePlatform } from './source';
+import { bestB10Status } from './b10';
 
 /** Lead tối giản cho tính toán báo cáo (lấy từ bảng leads, đã join tên brand/showroom/TVBH). */
 export interface ReportLead {
@@ -21,11 +22,18 @@ export interface ReportLead {
   b10_on: boolean;
 }
 
-export const isWon = (l: ReportLead): boolean => l.status === 'KHĐ';
-export const isFail = (l: ReportLead): boolean => l.status === 'Fail';
+/**
+ * TRẠNG THÁI CUỐI CÙNG dùng cho báo cáo: lấy kết quả TỐI ƯU HƠN (rank cao hơn, không tụt hạng)
+ * giữa trạng thái TVBH nhập trên app và trạng thái B10. Mọi chỉ số trạng thái của báo cáo (phân
+ * loại/phễu/chốt/loại) dựa vào đây để phản ánh đúng kết quả thực tế của khách khi có cả 2 nguồn.
+ */
+export const effectiveStatus = (l: ReportLead): LeadStatus | null => bestB10Status(l.status, l.b10_status);
+
+export const isWon = (l: ReportLead): boolean => effectiveStatus(l) === 'KHĐ';
+export const isFail = (l: ReportLead): boolean => effectiveStatus(l) === 'Fail';
 export const isContacted = (l: ReportLead): boolean => l.last_contact_at != null;
 /** Còn trong pipeline: chưa chốt (KHĐ) và chưa loại (Fail). */
-export const isOpen = (l: ReportLead): boolean => l.status !== 'KHĐ' && l.status !== 'Fail';
+export const isOpen = (l: ReportLead): boolean => { const s = effectiveStatus(l); return s !== 'KHĐ' && s !== 'Fail'; };
 
 /** Quá hạn liên hệ: còn mở + có hẹn liên hệ + hẹn đã trôi qua. */
 export function isOverdue(l: ReportLead, nowMs: number): boolean {
@@ -56,8 +64,8 @@ export interface Kpis {
 export function computeKpis(leads: ReportLead[], nowMs: number): Kpis {
   const total = leads.length;
   const contacted = leads.filter(isContacted).length;
-  const interested = leads.filter((l) => l.status === 'KHQT').length;
-  const following = leads.filter((l) => l.status === 'GDTD').length;
+  const interested = leads.filter((l) => effectiveStatus(l) === 'KHQT').length;
+  const following = leads.filter((l) => effectiveStatus(l) === 'GDTD').length;
   const won = leads.filter(isWon).length;
   const fail = leads.filter(isFail).length;
   const overdue = leads.filter((l) => isOverdue(l, nowMs)).length;
@@ -96,8 +104,8 @@ export interface FunnelStage {
 export function computeFunnel(leads: ReportLead[]): FunnelStage[] {
   const total = leads.length;
   const contacted = leads.filter(isContacted).length;
-  const interestedUp = leads.filter((l) => l.status === 'KHQT' || l.status === 'GDTD' || l.status === 'KHĐ').length;
-  const dealingUp = leads.filter((l) => l.status === 'GDTD' || l.status === 'KHĐ').length;
+  const interestedUp = leads.filter((l) => { const s = effectiveStatus(l); return s === 'KHQT' || s === 'GDTD' || s === 'KHĐ'; }).length;
+  const dealingUp = leads.filter((l) => { const s = effectiveStatus(l); return s === 'GDTD' || s === 'KHĐ'; }).length;
   const won = leads.filter(isWon).length;
   const mk = (label: string, count: number): FunnelStage => ({ label, count, pct: rate(count, total) });
   return [
@@ -152,8 +160,9 @@ function groupBy(
     }
     row.leads += 1;
     if (isContacted(l)) row.contacted += 1;
-    if (l.status === 'KHQT') row.interested += 1;
-    if (l.status === 'GDTD') row.following += 1;
+    const es = effectiveStatus(l);
+    if (es === 'KHQT') row.interested += 1;
+    if (es === 'GDTD') row.following += 1;
     if (isWon(l)) row.won += 1;
     if (isFail(l)) row.fail += 1;
     if (isOverdue(l, nowMs)) row.overdue += 1;
@@ -206,8 +215,8 @@ export function groupByAssignee(leads: ReportLead[], nowMs: number): GroupRow[] 
 export function groupByStatus(leads: ReportLead[], nowMs: number): GroupRow[] {
   const rows = groupBy(
     leads,
-    (l) => l.status ?? '__none__',
-    (l) => (l.status ? STATUS_LABEL[l.status] : 'Chưa phân loại'),
+    (l) => effectiveStatus(l) ?? '__none__',
+    (l) => { const s = effectiveStatus(l); return s ? STATUS_LABEL[s] : 'Chưa phân loại'; },
     nowMs,
   );
   const order = ['__none__', ...(Object.keys(STATUS_LABEL) as LeadStatus[])];
@@ -270,7 +279,7 @@ function dimKey(l: ReportLead, dim: Dimension): [string, string] {
     case 'model': return [l.model_id ?? '__none__', l.model_name ?? 'Chưa gán dòng xe'];
     case 'source': return l.source ? [sourcePlatform(l.source), sourcePlatform(l.source)] : ['__none__', 'Không rõ nguồn'];
     case 'assignee': return [l.assigned_to ?? '__none__', l.assignee_name ?? 'Chưa giao'];
-    case 'status': return [l.status ?? '__none__', l.status ? STATUS_LABEL[l.status] : 'Chưa phân loại'];
+    case 'status': { const s = effectiveStatus(l); return [s ?? '__none__', s ? STATUS_LABEL[s] : 'Chưa phân loại']; }
   }
 }
 
@@ -366,7 +375,7 @@ export function statusDistribution(leads: ReportLead[]): StatusSlice[] {
   ];
   const counts = new Map<string, number>();
   for (const l of leads) {
-    const c = l.status ?? '__none__';
+    const c = effectiveStatus(l) ?? '__none__';
     counts.set(c, (counts.get(c) ?? 0) + 1);
   }
   return order.map((o) => ({ ...o, count: counts.get(o.code) ?? 0 })).filter((s) => s.count > 0);

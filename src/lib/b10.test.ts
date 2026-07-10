@@ -57,7 +57,35 @@ describe('normalizeB10Status', () => {
 });
 
 // thêm vào cuối app/src/lib/b10.test.ts
-import { reconcileB10, type B10Row, type B10Lead } from './b10';
+import { reconcileB10, aggregateB10Archive, type B10Row, type B10Lead } from './b10';
+
+describe('aggregateB10Archive', () => {
+  it('gom theo SĐT chuẩn hoá, lấy best status + gộp mọi note không trùng', () => {
+    const rows: B10Row[] = [
+      { phone: '0900 000 001', status: 'KHQT', note: 'Gọi lần 1' },
+      { phone: '0900000001', status: 'KHĐ', note: 'Chốt hợp đồng' },
+      { phone: '0900000002', status: 'Prospect', note: '' },
+    ];
+    const out = aggregateB10Archive(rows);
+    const r1 = out.find((r) => r.phone === '+84900000001')!;
+    expect(r1.b10_status).toBe('KHĐ'); // best giữa KHQT và KHĐ
+    expect(r1.care_note).toBe('Gọi lần 1\nChốt hợp đồng');
+    const r2 = out.find((r) => r.phone === '+84900000002')!;
+    expect(r2.b10_status).toBe('KHQT'); // Prospect → KHQT
+    expect(r2.care_note).toBeNull();
+  });
+
+  it('bỏ qua dòng thiếu SĐT; note trùng chỉ giữ 1', () => {
+    const rows: B10Row[] = [
+      { phone: '', status: 'KHĐ', note: 'x' },
+      { phone: '0900000003', status: 'KHQT', note: 'Đã tư vấn' },
+      { phone: '0900000003', status: 'KHQT', note: 'Đã tư vấn' },
+    ];
+    const out = aggregateB10Archive(rows);
+    expect(out).toHaveLength(1);
+    expect(out[0].care_note).toBe('Đã tư vấn');
+  });
+});
 
 describe('reconcileB10', () => {
   const scoped: B10Lead[] = [

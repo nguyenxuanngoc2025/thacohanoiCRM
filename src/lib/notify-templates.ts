@@ -23,7 +23,12 @@ export interface NewLeadInput {
   source: string | null;
   model: string | null;
   assignee: string | null;
+  // Khách cũ đã có trên B10 (đối soát trước đó): có = thêm dòng cảnh báo để làm căn cứ phân giao.
+  b10Prior?: { status: string | null; note: string | null } | null;
 }
+
+// Cắt bớt nội dung chăm sóc B10 khi quá dài để tin Zalo không bị từ chối.
+const B10_NOTE_CAP = 300;
 
 export function renderNewLead(i: NewLeadInput): string {
   const ten = i.fullName?.trim() || 'Khách lẻ';
@@ -36,13 +41,24 @@ export function renderNewLead(i: NewLeadInput): string {
   // Luôn hiển thị dòng xe; chưa dò ra thì ghi rõ "chưa xác định".
   const xe = i.model?.trim() || 'chưa xác định';
   const tinhTrang = i.assignee?.trim() ? `Đã giao cho ${i.assignee.trim()}` : 'Chưa được phân giao';
-  return [
+  const lines = [
     `<b>LEAD MỚI — ${i.showroom}</b>`,
     `KH: <b>${ten}</b> · ${maskPhone(i.phone)}`,
     `Nguồn: ${nguon}`,
     `Dòng xe quan tâm: ${xe}`,
     `Tình trạng: <b>${tinhTrang}</b>`,
-  ].join('\n');
+  ];
+  // Khách cũ đã có trên B10 → cảnh báo rõ để TVBH/quản lý có căn cứ phân giao.
+  if (i.b10Prior) {
+    const st = i.b10Prior.status?.trim();
+    lines.push(`<b>KHÁCH CŨ — đã có trên B10${st ? ` (${st})` : ''}</b>`);
+    const note = i.b10Prior.note?.trim();
+    if (note) {
+      const short = note.length > B10_NOTE_CAP ? note.slice(0, B10_NOTE_CAP) + '…' : note;
+      lines.push(`Nội dung B10: <i>${short}</i>`);
+    }
+  }
+  return lines.join('\n');
 }
 
 export interface OverdueItem {

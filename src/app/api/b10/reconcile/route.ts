@@ -1,7 +1,7 @@
 // app/src/app/api/b10/reconcile/route.ts
 import { NextResponse } from 'next/server';
 import { requireB10Importer } from '@/lib/b10-import-guard';
-import { reconcileB10, type B10Row } from '@/lib/b10';
+import { reconcileB10, aggregateB10Archive, type B10Row } from '@/lib/b10';
 import { normalizePhone } from '@/lib/phone';
 
 export const dynamic = 'force-dynamic';
@@ -81,10 +81,22 @@ export async function POST(req: Request) {
   }
   if (logs.length > 0) await supabase.from('lead_logs').insert(logs);
 
+  // Lưu TOÀN BỘ dòng file vào kho B10 (độc lập lead) để tra cứu khi có lead mới trùng SĐT.
+  // Bản mới đè bản cũ theo (company_id, phone); first_seen_at giữ nguyên (không gửi khi upsert).
+  const archive = aggregateB10Archive(rows).map((r) => ({
+    company_id: companyId, phone: r.phone, b10_status: r.b10_status, care_note: r.care_note, updated_at: now,
+  }));
+  if (archive.length > 0) {
+    // Chia lô để tránh payload quá lớn khi file B10 hàng nghìn dòng.
+    for (let i = 0; i < archive.length; i += 500) {
+      await service.from('b10_records').upsert(archive.slice(i, i + 500), { onConflict: 'company_id,phone' });
+    }
+  }
+
   // Lưu ánh xạ cột cho công ty để lần sau gợi ý sẵn.
   if (body.mapping?.phone_col && body.mapping?.status_col) {
     await service.from('companies').update({ b10_mapping: body.mapping }).eq('id', companyId);
   }
 
-  return NextResponse.json({ summary });
+  return NextResponse.json({ summary: { ...summary, archived: archive.length } });
 }

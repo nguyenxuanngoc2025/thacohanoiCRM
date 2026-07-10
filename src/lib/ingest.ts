@@ -329,6 +329,30 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
 
   if (error || !inserted) return { ok: false, reason: error?.message ?? 'insert_failed' };
 
+  // KHÁCH CŨ trên B10: tra kho đối soát (b10_records) theo (company_id, phone). Nếu có →
+  // đánh dấu tham chiếu lên lead (b10_status/b10_care_note/b10_synced_at) để user có căn cứ
+  // phân giao. KHÔNG đổi trạng thái chính / last_contact_at (chỉ tham chiếu, không lật quyết định).
+  let b10Prior: { status: string | null; note: string | null } | null = null;
+  const { data: b10Rec } = await db
+    .from('b10_records')
+    .select('b10_status, care_note')
+    .eq('company_id', showroom.company_id)
+    .eq('phone', phone)
+    .maybeSingle();
+  if (b10Rec) {
+    b10Prior = { status: b10Rec.b10_status ?? null, note: b10Rec.care_note ?? null };
+    await db.from('leads').update({
+      b10_status: b10Rec.b10_status ?? null,
+      b10_care_note: b10Rec.care_note ?? null,
+      b10_synced_at: new Date().toISOString(),
+    }).eq('id', inserted.id);
+    await db.from('lead_logs').insert({
+      lead_id: inserted.id,
+      type: 'system',
+      content: `Khách cũ — đã có trên B10${b10Rec.b10_status ? ` (${b10Rec.b10_status})` : ''}.`,
+    });
+  }
+
   // Hãng đang tắt: ghi 1 dòng log để truy vết, và bỏ qua toàn bộ khối báo Zalo bên dưới.
   if (brandClosed) {
     await db.from('lead_logs').insert({
@@ -383,6 +407,7 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
       source: payload.source ?? 'facebook',
       model: modelName,
       assignee: assigneeName,
+      b10Prior,
     });
 
     // Tên rác → kèm enrich để bot tra Zalo bù tên TRƯỚC khi gửi.
