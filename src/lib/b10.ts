@@ -91,7 +91,7 @@ export function reconcileB10(
   // Gộp best theo lead id (nhiều dòng có thể trỏ cùng 1 khách).
   const merged = new Map<string, LeadStatus | null>(); // id → best b10_status mới
   const leadById = new Map<string, B10Lead>();         // id → lead (để đọc trạng thái chính hiện tại)
-  const notes = new Map<string, string>();             // id → nội dung chăm sóc mới nhất (không rỗng)
+  const notes = new Map<string, string[]>();           // id → TẤT CẢ nội dung chăm sóc (mỗi dòng file 1 mục, giữ đủ)
   const unrecognized = new Set<string>();
   let matched = 0, notFound = 0, outOfScope = 0;
 
@@ -108,9 +108,14 @@ export function reconcileB10(
     if (row.status && row.status.trim() && code === null) unrecognized.add(row.status.trim());
     const current = merged.has(lead.id) ? merged.get(lead.id)! : lead.b10_status;
     merged.set(lead.id, bestB10Status(current, code));
-    // Nội dung chăm sóc: giữ giá trị không rỗng gần nhất trong file cho khách này.
+    // Nội dung chăm sóc: gộp ĐỦ mọi dòng không rỗng của khách này (nhiều dòng đàm phán),
+    // theo thứ tự file, bỏ trùng lặp — không chỉ giữ dòng cuối.
     const note = (row.note ?? '').trim();
-    if (note) notes.set(lead.id, note);
+    if (note) {
+      const arr = notes.get(lead.id) ?? [];
+      if (!arr.includes(note)) arr.push(note);
+      notes.set(lead.id, arr);
+    }
     matched += 1;
   }
 
@@ -129,7 +134,8 @@ export function reconcileB10(
     } else if (b10_status && B10_RANK[b10_status] > B10_RANK[cur]) {
       conflicts += 1;
     }
-    return { id, b10_status, b10_care_note: notes.get(id) ?? null, new_status };
+    const noteArr = notes.get(id);
+    return { id, b10_status, b10_care_note: noteArr && noteArr.length ? noteArr.join('\n') : null, new_status };
   });
   return {
     updates,
