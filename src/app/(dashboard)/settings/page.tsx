@@ -26,9 +26,18 @@ export default async function SettingsPage() {
   // Giai đoạn 1: nhân sự + showroom của ĐÚNG công ty này (làm gốc scope cho phần còn lại).
   const [{ data: staff }, { data: showroomRows }] = await Promise.all([
     service.from('users').select('id, full_name, email, role, showroom_id, brand_id, sales_team_id, is_active, assign_share_pct').eq('company_id', companyId).is('deleted_at', null).order('role'),
-    service.from('showrooms').select('id, name, code, team_assign_strategy, assign_share_pct').eq('company_id', companyId).order('name'),
+    service.from('showrooms').select('id, name, code, team_assign_strategy, assign_share_pct, is_active').eq('company_id', companyId).order('name'),
   ]);
-  const srIds = ((showroomRows ?? []) as { id: string }[]).map((s) => s.id);
+  // Showroom đang TẮT (platform_owner tắt tại /admin) → ẩn sạch khỏi Cài đặt: showroom +
+  // phòng + nhân sự + kênh + kênh thông báo của nó không hiển thị. Giữ srIds/userIds theo
+  // showroom ACTIVE để mọi truy vấn phụ (giai đoạn 2) chỉ đụng dữ liệu đang hoạt động.
+  const inactiveSrIds = new Set(
+    ((showroomRows ?? []) as { id: string; is_active: boolean }[])
+      .filter((s) => s.is_active === false).map((s) => s.id),
+  );
+  const showroomRowsActive = ((showroomRows ?? []) as { id: string; is_active: boolean }[])
+    .filter((s) => s.is_active !== false) as unknown[];
+  const srIds = (showroomRowsActive as { id: string }[]).map((s) => s.id);
   const srFilter = srIds.length ? srIds : [NONE];
   const userIds = ((staff ?? []) as { id: string }[]).map((u) => u.id);
   const userFilter = userIds.length ? userIds : [NONE];
@@ -68,14 +77,18 @@ export default async function SettingsPage() {
   // phòng/kênh-thông-báo của hãng đó không hiển thị. platform_owner (companyId rỗng) → [] = không lọc.
   const openBrandIds = await getOpenBrandIds(service, companyId || null);
   const brandOpen = (bid: string | null | undefined) => !isBrandClosed(openBrandIds, bid ?? null);
+  const srActive = (sid: string | null | undefined) => !inactiveSrIds.has(String(sid ?? ''));
   const brandsOpen = (brands ?? []).filter((b) => brandOpen((b as { id: string }).id));
   const modelsOpen = (models ?? []).filter((m) => brandOpen((m as { brand_id: string }).brand_id));
-  const salesTeamRowsOpen = (salesTeamRows ?? []).filter((t) => brandOpen((t as { brand_id: string }).brand_id));
-  const channelsOpen = (channels ?? []).filter((c) => brandOpen((c as { brand_id: string | null }).brand_id));
+  const salesTeamRowsOpen = (salesTeamRows ?? [])
+    .filter((t) => brandOpen((t as { brand_id: string }).brand_id) && srActive((t as { showroom_id: string }).showroom_id));
+  const channelsOpen = (channels ?? [])
+    .filter((c) => brandOpen((c as { brand_id: string | null }).brand_id) && srActive((c as { showroom_id: string | null }).showroom_id));
   const showroomBrandRowsOpen = (showroomBrandRows ?? []).filter((r) => brandOpen((r as { brand_id: string }).brand_id));
   const openTeamIds = new Set(salesTeamRowsOpen.map((t) => String((t as { id: string }).id)));
   const notifChannelsOpen = (notifChannels ?? []).filter((c) => {
-    const ch = c as { scope: string; sales_team_id: string | null };
+    const ch = c as { scope: string; sales_team_id: string | null; showroom_id: string | null };
+    if (ch.scope === 'management') return srActive(ch.showroom_id);
     return ch.scope !== 'sales' || !ch.sales_team_id || openTeamIds.has(String(ch.sales_team_id));
   });
 
@@ -88,11 +101,13 @@ export default async function SettingsPage() {
   for (const r of (userShowroomRows ?? []) as { user_id: string; showroom_id: string }[]) {
     (showroomIdsByUser[r.user_id] ??= []).push(r.showroom_id);
   }
-  const staffWithScope = (staff ?? []).map((u) => ({
-    ...u,
-    brand_ids: brandIdsByUser[u.id] ?? [],
-    showroom_ids: showroomIdsByUser[u.id] ?? [],
-  }));
+  const staffWithScope = (staff ?? [])
+    .filter((u) => srActive((u as { showroom_id: string | null }).showroom_id))
+    .map((u) => ({
+      ...u,
+      brand_ids: brandIdsByUser[u.id] ?? [],
+      showroom_ids: showroomIdsByUser[u.id] ?? [],
+    }));
 
   // Trọng số phân bổ theo kênh cho từng phòng (gom vào sales_teams)
   const teamIds = (salesTeamRowsOpen as { id: string }[]).map((t) => t.id);
@@ -125,7 +140,7 @@ export default async function SettingsPage() {
   for (const r of showroomBrandRowsOpen as { showroom_id: string; brand_id: string }[]) {
     (brandIdsBySr[r.showroom_id] ??= []).push(r.brand_id);
   }
-  const showrooms = ((showroomRows ?? []) as {
+  const showrooms = (showroomRowsActive as {
     id: string; name: string; code: string | null; team_assign_strategy?: string; assign_share_pct?: number;
   }[]).map((s) => ({
     ...s,
