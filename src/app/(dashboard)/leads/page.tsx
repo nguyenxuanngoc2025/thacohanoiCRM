@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { type LeadRow } from './LeadsTable';
 import LeadsView, { type ModelOption, type BrandOption, type ShowroomOption, type AssigneeOption, type TeamOption } from './LeadsView';
 import { CAN_CREATE_LEAD, CAN_ASSIGN, CAN_MANAGE_STAFF } from '@/lib/nav';
-import { getOpenBrandIds, isBrandClosed } from '@/lib/company-brands';
+import { getOpenBrandIds, isBrandClosed, getInactiveShowroomIds } from '@/lib/company-brands';
 import { getTenant } from '@/lib/tenant';
 import { type UserRole } from '@/types/database';
 
@@ -52,6 +52,8 @@ export default async function LeadsPage() {
 
   // Hãng công ty đang mở (whitelist). Lead của hãng đã đóng bị ẩn khỏi danh sách + KPI.
   const openBrandIds = await getOpenBrandIds(supabase, me?.company_id ?? null);
+  // Showroom đang TẮT của công ty → ẩn lead + option showroom/phòng của nó (mirror hãng đóng).
+  const inactiveSrIds = new Set(await getInactiveShowroomIds(supabase, me?.company_id ?? null));
 
   let leadsQuery = supabase
     .from('leads')
@@ -75,7 +77,7 @@ export default async function LeadsPage() {
     supabase.from('models').select('id, name, brand_id').eq('is_active', true).order('sort_order'),
     supabase.from('lead_logs').select('lead_id').eq('type', 'contact'),
     supabase.from('brands').select('id, name').order('name'),
-    supabase.from('showrooms').select('id, name').order('name'),
+    supabase.from('showrooms').select('id, name, is_active').order('name'),
     supabase.from('users').select('id, full_name, showroom_id, sales_team_id').eq('role', 'tvbh').eq('is_active', true).order('full_name'),
     supabase.from('sales_teams').select('id, name, showroom_id, brand_id').order('name'),
   ]);
@@ -112,15 +114,17 @@ export default async function LeadsPage() {
     assigned_to: l.assigned_to,
     assignee_name: l.assignee?.full_name ?? null,
     contact_count: contactCount[l.id] ?? 0,
-  }));
+  })).filter((l) => !inactiveSrIds.has(String(l.showroom_id ?? '')));
 
   // Dropdown tạo/sửa lead: chỉ hiện hãng đang mở (ẩn dòng xe/hãng/phòng của hãng đã tắt).
   const brandClosed = (bid: string | null | undefined) => isBrandClosed(openBrandIds, bid ?? null);
   const models: ModelOption[] = ((rawModels ?? []) as ModelOption[]).filter((m) => !brandClosed(m.brand_id));
   const brands: BrandOption[] = ((rawBrands ?? []) as BrandOption[]).filter((b) => !brandClosed(b.id));
-  const showrooms: ShowroomOption[] = ((rawShowrooms ?? []) as ShowroomOption[]);
+  const showrooms: ShowroomOption[] = ((rawShowrooms ?? []) as (ShowroomOption & { is_active?: boolean })[])
+    .filter((s) => s.is_active !== false);
   const assignees: AssigneeOption[] = ((rawAssignees ?? []) as AssigneeOption[]);
-  const teams: TeamOption[] = ((rawTeams ?? []) as TeamOption[]).filter((t) => !brandClosed(t.brand_id));
+  const teams: TeamOption[] = ((rawTeams ?? []) as TeamOption[])
+    .filter((t) => !brandClosed(t.brand_id) && !inactiveSrIds.has(String((t as { showroom_id?: string }).showroom_id ?? '')));
 
   return (
     <LeadsView
