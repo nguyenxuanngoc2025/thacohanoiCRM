@@ -32,22 +32,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const userName = profile?.full_name ?? user.email ?? 'Người dùng';
   const companyName = tenant.branding?.display_name ?? tenant.name;
 
-  const { data: leadRows } = await supabase.from('leads').select('status').limit(5000);
-  const tally = (s: string) => (leadRows ?? []).filter((l) => l.status === s).length;
-  const metrics = [
-    { label: 'Tổng lead', value: leadRows?.length ?? 0 },
-    { label: 'KHQT', value: tally('KHQT') },
-    { label: 'GDTD', value: tally('GDTD') },
-    { label: 'KHĐ', value: tally('KHĐ') },
-  ];
-
   return (
     <DashboardShell
       userName={userName}
       userRole={role}
       userCode={ROLE_LABELS[role] ?? 'Tư vấn bán hàng'}
       companyName={companyName}
-      metrics={metrics}
       b10Enabled={tenant.b10_enabled}
     >
       {children}

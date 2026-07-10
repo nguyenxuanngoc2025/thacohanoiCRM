@@ -11,13 +11,12 @@ export interface DashboardShellProps {
   userRole: UserRole;
   userCode: string;
   companyName: string;
-  metrics?: { label: string; value: string | number }[];
   b10Enabled: boolean;
   children: React.ReactNode;
 }
 
 export default function DashboardShell({
-  userName, userRole, userCode, companyName, metrics, b10Enabled, children,
+  userName, userRole, userCode, companyName, b10Enabled, children,
 }: DashboardShellProps) {
   // Mặc định thu gọn sidebar (auto-hide); ghi nhớ lựa chọn của user qua localStorage.
   const [collapsed, setCollapsed] = useState(true);
@@ -56,7 +55,7 @@ export default function DashboardShell({
         </main>
         {/* Desktop: status bar đáy. Mobile: ẩn (nhường chỗ bottom nav). */}
         <div className="hidden lg:block">
-          <StatusBar role={userRole} companyName={companyName} metrics={metrics} />
+          <StatusBar role={userRole} companyName={companyName} userName={userName} />
         </div>
         {/* Mobile: thanh điều hướng đáy kiểu app */}
         <MobileNav userRole={userRole} userName={userName} userCode={userCode} b10Enabled={b10Enabled} />
