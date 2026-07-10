@@ -14,7 +14,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   if (!company) return NextResponse.json({ error: 'Không tìm thấy công ty.' }, { status: 404 });
 
   const [{ data: showrooms }, { data: users }, { data: leads }] = await Promise.all([
-    service.from('showrooms').select('id,name,code').eq('company_id', id).order('name'),
+    service.from('showrooms').select('id,name,code,is_active').eq('company_id', id).order('name'),
     service.from('users').select('id,full_name,email,role,is_active').eq('company_id', id).order('full_name'),
     service.from('leads')
       .select('id,full_name,phone,status,source,created_at,showroom_id')
