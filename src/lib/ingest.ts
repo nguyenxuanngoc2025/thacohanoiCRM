@@ -3,6 +3,7 @@ import { normalizePhone } from '@/lib/phone';
 import { looksLikePersonName } from '@/lib/person-name';
 import { pickByStrategy, type AssignStrategy, type StrategyCandidate } from '@/lib/assign';
 import { detectModel } from '@/lib/detect-model';
+import { getOpenBrandIds, isBrandClosed } from '@/lib/company-brands';
 import type { IngestPayload, IngestResult } from '@/types/database';
 
 /** Cửa nạp lead chung — mọi kênh (FB webhook, n8n sau này) gọi vào đây. */
@@ -173,6 +174,11 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
 
   if (!showroom) return { ok: false, reason: 'unknown_showroom' };
 
+  // Hãng đang TẮT (gỡ khỏi whitelist company_brands)? → VẪN nhận + phân giao lead bình
+  // thường (không mất lead), nhưng KHÔNG bắn tin Zalo. Bật lại hãng → lead vẫn còn nguyên.
+  const openBrandIds = await getOpenBrandIds(db, showroom.company_id);
+  const brandClosed = isBrandClosed(openBrandIds, channel.brand_id);
+
   // Luật phân giao: rule showroom (priority cao) ưu tiên hơn rule mặc định toàn công ty
   const { data: rules } = await db
     .from('assignment_rules')
@@ -309,11 +315,21 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
 
   if (error || !inserted) return { ok: false, reason: error?.message ?? 'insert_failed' };
 
+  // Hãng đang tắt: ghi 1 dòng log để truy vết, và bỏ qua toàn bộ khối báo Zalo bên dưới.
+  if (brandClosed) {
+    await db.from('lead_logs').insert({
+      lead_id: inserted.id,
+      type: 'system',
+      content: 'Thương hiệu đang tắt — nhận lead nhưng không báo Zalo.',
+    });
+  }
+
   // Đẩy thông báo Zalo: CHỈ group của ĐÚNG PHÒNG đã chọn + có sự kiện 'new_lead'.
   // Nhóm BLĐ (scope='management') KHÔNG nhận từng lead — chỉ nhận báo cáo. Lead chưa thuộc
   // phòng nào (chosenTeamId null) → không có group để báo → bỏ qua.
   // Backfill lead lịch sử: bỏ qua toàn bộ thông báo để không spam nhóm Zalo bằng lead cũ.
-  const { data: notifChannels } = chosenTeamId && !payload.suppress_notify
+  // Hãng tắt (brandClosed): bỏ qua báo Zalo (lead vẫn được nhận + phân giao ở trên).
+  const { data: notifChannels } = chosenTeamId && !payload.suppress_notify && !brandClosed
     ? await db
         .from('notification_channels')
         .select('id, channel, target, events, sales_team_id, scope')

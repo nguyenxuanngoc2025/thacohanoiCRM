@@ -3,6 +3,7 @@ import { createServiceClient } from '@/lib/supabase/server';
 import { checkCronSecret } from '@/lib/cron-auth';
 import { buildOverdueMessages, type OverdueLead } from '@/lib/reminders';
 import { decideOverdueAction } from '@/lib/overdue-escalation';
+import { getMutedTeamIdsGlobal } from '@/lib/company-brands';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,6 +56,10 @@ export async function POST(request: NextRequest) {
   const messages = buildOverdueMessages(mapped, now);
   if (messages.length === 0) return NextResponse.json({ ok: true, sent: 0 });
 
+  // Phòng thuộc hãng ĐANG TẮT (cross-company) → bỏ qua nhắc hạn cho phòng đó.
+  // Team bị "tắt tiếng" nếu công ty của nó có whitelist non-empty MÀ brand của team không nằm trong.
+  const mutedTeamIds = await getMutedTeamIdsGlobal(db);
+
   // Kênh nhóm bán hàng (theo phòng) có sự kiện 'overdue'
   const { data: channels } = await db
     .from('notification_channels')
@@ -64,6 +69,7 @@ export async function POST(request: NextRequest) {
   const inserts: Record<string, unknown>[] = [];
   const notifiedLeadIds: string[] = [];
   for (const m of messages) {
+    if (m.teamId && mutedTeamIds.has(m.teamId)) continue;
     const targets = (channels ?? []).filter(
       (c) => (c.events ?? []).includes('overdue') && c.scope === 'sales' && c.sales_team_id === m.teamId
     );

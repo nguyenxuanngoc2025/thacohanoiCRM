@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import SettingsClient from '@/components/settings/SettingsClient';
 import type { ChannelRow } from '@/components/settings/types';
 import { getFbBusinessId } from '@/lib/platform-settings';
+import { getOpenBrandIds, isBrandClosed } from '@/lib/company-brands';
 
 export const dynamic = 'force-dynamic';
 
@@ -63,6 +64,21 @@ export default async function SettingsPage() {
     service.from('user_showrooms').select('user_id, showroom_id').in('user_id', userFilter),
   ]);
 
+  // Hãng đang TẮT (gỡ khỏi whitelist company_brands) → ẩn sạch khỏi Cài đặt: brand/models/kênh/
+  // phòng/kênh-thông-báo của hãng đó không hiển thị. platform_owner (companyId rỗng) → [] = không lọc.
+  const openBrandIds = await getOpenBrandIds(service, companyId || null);
+  const brandOpen = (bid: string | null | undefined) => !isBrandClosed(openBrandIds, bid ?? null);
+  const brandsOpen = (brands ?? []).filter((b) => brandOpen((b as { id: string }).id));
+  const modelsOpen = (models ?? []).filter((m) => brandOpen((m as { brand_id: string }).brand_id));
+  const salesTeamRowsOpen = (salesTeamRows ?? []).filter((t) => brandOpen((t as { brand_id: string }).brand_id));
+  const channelsOpen = (channels ?? []).filter((c) => brandOpen((c as { brand_id: string | null }).brand_id));
+  const showroomBrandRowsOpen = (showroomBrandRows ?? []).filter((r) => brandOpen((r as { brand_id: string }).brand_id));
+  const openTeamIds = new Set(salesTeamRowsOpen.map((t) => String((t as { id: string }).id)));
+  const notifChannelsOpen = (notifChannels ?? []).filter((c) => {
+    const ch = c as { scope: string; sales_team_id: string | null };
+    return ch.scope !== 'sales' || !ch.sales_team_id || openTeamIds.has(String(ch.sales_team_id));
+  });
+
   // Gom phạm vi đa phần (bảng phụ) cho mỗi user → đính vào staff cho UI hiển thị + prefill form.
   const brandIdsByUser: Record<string, string[]> = {};
   for (const r of (userBrandRows ?? []) as { user_id: string; brand_id: string }[]) {
@@ -79,7 +95,7 @@ export default async function SettingsPage() {
   }));
 
   // Trọng số phân bổ theo kênh cho từng phòng (gom vào sales_teams)
-  const teamIds = ((salesTeamRows ?? []) as { id: string }[]).map((t) => t.id);
+  const teamIds = (salesTeamRowsOpen as { id: string }[]).map((t) => t.id);
   const { data: allocRows } = teamIds.length
     ? await service.from('team_allocation').select('sales_team_id, channel, weight').in('sales_team_id', teamIds)
     : { data: [] as { sales_team_id: string; channel: string; weight: number }[] };
@@ -87,7 +103,7 @@ export default async function SettingsPage() {
   for (const a of (allocRows ?? []) as { sales_team_id: string; channel: string; weight: number }[]) {
     (allocByTeam[a.sales_team_id] ??= {})[a.channel] = Number(a.weight);
   }
-  const salesTeams = ((salesTeamRows ?? []) as {
+  const salesTeams = (salesTeamRowsOpen as {
     id: string; showroom_id: string; brand_id: string; name: string; head_user_id: string | null; is_default: boolean;
     tvbh_assign_strategy?: string; assign_share_pct?: number;
   }[]).map((t) => ({
@@ -106,7 +122,7 @@ export default async function SettingsPage() {
 
   // Gom danh sách thương hiệu cho mỗi showroom (bảng junction showroom_brands)
   const brandIdsBySr: Record<string, string[]> = {};
-  for (const r of (showroomBrandRows ?? []) as { showroom_id: string; brand_id: string }[]) {
+  for (const r of showroomBrandRowsOpen as { showroom_id: string; brand_id: string }[]) {
     (brandIdsBySr[r.showroom_id] ??= []).push(r.brand_id);
   }
   const showrooms = ((showroomRows ?? []) as {
@@ -125,7 +141,7 @@ export default async function SettingsPage() {
     (showroomIdsByChannel[r.channel_account_id] ??= []).push(r.showroom_id);
     (sharesByChannel[r.channel_account_id] ??= {})[r.showroom_id] = Number(r.share_pct) || 0;
   }
-  const channelsWithShowrooms: ChannelRow[] = ((channels ?? []) as Omit<ChannelRow, 'showroom_ids'>[])
+  const channelsWithShowrooms: ChannelRow[] = (channelsOpen as Omit<ChannelRow, 'showroom_ids'>[])
     .map((c) => ({
       ...c,
       showroom_ids: showroomIdsByChannel[c.id] ?? (c.showroom_id ? [c.showroom_id] : []),
@@ -161,15 +177,15 @@ export default async function SettingsPage() {
       <SettingsClient
         staff={staffWithScope}
         showrooms={showrooms ?? []}
-        brands={brands ?? []}
-        models={models ?? []}
+        brands={brandsOpen}
+        models={modelsOpen}
         salesTeams={salesTeams ?? []}
         companyId={companyId}
         currentUserId={user.id}
         channels={channelsWithShowrooms}
         assignmentRules={assignmentRules ?? []}
         slaConfig={slaConfig ?? []}
-        notifChannels={notifChannels ?? []}
+        notifChannels={notifChannelsOpen}
         recentLogs={recentLogs ?? []}
         statusCounts={statusCounts}
         fbBusinessId={fbBusinessId}

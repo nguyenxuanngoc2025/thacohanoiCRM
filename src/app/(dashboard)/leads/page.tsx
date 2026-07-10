@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { type LeadRow } from './LeadsTable';
 import LeadsView, { type ModelOption, type BrandOption, type ShowroomOption, type AssigneeOption, type TeamOption } from './LeadsView';
 import { CAN_CREATE_LEAD, CAN_ASSIGN, CAN_MANAGE_STAFF } from '@/lib/nav';
-import { getOpenBrandIds } from '@/lib/company-brands';
+import { getOpenBrandIds, isBrandClosed } from '@/lib/company-brands';
 import { getTenant } from '@/lib/tenant';
 import { type UserRole } from '@/types/database';
 
@@ -114,11 +114,13 @@ export default async function LeadsPage() {
     contact_count: contactCount[l.id] ?? 0,
   }));
 
-  const models: ModelOption[] = ((rawModels ?? []) as ModelOption[]);
-  const brands: BrandOption[] = ((rawBrands ?? []) as BrandOption[]);
+  // Dropdown tạo/sửa lead: chỉ hiện hãng đang mở (ẩn dòng xe/hãng/phòng của hãng đã tắt).
+  const brandClosed = (bid: string | null | undefined) => isBrandClosed(openBrandIds, bid ?? null);
+  const models: ModelOption[] = ((rawModels ?? []) as ModelOption[]).filter((m) => !brandClosed(m.brand_id));
+  const brands: BrandOption[] = ((rawBrands ?? []) as BrandOption[]).filter((b) => !brandClosed(b.id));
   const showrooms: ShowroomOption[] = ((rawShowrooms ?? []) as ShowroomOption[]);
   const assignees: AssigneeOption[] = ((rawAssignees ?? []) as AssigneeOption[]);
-  const teams: TeamOption[] = ((rawTeams ?? []) as TeamOption[]);
+  const teams: TeamOption[] = ((rawTeams ?? []) as TeamOption[]).filter((t) => !brandClosed(t.brand_id));
 
   return (
     <LeadsView

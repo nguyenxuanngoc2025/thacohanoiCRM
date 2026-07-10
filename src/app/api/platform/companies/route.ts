@@ -180,6 +180,29 @@ export async function PATCH(request: NextRequest) {
     // Đồng bộ whitelist brand: xoá hết rồi insert lại theo brand_ids gửi lên.
     if (Array.isArray(body.brand_ids)) {
       const ids = body.brand_ids.map((x) => String(x)).filter(Boolean);
+
+      // Hãng vừa TẮT = có trong whitelist cũ nhưng không còn trong danh sách mới.
+      // Xoá tin Zalo đang chờ của phòng thuộc hãng tắt → bot ngừng gửi ngay vòng poll sau.
+      const { data: oldRows } = await service
+        .from('company_brands').select('brand_id').eq('company_id', body.id);
+      const oldIds = (oldRows ?? []).map((r) => String((r as { brand_id: string }).brand_id));
+      const removed = oldIds.filter((b) => !ids.includes(b));
+      if (removed.length) {
+        const { data: teams } = await service
+          .from('sales_teams').select('id').eq('company_id', body.id).in('brand_id', removed);
+        const teamIds = (teams ?? []).map((t) => String((t as { id: string }).id));
+        if (teamIds.length) {
+          const { data: chans } = await service
+            .from('notification_channels').select('id')
+            .eq('scope', 'sales').in('sales_team_id', teamIds);
+          const chanIds = (chans ?? []).map((c) => String((c as { id: string }).id));
+          if (chanIds.length) {
+            await service.from('notifications').delete()
+              .eq('status', 'pending').in('channel_id', chanIds);
+          }
+        }
+      }
+
       await service.from('company_brands').delete().eq('company_id', body.id);
       if (ids.length) {
         const { error } = await service
