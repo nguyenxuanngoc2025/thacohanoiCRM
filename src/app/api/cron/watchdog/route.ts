@@ -57,28 +57,43 @@ export async function POST(request: NextRequest) {
 
   const service = createServiceClient();
 
-  // Nhóm BLĐ toàn công ty (đích nhận cảnh báo). 1 công ty có thể có nhiều nhóm như vậy.
-  const { data: mgmtChannels } = await service
+  // Mọi công ty có nhóm Zalo đang hoạt động → cần theo dõi sức khoẻ.
+  // Đích nhận cảnh báo = nhóm BLĐ (scope='management', không gắn phòng). Nếu công ty chưa cấu
+  // hình nhóm BLĐ thì vẫn tính health (để dashboard/summary thấy) nhưng KHÔNG đẩy tin (no_target).
+  const { data: allChannels } = await service
     .from('notification_channels')
-    .select('id, company_id, channel, target')
-    .eq('scope', 'management')
-    .is('showroom_id', null)
-    .is('sales_team_id', null)
+    .select('id, company_id, channel, target, scope, sales_team_id')
     .eq('is_active', true);
 
-  const byCompany = new Map<string, { id: string; channel: string; target: string }[]>();
-  for (const c of (mgmtChannels ?? []) as { id: string; company_id: string; channel: string; target: string }[]) {
-    if (!c.company_id) continue;
-    (byCompany.get(c.company_id) ?? byCompany.set(c.company_id, []).get(c.company_id)!).push(c);
+  const companyIds = [
+    ...new Set(
+      ((allChannels ?? []) as { company_id: string | null }[])
+        .map((c) => c.company_id)
+        .filter((x): x is string => !!x),
+    ),
+  ];
+
+  const mgmtByCompany = new Map<string, { id: string; channel: string; target: string }[]>();
+  for (const c of (allChannels ?? []) as { id: string; company_id: string | null; channel: string; target: string; scope: string; sales_team_id: string | null }[]) {
+    if (!c.company_id || c.scope !== 'management' || c.sales_team_id) continue;
+    (mgmtByCompany.get(c.company_id) ?? mgmtByCompany.set(c.company_id, []).get(c.company_id)!).push({ id: c.id, channel: c.channel, target: c.target });
   }
 
   const summary: { company: string; overall: string; sent: boolean; reason: string }[] = [];
 
-  for (const [companyId, channels] of byCompany) {
+  for (const companyId of companyIds) {
+    const channels = mgmtByCompany.get(companyId) ?? [];
     const { data: comp } = await service.from('companies').select('name').eq('id', companyId).maybeSingle();
     const companyName = (comp as { name?: string } | null)?.name ?? 'Công ty';
 
     const health = await gatherSystemHealth(companyId);
+
+    if (channels.length === 0) {
+      // Chưa có nhóm BLĐ để nhận cảnh báo → chỉ ghi nhận, không đẩy tin.
+      summary.push({ company: companyName, overall: health.overall, sent: false, reason: 'no_management_group' });
+      continue;
+    }
+
     const sig = failSignature(health);
     const stateKey = `watchdog:${companyId}`;
     const raw = await getPlatformSetting(stateKey);
