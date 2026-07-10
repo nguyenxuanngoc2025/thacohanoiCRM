@@ -168,7 +168,7 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
   // Công ty của showroom đã chọn
   const { data: showroom } = await db
     .from('showrooms')
-    .select('id, company_id')
+    .select('id, company_id, is_active')
     .eq('id', chosenShowroomId)
     .maybeSingle();
 
@@ -178,6 +178,10 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
   // thường (không mất lead), nhưng KHÔNG bắn tin Zalo. Bật lại hãng → lead vẫn còn nguyên.
   const openBrandIds = await getOpenBrandIds(db, showroom.company_id);
   const brandClosed = isBrandClosed(openBrandIds, channel.brand_id);
+
+  // Showroom đang TẮT (platform_owner tắt tại /admin, vượt hạn mức)? → cùng cơ chế: nhận +
+  // phân giao ngầm, KHÔNG báo Zalo. Đọc thẳng cột is_active của showroom đã chọn.
+  const showroomClosed = (showroom as { is_active: boolean }).is_active === false;
 
   // Luật phân giao: rule showroom (priority cao) ưu tiên hơn rule mặc định toàn công ty
   const { data: rules } = await db
@@ -324,12 +328,20 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
     });
   }
 
+  if (showroomClosed) {
+    await db.from('lead_logs').insert({
+      lead_id: inserted.id,
+      type: 'system',
+      content: 'Showroom đang tắt — nhận lead nhưng không báo Zalo.',
+    });
+  }
+
   // Đẩy thông báo Zalo: CHỈ group của ĐÚNG PHÒNG đã chọn + có sự kiện 'new_lead'.
   // Nhóm BLĐ (scope='management') KHÔNG nhận từng lead — chỉ nhận báo cáo. Lead chưa thuộc
   // phòng nào (chosenTeamId null) → không có group để báo → bỏ qua.
   // Backfill lead lịch sử: bỏ qua toàn bộ thông báo để không spam nhóm Zalo bằng lead cũ.
   // Hãng tắt (brandClosed): bỏ qua báo Zalo (lead vẫn được nhận + phân giao ở trên).
-  const { data: notifChannels } = chosenTeamId && !payload.suppress_notify && !brandClosed
+  const { data: notifChannels } = chosenTeamId && !payload.suppress_notify && !brandClosed && !showroomClosed
     ? await db
         .from('notification_channels')
         .select('id, channel, target, events, sales_team_id, scope')
