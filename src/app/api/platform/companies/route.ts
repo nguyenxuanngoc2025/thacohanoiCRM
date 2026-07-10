@@ -12,15 +12,18 @@ export async function GET() {
   const [{ data: companies }, { data: showrooms }, { data: cbRows }, { data: users }, { data: brands }] =
     await Promise.all([
       service.from('companies').select('id,name,slug,subdomain,custom_domain,plan_status,max_showrooms,b10_enabled').order('name'),
-      service.from('showrooms').select('id,company_id'),
+      service.from('showrooms').select('id,company_id,is_active'),
       service.from('company_brands').select('company_id,brand_id'),
       service.from('users').select('id,company_id,is_active'),
       service.from('brands').select('id,name,slug').order('name'),
     ]);
 
-  const srCount: Record<string, number> = {};
-  for (const s of (showrooms ?? []) as { company_id: string | null }[]) {
-    if (s.company_id) srCount[s.company_id] = (srCount[s.company_id] ?? 0) + 1;
+  const srActive: Record<string, number> = {};
+  const srInactive: Record<string, number> = {};
+  for (const s of (showrooms ?? []) as { company_id: string | null; is_active: boolean }[]) {
+    if (!s.company_id) continue;
+    if (s.is_active === false) srInactive[s.company_id] = (srInactive[s.company_id] ?? 0) + 1;
+    else srActive[s.company_id] = (srActive[s.company_id] ?? 0) + 1;
   }
   const brandIdsByCompany: Record<string, string[]> = {};
   for (const r of (cbRows ?? []) as { company_id: string; brand_id: string }[]) {
@@ -37,7 +40,8 @@ export async function GET() {
   }[]).map((c) => ({
     ...c,
     b10_enabled: c.b10_enabled ?? false,
-    showroom_used: srCount[c.id] ?? 0,
+    showroom_used: srActive[c.id] ?? 0,
+    showroom_inactive: srInactive[c.id] ?? 0,
     user_count: userCount[c.id] ?? 0,
     brand_ids: brandIdsByCompany[c.id] ?? [],
   }));

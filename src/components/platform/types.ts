@@ -13,6 +13,7 @@ export interface PlatformCompany {
   plan_status: string;
   max_showrooms: number;
   showroom_used: number;
+  showroom_inactive: number;
   user_count: number;
   brand_ids: string[];
   b10_enabled: boolean;
