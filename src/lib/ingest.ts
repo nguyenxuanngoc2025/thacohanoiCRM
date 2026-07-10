@@ -93,16 +93,14 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
     if (modelId) modelName = models.find((m) => m.id === modelId)?.name ?? null;
   }
 
-  // Phòng bán hàng (sales_teams) nhận lead của hãng fanpage này, trong các showroom ứng viên:
-  //  - phòng khoá đúng hãng (brand_id = brand fanpage), HOẶC
-  //  - phòng đa hãng (brand_id NULL) — bán mọi hãng của showroom.
+  // Phòng bán hàng (sales_teams) nhận lead của hãng fanpage này, trong các showroom ứng viên.
+  // Phòng gắn TẬP hãng cụ thể (brand_ids): chỉ nhận khi brand_ids chứa hãng của kênh.
+  // Kênh không có brand (hiếm) → không lọc theo hãng, lấy mọi phòng ứng viên (best effort).
   let teamsQ = db
     .from('sales_teams')
     .select('id, showroom_id')
     .in('showroom_id', candidateShowroomIds);
-  teamsQ = channel.brand_id
-    ? teamsQ.or(`brand_id.eq.${channel.brand_id},brand_id.is.null`)
-    : teamsQ.is('brand_id', null);
+  if (channel.brand_id) teamsQ = teamsQ.contains('brand_ids', [channel.brand_id]);
   const { data: teamsAll } = await teamsQ;
 
   const teamsByShowroom = new Map<string, string[]>();

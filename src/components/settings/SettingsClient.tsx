@@ -89,8 +89,9 @@ export default function SettingsClient({
   // Tên hiển thị phòng cho dropdown tài khoản: "Showroom · Thương hiệu · Tên phòng".
   const teamOpts: SalesTeamOption[] = salesTeams.map((t) => {
     const sr = showrooms.find((s) => s.id === t.showroom_id)?.name ?? 'Showroom';
-    const br = brands.find((b) => b.id === t.brand_id)?.name ?? 'Thương hiệu';
-    return { id: t.id, showroom_id: t.showroom_id, brand_id: t.brand_id, label: `${sr} · ${br} · ${t.name}` };
+    const brNames = t.brand_ids.map((id) => brands.find((b) => b.id === id)?.name).filter(Boolean);
+    const br = brNames.length ? brNames.join(', ') : 'Chưa gán hãng';
+    return { id: t.id, showroom_id: t.showroom_id, brand_ids: t.brand_ids, label: `${sr} · ${br} · ${t.name}` };
   });
 
   const allItems = NAV.flatMap((g) => g.items);

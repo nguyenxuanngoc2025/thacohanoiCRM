@@ -68,7 +68,7 @@ export default async function SettingsPage() {
     service.from('notification_channels').select('id, channel, name, target, events, is_active, showroom_id, sales_team_id, scope').eq('company_id', companyId).order('created_at', { ascending: false }),
     service.from('lead_logs').select('id, lead_id, user_id, type, content, old_status, new_status, created_at').in('user_id', userFilter).order('created_at', { ascending: false }).limit(50),
     service.from('leads').select('status').eq('company_id', companyId),
-    service.from('sales_teams').select('id, showroom_id, brand_id, name, head_user_id, is_default, sort_order, tvbh_assign_strategy, assign_share_pct').eq('company_id', companyId).order('sort_order'),
+    service.from('sales_teams').select('id, showroom_id, brand_ids, name, head_user_id, is_default, sort_order, tvbh_assign_strategy, assign_share_pct').eq('company_id', companyId).order('sort_order'),
     service.from('user_brands').select('user_id, brand_id').in('user_id', userFilter),
     service.from('user_showrooms').select('user_id, showroom_id').in('user_id', userFilter),
   ]);
@@ -80,8 +80,14 @@ export default async function SettingsPage() {
   const srActive = (sid: string | null | undefined) => !inactiveSrIds.has(String(sid ?? ''));
   const brandsOpen = (brands ?? []).filter((b) => brandOpen((b as { id: string }).id));
   const modelsOpen = (models ?? []).filter((m) => brandOpen((m as { brand_id: string }).brand_id));
+  // Phòng gắn tập hãng cụ thể (brand_ids). Hiện nếu showroom active VÀ có ít nhất 1 hãng còn mở
+  // (hoặc phòng chưa gán hãng nào → vẫn hiện để admin cấu hình).
   const salesTeamRowsOpen = (salesTeamRows ?? [])
-    .filter((t) => brandOpen((t as { brand_id: string }).brand_id) && srActive((t as { showroom_id: string }).showroom_id));
+    .filter((t) => {
+      const bids = (t as { brand_ids: string[] }).brand_ids ?? [];
+      const anyOpen = bids.length === 0 || bids.some((b) => brandOpen(b));
+      return anyOpen && srActive((t as { showroom_id: string }).showroom_id);
+    });
   const channelsOpen = (channels ?? [])
     .filter((c) => brandOpen((c as { brand_id: string | null }).brand_id) && srActive((c as { showroom_id: string | null }).showroom_id));
   const showroomBrandRowsOpen = (showroomBrandRows ?? []).filter((r) => brandOpen((r as { brand_id: string }).brand_id));
@@ -119,7 +125,7 @@ export default async function SettingsPage() {
     (allocByTeam[a.sales_team_id] ??= {})[a.channel] = Number(a.weight);
   }
   const salesTeams = (salesTeamRowsOpen as {
-    id: string; showroom_id: string; brand_id: string; name: string; head_user_id: string | null; is_default: boolean;
+    id: string; showroom_id: string; brand_ids: string[]; name: string; head_user_id: string | null; is_default: boolean;
     tvbh_assign_strategy?: string; assign_share_pct?: number;
   }[]).map((t) => ({
     ...t,

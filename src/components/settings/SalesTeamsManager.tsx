@@ -22,7 +22,11 @@ export default function SalesTeamsManager({
   const flash = (msg: string) => { setSuccess(msg); setTimeout(() => setSuccess(null), 3500); };
 
   const showroomName = (id: string) => showrooms.find((s) => s.id === id)?.name ?? '—';
-  const brandName = (id: string | null) => (id ? (brands.find((b) => b.id === id)?.name ?? '—') : 'Đa hãng');
+  // Nhãn tập hãng của phòng: liệt kê tên hãng, [] → "Chưa gán hãng".
+  const brandLabel = (ids: string[]) => {
+    const names = ids.map((id) => brands.find((b) => b.id === id)?.name).filter(Boolean);
+    return names.length ? names.join(', ') : 'Chưa gán hãng';
+  };
   const headName = (id: string | null) => (id ? (staff.find((u) => u.id === id)?.full_name ?? '—') : null);
 
   // Nhóm phòng theo showroom để dễ nhìn.
@@ -75,7 +79,7 @@ export default function SalesTeamsManager({
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-slate-800">{t.name}</span>
                       <span className="text-[11px] font-semibold border rounded-full px-2 py-0.5" style={{ background: '#f5f3ff', color: '#6d28d9', borderColor: '#ddd6fe' }}>
-                        {brandName(t.brand_id)}
+                        {brandLabel(t.brand_ids)}
                       </span>
                       {t.is_default && (
                         <span className="text-[11px] font-medium border rounded-full px-2 py-0.5 bg-slate-50 text-slate-500 border-slate-200">Mặc định</span>
@@ -140,7 +144,7 @@ function EditTeamModal({
 
   const [name, setName] = useState(init?.name ?? '');
   const [showroomId, setShowroomId] = useState(init?.showroom_id ?? '');
-  const [brandId, setBrandId] = useState(init?.brand_id ?? '');
+  const [brandIds, setBrandIds] = useState<string[]>(init?.brand_ids ?? []);
   const [headUserId, setHeadUserId] = useState(init?.head_user_id ?? '');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -148,6 +152,8 @@ function EditTeamModal({
   // Thương hiệu chọn được = thương hiệu showroom đang chọn thực sự kinh doanh.
   const selectedShowroom = showrooms.find((s) => s.id === showroomId);
   const brandOptions = brands.filter((b) => (selectedShowroom?.brand_ids ?? []).includes(b.id));
+  const toggleBrand = (id: string) =>
+    setBrandIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
   // Trưởng phòng: chọn trong nhân sự cùng showroom (hoặc đang thuộc phòng này).
   const headOptions = staff.filter((u) =>
@@ -162,8 +168,8 @@ function EditTeamModal({
     setSubmitting(true);
     try {
       const body = isNew
-        ? { op: 'create', name: name.trim(), showroom_id: showroomId, brand_id: brandId || null, head_user_id: headUserId || null }
-        : { op: 'update', id: init!.id, name: name.trim(), brand_id: brandId || null, head_user_id: headUserId || null };
+        ? { op: 'create', name: name.trim(), showroom_id: showroomId, brand_ids: brandIds, head_user_id: headUserId || null }
+        : { op: 'update', id: init!.id, name: name.trim(), brand_ids: brandIds, head_user_id: headUserId || null };
       const res = await fetch('/api/admin/sales-teams', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -192,7 +198,7 @@ function EditTeamModal({
           </Field>
           {isNew ? (
             <Field label="Showroom">
-              <select value={showroomId} onChange={(e) => { setShowroomId(e.target.value); setBrandId(''); }}
+              <select value={showroomId} onChange={(e) => { setShowroomId(e.target.value); setBrandIds([]); }}
                 className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#004B9B] bg-white">
                 <option value="">— Chọn showroom —</option>
                 {showrooms.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -204,13 +210,25 @@ function EditTeamModal({
               <span className="text-slate-400"> (không đổi được showroom của phòng)</span>
             </div>
           )}
-          <Field label="Thương hiệu">
-            <select value={brandId} onChange={(e) => setBrandId(e.target.value)} disabled={!showroomId}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#004B9B] bg-white disabled:bg-slate-50 disabled:text-slate-400">
-              <option value="">{!showroomId ? '— Chọn showroom trước —' : 'Tất cả thương hiệu (đa hãng)'}</option>
-              {brandOptions.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-            </select>
-            <p className="text-[11px] text-slate-400 mt-1">Để trống = phòng bán mọi thương hiệu của showroom; chọn 1 hãng = phòng chỉ nhận lead hãng đó.</p>
+          <Field label="Thương hiệu phòng bán">
+            {!showroomId ? (
+              <p className="text-sm text-slate-400 border border-slate-200 rounded-lg px-3 py-2 bg-slate-50">— Chọn showroom trước —</p>
+            ) : brandOptions.length === 0 ? (
+              <p className="text-sm text-slate-400 border border-slate-200 rounded-lg px-3 py-2 bg-slate-50">Showroom này chưa gán thương hiệu nào.</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {brandOptions.map((b) => {
+                  const on = brandIds.includes(b.id);
+                  return (
+                    <button key={b.id} type="button" onClick={() => toggleBrand(b.id)}
+                      className={`inline-flex items-center gap-1.5 text-sm font-medium border rounded-lg px-3 py-1.5 transition-colors ${on ? 'border-[#004B9B] text-[#004B9B] bg-blue-50' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                      {on && <Check size={14} />} {b.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            <p className="text-[11px] text-slate-400 mt-1">Chọn các hãng phòng này bán. Bật hãng mới sau này phải chọn lại tay — lead hãng mới KHÔNG tự chảy vào phòng.</p>
           </Field>
           <Field label="Trưởng phòng (TP Phòng)">
             <select value={headUserId} onChange={(e) => setHeadUserId(e.target.value)}
