@@ -36,6 +36,20 @@ async function companyChannelIds() {
   return (data ?? []).map((c) => c.id);
 }
 
+// Đích cá nhân (thread_type=0): target có thể là SĐT → tra UID Zalo qua phiên đang đăng nhập (cache).
+// Nhóm (thread_type=1) hoặc target đã là UID (không giống SĐT) → giữ nguyên.
+const uidCache = new Map();
+const looksLikePhone = (s) => /^(\+?84|0)\d{8,10}$/.test(String(s || '').trim());
+async function resolveSendTarget(api, target, threadType) {
+  if (threadType !== 0 || !looksLikePhone(target)) return target;
+  if (uidCache.has(target)) return uidCache.get(target);
+  const local = target.startsWith('+84') ? '0' + target.slice(3) : target;
+  const found = await api.findUser(local);
+  const uid = found?.uid ?? found?.userId ?? found?.id ?? null;
+  if (uid) uidCache.set(target, uid);
+  return uid;
+}
+
 async function tick(api) {
   if (Date.now() - lastSentAt < nextGap) return;
   const ids = await companyChannelIds();
@@ -66,9 +80,13 @@ async function tick(api) {
     text = await maybeEnrich(db, api, n);
     const { msg, styles } = parseStyledText(text);
     try {
-      await api.sendMessage(styles.length ? { msg, styles } : { msg }, groupId, 1); // 1 = ThreadType.Group
+      // thread_type: 1 = nhóm (mặc định), 0 = cá nhân (cảnh báo hệ thống về Zalo cá nhân).
+      const threadType = n.payload?.thread_type === 0 ? 0 : 1;
+      const sendTo = await resolveSendTarget(api, groupId, threadType);
+      if (!sendTo) throw new Error(`không tra được UID Zalo cho ${groupId} (SĐT chưa có Zalo / chưa kết bạn với bot)`);
+      await api.sendMessage(styles.length ? { msg, styles } : { msg }, sendTo, threadType);
       await db.from('notifications').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', n.id);
-      console.log('[child]', companyId, 'gửi OK', n.id, '→', groupId);
+      console.log('[child]', companyId, 'gửi OK', n.id, '→', sendTo, 'type', threadType);
     } catch (e) {
       const attempts = (n.attempts ?? 0) + 1;
       await db.from('notifications').update({

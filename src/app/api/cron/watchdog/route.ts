@@ -75,8 +75,13 @@ export async function POST(request: NextRequest) {
   ];
 
   const mgmtByCompany = new Map<string, { id: string; channel: string; target: string }[]>();
+  // 1 kênh zalo bất kỳ của công ty — dùng làm channel_id để child (poll theo company) nhặt được
+  // tin cảnh báo cá nhân (payload.target sẽ override đích thật sang Zalo cá nhân).
+  const zaloChannelByCompany = new Map<string, string>();
   for (const c of (allChannels ?? []) as { id: string; company_id: string | null; channel: string; target: string; scope: string; sales_team_id: string | null }[]) {
-    if (!c.company_id || c.scope !== 'management' || c.sales_team_id) continue;
+    if (!c.company_id) continue;
+    if (c.channel === 'zalo' && !zaloChannelByCompany.has(c.company_id)) zaloChannelByCompany.set(c.company_id, c.id);
+    if (c.scope !== 'management' || c.sales_team_id) continue;
     (mgmtByCompany.get(c.company_id) ?? mgmtByCompany.set(c.company_id, []).get(c.company_id)!).push({ id: c.id, channel: c.channel, target: c.target });
   }
 
@@ -95,8 +100,11 @@ export async function POST(request: NextRequest) {
     text: string,
   ): Record<string, unknown>[] | null => {
     if (personal) {
+      // Gắn 1 channel_id zalo của công ty để child poll được; payload.target override sang Zalo cá nhân.
+      const channelId = zaloChannelByCompany.get(companyId);
+      if (!channelId) return null;
       return [{
-        channel: 'zalo', channel_id: null, status: 'pending',
+        channel: 'zalo', channel_id: channelId, status: 'pending',
         payload: { event: 'system_alert', target: personal.target, thread_type: personal.thread_type, text },
       }];
     }
