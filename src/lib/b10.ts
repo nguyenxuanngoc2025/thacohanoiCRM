@@ -33,9 +33,10 @@ export function normalizeB10Status(raw: string | null): LeadStatus | null {
   return map[v] ?? null;
 }
 
-export interface B10Row { phone: string; status: string | null }
+export interface B10Row { phone: string; status: string | null; note?: string | null }
 export interface B10Lead { id: string; phone: string; b10_status: LeadStatus | null }
-export interface B10Update { id: string; b10_status: LeadStatus | null }
+// b10_care_note: null = không có nội dung mới để ghi (giữ nguyên giá trị cũ trong DB).
+export interface B10Update { id: string; b10_status: LeadStatus | null; b10_care_note: string | null }
 export interface B10Summary {
   totalRows: number;
   matched: number;     // số dòng khớp lead trong phạm vi & đã cập nhật
@@ -64,6 +65,7 @@ export function reconcileB10(
 
   // Gộp best theo lead id (nhiều dòng có thể trỏ cùng 1 khách).
   const merged = new Map<string, LeadStatus | null>(); // id → best b10_status mới
+  const notes = new Map<string, string>();             // id → nội dung chăm sóc mới nhất (không rỗng)
   const unrecognized = new Set<string>();
   let matched = 0, notFound = 0, outOfScope = 0;
 
@@ -79,10 +81,15 @@ export function reconcileB10(
     if (row.status && row.status.trim() && code === null) unrecognized.add(row.status.trim());
     const current = merged.has(lead.id) ? merged.get(lead.id)! : lead.b10_status;
     merged.set(lead.id, bestB10Status(current, code));
+    // Nội dung chăm sóc: giữ giá trị không rỗng gần nhất trong file cho khách này.
+    const note = (row.note ?? '').trim();
+    if (note) notes.set(lead.id, note);
     matched += 1;
   }
 
-  const updates: B10Update[] = [...merged.entries()].map(([id, b10_status]) => ({ id, b10_status }));
+  const updates: B10Update[] = [...merged.entries()].map(([id, b10_status]) => ({
+    id, b10_status, b10_care_note: notes.get(id) ?? null,
+  }));
   return {
     updates,
     summary: { totalRows: rows.length, matched, notFound, outOfScope, unrecognized: [...unrecognized] },

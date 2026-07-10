@@ -22,6 +22,7 @@ interface RawLead {
   no_answer_count: number | null;
   b10_status: LeadRow['b10_status'];
   b10_synced_at: string | null;
+  b10_care_note: string | null;
   brand_id: string;
   model_id: string | null;
   showroom_id: string | null;
@@ -55,7 +56,7 @@ export default async function LeadsPage() {
   let leadsQuery = supabase
     .from('leads')
     .select(
-      'id, full_name, phone, source, status, created_at, last_contact_at, next_contact_at, last_note, fail_reason, no_answer_count, b10_status, b10_synced_at, brand_id, model_id, showroom_id, sales_team_id, assigned_to, brand:brands(name), model:models(name), showroom:showrooms(name), sales_team:sales_teams(name), assignee:users!assigned_to(full_name)',
+      'id, full_name, phone, source, status, created_at, last_contact_at, next_contact_at, last_note, fail_reason, no_answer_count, b10_status, b10_synced_at, b10_care_note, brand_id, model_id, showroom_id, sales_team_id, assigned_to, brand:brands(name), model:models(name), showroom:showrooms(name), sales_team:sales_teams(name), assignee:users!assigned_to(full_name)',
     );
   if (openBrandIds.length) leadsQuery = leadsQuery.in('brand_id', openBrandIds);
 
@@ -99,6 +100,7 @@ export default async function LeadsPage() {
     no_answer_count: l.no_answer_count ?? 0,
     b10_status: l.b10_status,
     b10_on: l.b10_synced_at != null,
+    b10_care_note: l.b10_care_note,
     brand_id: l.brand_id,
     brand_name: l.brand?.name ?? '—',
     model_id: l.model_id,

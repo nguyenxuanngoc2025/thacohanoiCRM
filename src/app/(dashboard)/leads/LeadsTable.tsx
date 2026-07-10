@@ -41,6 +41,7 @@ export interface LeadRow {
   no_answer_count: number;
   b10_status: LeadStatus | null;
   b10_on: boolean;
+  b10_care_note: string | null;
 }
 
 // ─── Bộ lọc phạm vi (nâng lên LeadsView để KPI nhảy theo) ───────────────────────
@@ -93,7 +94,7 @@ type Tab = 'all' | 'pending' | 'contacted' | 'overdue';
 type ColKey =
   | 'time' | 'name' | 'phone' | 'showroom' | 'team' | 'brand' | 'model' | 'platform' | 'assignee'
   | 'contacted' | 'class' | 'contactedAt' | 'note' | 'source' | 'next' | 'count'
-  | 'b10on' | 'b10class';
+  | 'b10on' | 'b10class' | 'b10note';
 
 const STATUS_ORDER: Record<string, number> = Object.fromEntries(
   STATUS_OPTIONS.map((s, i) => [s.code, i]),
@@ -116,6 +117,7 @@ function compare(key: ColKey, a: LeadRow, b: LeadRow): number {
     case 'class': return (STATUS_ORDER[a.status ?? ''] ?? 99) - (STATUS_ORDER[b.status ?? ''] ?? 99);
     case 'b10on': return (a.b10_on ? 1 : 0) - (b.b10_on ? 1 : 0);
     case 'b10class': return (STATUS_ORDER[a.b10_status ?? ''] ?? 99) - (STATUS_ORDER[b.b10_status ?? ''] ?? 99);
+    case 'b10note': return (a.b10_care_note ?? '').localeCompare(b.b10_care_note ?? '', 'vi');
     case 'contactedAt': return tsOrNeg(a.last_contact_at) - tsOrNeg(b.last_contact_at);
     case 'note': return (a.last_note ?? '').localeCompare(b.last_note ?? '', 'vi');
     case 'platform': return sourcePlatform(a.source).localeCompare(sourcePlatform(b.source), 'vi');
@@ -135,6 +137,7 @@ const COLS: ColDef[] = [
   { key: 'class', label: 'Phân loại', pad: 'px-4' },
   { key: 'b10on', label: 'B10', pad: 'px-4' },
   { key: 'b10class', label: 'Trạng thái B10', pad: 'px-4' },
+  { key: 'b10note', label: 'Nội dung chăm sóc B10', pad: 'px-4' },
   { key: 'platform', label: 'Nguồn', pad: 'px-4' },
   { key: 'brand', label: 'Thương hiệu', pad: 'px-4' },
   { key: 'showroom', label: 'Showroom', pad: 'px-4' },
@@ -160,7 +163,7 @@ const DEFAULT_HIDDEN: ColKey[] = ['source', 'model', 'contactedAt', 'note', 'nex
 // (Showroom/Phòng/Phụ trách đều là của chính họ) và chi tiết phụ; ưu tiên cột tác nghiệp:
 // Dòng xe, Nội dung liên hệ, Hẹn gọi lại, Số lần LH. Vẫn tick mở lại nếu cần.
 const TVBH_STORAGE_KEY = 'leads.cols.tvbh.v1';
-const TVBH_DEFAULT_HIDDEN: ColKey[] = ['showroom', 'team', 'assignee', 'source', 'contactedAt', 'b10on', 'b10class'];
+const TVBH_DEFAULT_HIDDEN: ColKey[] = ['showroom', 'team', 'assignee', 'source', 'contactedAt', 'b10on', 'b10class', 'b10note'];
 
 // Thứ tự cột do người dùng kéo-thả (chỉ áp dụng cho cột KHÔNG đóng băng; cột sticky luôn ghim đầu).
 const ORDER_KEY = 'leads.colorder.v1';
@@ -645,7 +648,7 @@ export default function LeadsTable({
   const byKey = (k: ColKey) => COLS.find((c) => c.key === k)!;
   const orderedCols: ColDef[] = [...STICKY.map(byKey), ...order.map(byKey)];
   // Cột B10 chỉ hiện khi công ty bật tính năng đối soát.
-  const allowB10 = (k: ColKey) => b10Enabled || (k !== 'b10on' && k !== 'b10class');
+  const allowB10 = (k: ColKey) => b10Enabled || (k !== 'b10on' && k !== 'b10class' && k !== 'b10note');
   const visibleCols = orderedCols.filter((c) => !hidden.has(c.key) && allowB10(c.key));
 
   // Tính offset trái cho các cột đóng băng (chỉ những cột đang hiện); chừa chỗ cột chọn.
@@ -801,6 +804,10 @@ export default function LeadsTable({
               style={{ color: o.color, background: o.bg }}>{o.code}</span>
           : <span className="text-slate-300">—</span>;
       }
+      case 'b10note':
+        return l.b10_care_note
+          ? <span className="text-slate-500 line-clamp-1 max-w-[240px] inline-block align-bottom" title={l.b10_care_note}>{l.b10_care_note}</span>
+          : <span className="text-slate-300">—</span>;
       case 'time': return <span className="text-slate-500">{fmtDate(l.created_at)}</span>;
       case 'name': return <span className="font-medium text-slate-800">{l.full_name ?? '—'}</span>;
       case 'phone': return <span className="text-slate-600">{formatPhoneDisplay(l.phone)}</span>;

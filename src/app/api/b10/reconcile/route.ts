@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 
 interface Body {
   rows: B10Row[];
-  mapping?: { phone_col: string; status_col: string };
+  mapping?: { phone_col: string; status_col: string; note_col?: string };
 }
 
 export async function POST(req: Request) {
@@ -54,7 +54,10 @@ export async function POST(req: Request) {
 
   const now = new Date().toISOString();
   for (const u of updates) {
-    await supabase.from('leads').update({ b10_status: u.b10_status, b10_synced_at: now }).eq('id', u.id);
+    const patch: Record<string, unknown> = { b10_status: u.b10_status, b10_synced_at: now };
+    // Chỉ ghi đè nội dung chăm sóc khi file có giá trị mới — tránh xoá ghi chú cũ.
+    if (u.b10_care_note) patch.b10_care_note = u.b10_care_note;
+    await supabase.from('leads').update(patch).eq('id', u.id);
   }
 
   // Lưu ánh xạ cột cho công ty để lần sau gợi ý sẵn.

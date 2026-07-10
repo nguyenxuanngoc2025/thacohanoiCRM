@@ -5,7 +5,7 @@ import React, { useState } from 'react';
 import * as XLSX from 'xlsx';
 import { Upload, FileCheck2, Loader2 } from 'lucide-react';
 
-interface Mapping { phone_col: string; status_col: string }
+interface Mapping { phone_col: string; status_col: string; note_col?: string }
 interface Summary { totalRows: number; matched: number; notFound: number; outOfScope: number; unrecognized: string[] }
 
 export default function B10ImportView({ savedMapping }: { savedMapping: Mapping | null }) {
@@ -13,6 +13,7 @@ export default function B10ImportView({ savedMapping }: { savedMapping: Mapping 
   const [rawRows, setRawRows] = useState<Record<string, unknown>[]>([]);
   const [phoneCol, setPhoneCol] = useState('');
   const [statusCol, setStatusCol] = useState('');
+  const [noteCol, setNoteCol] = useState('');
   const [fileName, setFileName] = useState('');
   const [busy, setBusy] = useState(false);
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -33,17 +34,22 @@ export default function B10ImportView({ savedMapping }: { savedMapping: Mapping 
     // Tự chọn lại theo ánh xạ đã lưu nếu header khớp.
     const p = savedMapping && hdrs.includes(savedMapping.phone_col) ? savedMapping.phone_col : guess(hdrs, ['sđt', 'sdt', 'điện thoại', 'phone']);
     const s = savedMapping && hdrs.includes(savedMapping.status_col) ? savedMapping.status_col : guess(hdrs, ['kết quả', 'trạng thái', 'status']);
-    setPhoneCol(p); setStatusCol(s);
+    const nt = savedMapping?.note_col && hdrs.includes(savedMapping.note_col) ? savedMapping.note_col : guess(hdrs, ['nội dung', 'chăm sóc', 'ghi chú', 'note']);
+    setPhoneCol(p); setStatusCol(s); setNoteCol(nt);
   };
 
   const submit = async () => {
     if (!phoneCol || !statusCol) { setErr('Hãy chọn cột SĐT và cột kết quả.'); return; }
     setBusy(true); setErr(null);
-    const rows = rawRows.map((r) => ({ phone: String(r[phoneCol] ?? ''), status: String(r[statusCol] ?? '') }));
+    const rows = rawRows.map((r) => ({
+      phone: String(r[phoneCol] ?? ''),
+      status: String(r[statusCol] ?? ''),
+      note: noteCol ? String(r[noteCol] ?? '') : '',
+    }));
     const res = await fetch('/api/b10/reconcile', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ rows, mapping: { phone_col: phoneCol, status_col: statusCol } }),
+      body: JSON.stringify({ rows, mapping: { phone_col: phoneCol, status_col: statusCol, note_col: noteCol } }),
     });
     const data = await res.json();
     setBusy(false);
@@ -71,6 +77,7 @@ export default function B10ImportView({ savedMapping }: { savedMapping: Mapping 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-white rounded-xl border border-slate-200 p-4">
           <ColSelect label="Cột SĐT" value={phoneCol} onChange={setPhoneCol} options={headers} />
           <ColSelect label="Cột kết quả B10" value={statusCol} onChange={setStatusCol} options={headers} />
+          <ColSelect label="Cột nội dung chăm sóc (tuỳ chọn)" value={noteCol} onChange={setNoteCol} options={headers} />
           <div className="sm:col-span-2">
             <button onClick={submit} disabled={busy}
               className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:opacity-60"

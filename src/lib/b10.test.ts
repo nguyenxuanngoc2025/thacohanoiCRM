@@ -90,4 +90,15 @@ describe('reconcileB10', () => {
     expect(r.summary.notFound).toBe(1);
     expect(r.updates).toHaveLength(0);
   });
+
+  it('nội dung chăm sóc: lấy giá trị không rỗng gần nhất; thiếu note → null', () => {
+    const rows: B10Row[] = [
+      { phone: '0900000001', status: 'KHQT', note: ' Đã gọi, hẹn xem xe ' },
+      { phone: '0900000001', status: 'KHĐ', note: '' }, // rỗng → giữ note trước
+      { phone: '0900000002', status: 'KHQT' },          // không có note → null
+    ];
+    const r = reconcileB10(rows, scoped, companyPhones);
+    expect(r.updates.find((u) => u.id === 'l1')!.b10_care_note).toBe('Đã gọi, hẹn xem xe');
+    expect(r.updates.find((u) => u.id === 'l2')!.b10_care_note).toBeNull();
+  });
 });
