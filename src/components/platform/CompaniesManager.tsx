@@ -27,6 +27,16 @@ async function createCompany(body: Record<string, unknown>): Promise<{ ok: boole
   return { ok: res.ok, error: data?.error };
 }
 
+async function toggleShowroom(companyId: string, showroomId: string, isActive: boolean): Promise<{ ok: boolean; error?: string }> {
+  const res = await fetch(`/api/platform/companies/${companyId}/showrooms`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ showroom_id: showroomId, is_active: isActive }),
+  });
+  const data = await res.json().catch(() => ({}));
+  return { ok: res.ok, error: data?.error };
+}
+
 export default function CompaniesManager({
   companies, brands,
 }: { companies: PlatformCompany[]; brands: PlatformBrand[] }) {
@@ -81,6 +91,9 @@ export default function CompaniesManager({
                   <td className="px-4 py-2.5 font-mono text-xs text-slate-500">{c.subdomain ?? '—'}</td>
                   <td className="px-4 py-2.5 font-medium" style={{ color: warn }}>
                     {c.showroom_used}/{c.max_showrooms}
+                    {c.showroom_inactive > 0 && (
+                      <span className="ml-1 text-xs font-normal text-slate-400">(+{c.showroom_inactive} tắt)</span>
+                    )}
                   </td>
                   <td className="px-4 py-2.5 text-slate-600">{c.brand_ids.length}</td>
                   <td className="px-4 py-2.5">
@@ -393,6 +406,27 @@ function QuotaModal({
   const [b10Enabled, setB10Enabled] = useState(company.b10_enabled);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [srList, setSrList] = useState<{ id: string; name: string; code: string | null; is_active: boolean }[]>([]);
+  const [srBusy, setSrBusy] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    let active = true;
+    (async () => {
+      const res = await fetch(`/api/platform/companies/${company.id}/view`);
+      const json = await res.json().catch(() => ({}));
+      if (active && res.ok) setSrList(json.showrooms ?? []);
+    })();
+    return () => { active = false; };
+  }, [company.id]);
+
+  const onToggleSr = async (sid: string, next: boolean) => {
+    setSrBusy(sid);
+    const r = await toggleShowroom(company.id, sid, next);
+    setSrBusy(null);
+    if (!r.ok) { setError(r.error ?? 'Lỗi bật/tắt showroom'); return; }
+    setSrList((prev) => prev.map((s) => (s.id === sid ? { ...s, is_active: next } : s)));
+  };
+  const srActiveCount = srList.filter((s) => s.is_active).length;
 
   const toggleBrand = (id: string) =>
     setBrandIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -439,6 +473,30 @@ function QuotaModal({
                 );
               })}
               {brands.length === 0 && <p className="text-sm text-slate-400">Chưa có thương hiệu.</p>}
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              Showroom hoạt động <span className="text-slate-400 font-normal">({srActiveCount}/{company.max_showrooms})</span>
+            </label>
+            <p className="text-xs text-slate-400 mb-2">Tắt showroom vượt hạn mức: bot ngừng báo, ẩn khỏi app, nhưng lead vẫn nhận ngầm. Bật lại là khôi phục.</p>
+            <div className="space-y-1.5 max-h-56 overflow-y-auto">
+              {srList.map((s) => (
+                <div key={s.id}
+                  className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg border"
+                  style={{ borderColor: s.is_active ? '#004B9B' : '#e2e8f0', background: s.is_active ? '#e6f0fa' : '#f8fafc' }}>
+                  <span className="text-sm font-medium text-slate-700">
+                    {s.name}{s.code && <span className="text-slate-400 font-mono text-xs"> · {s.code}</span>}
+                  </span>
+                  <button type="button" disabled={srBusy === s.id}
+                    onClick={() => onToggleSr(s.id, !s.is_active)}
+                    className="text-xs font-medium px-2.5 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-50"
+                    style={{ color: s.is_active ? '#e11d48' : '#166534' }}>
+                    {srBusy === s.id ? '...' : s.is_active ? 'Tắt' : 'Bật'}
+                  </button>
+                </div>
+              ))}
+              {srList.length === 0 && <p className="text-sm text-slate-400">Chưa có showroom.</p>}
             </div>
           </div>
           <div className="pt-1 border-t border-slate-100">
