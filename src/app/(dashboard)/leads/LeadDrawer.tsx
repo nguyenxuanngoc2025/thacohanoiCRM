@@ -4,7 +4,7 @@ import React, { useState, useEffect, useTransition } from 'react';
 import { X, PhoneCall, RefreshCw, Clock, Save, Pencil, Check } from 'lucide-react';
 import { formatPhoneDisplay } from '@/lib/phone';
 import { sourceLabel, sourcePlatform } from '@/lib/source';
-import { STATUS_OPTIONS, type LeadStatus } from '@/lib/lead-status';
+import { STATUS_OPTIONS, STATUS_LABEL, type LeadStatus } from '@/lib/lead-status';
 import { updateLead, reassignLead, reassignTeam, renameLead, getLeadLogs, type LeadLogItem } from './actions';
 import type { LeadRow } from './LeadsTable';
 import type { ModelOption, AssigneeOption, TeamOption } from './LeadsView';
@@ -53,10 +53,11 @@ export default function LeadDrawer({
   const [flash, setFlash] = useState<string | null>(null);
 
   const brandModels = models.filter((m) => m.brand_id === lead.brand_id);
-  // Phòng bán hàng của ĐÚNG showroom + thương hiệu của lead (phòng gắn theo brand).
+  // Phòng bán hàng của ĐÚNG showroom + có bán thương hiệu của lead (phòng gắn TẬP brand_ids).
   const showroomTeams = teams.filter(
-    (t) => t.showroom_id === lead.showroom_id && t.brand_id === lead.brand_id
+    (t) => t.showroom_id === lead.showroom_id && t.brand_ids.includes(lead.brand_id)
   );
+  const hasB10 = lead.b10_on || !!lead.b10_status || !!lead.b10_care_note;
   // Phụ trách: lọc TVBH theo phòng đã chọn (nếu có) để chỉ giao trong đúng phòng; chưa phân phòng → liệt kê tất cả.
   const teamAssignees = salesTeamId
     ? assignees.filter((a) => a.sales_team_id === salesTeamId)
@@ -145,13 +146,13 @@ export default function LeadDrawer({
   };
 
   return (
-    <div className="fixed inset-0 flex justify-end" style={{ zIndex: 1000 }}>
-      <div className="absolute inset-0 bg-slate-900/30" onClick={onClose} />
-      <div className="relative w-full max-w-md h-full bg-white shadow-2xl flex flex-col animate-[slideIn_0.2s_ease]">
-        <style>{`@keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}`}</style>
+    <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 1000 }}>
+      <div className="absolute inset-0 bg-slate-900/40" onClick={onClose} />
+      <div className="relative w-full max-w-4xl max-h-[92vh] bg-white rounded-2xl shadow-2xl flex flex-col animate-[popIn_0.18s_ease]">
+        <style>{`@keyframes popIn{from{opacity:0;transform:scale(0.97)}to{opacity:1;transform:scale(1)}}`}</style>
 
         {/* Header */}
-        <div className="shrink-0 px-5 py-4 border-b border-slate-100 flex items-start justify-between">
+        <div className="shrink-0 px-6 py-4 border-b border-slate-100 flex items-start justify-between">
           <div className="flex-1 min-w-0">
             {editingName ? (
               <div className="flex items-center gap-1.5">
@@ -185,7 +186,9 @@ export default function LeadDrawer({
           </button>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-5">
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+          {/* Cột trái: thông tin + B10 (chỉ đọc) */}
+          <div className="space-y-5">
           {/* Thông tin (chỉ đọc) */}
           <section className="bg-slate-50 rounded-xl p-3">
             <InfoRow label="Showroom" value={lead.showroom_name ?? '—'} />
@@ -230,6 +233,24 @@ export default function LeadDrawer({
             {lead.status === 'Fail' && lead.fail_reason && <InfoRow label="Lý do loại" value={lead.fail_reason} />}
           </section>
 
+          {/* Đối soát B10 (chỉ xem) */}
+          {hasB10 && (
+            <section className="rounded-xl border border-slate-200 p-3">
+              <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">Đối soát B10 (DDMS)</div>
+              <InfoRow label="Đã lên B10" value={lead.b10_on ? 'Rồi' : 'Chưa'} />
+              {lead.b10_status && <InfoRow label="Trạng thái B10" value={STATUS_LABEL[lead.b10_status]} />}
+              {lead.b10_care_note && (
+                <div className="py-1.5 text-sm">
+                  <div className="text-slate-400 mb-1">Nội dung chăm sóc</div>
+                  <div className="text-slate-700 whitespace-pre-wrap">{lead.b10_care_note}</div>
+                </div>
+              )}
+            </section>
+          )}
+          </div>
+
+          {/* Cột phải: cập nhật liên hệ + lịch sử */}
+          <div className="space-y-5">
           {/* Form cập nhật */}
           <section className="space-y-3">
             <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Cập nhật liên hệ</div>
@@ -315,10 +336,11 @@ export default function LeadDrawer({
               </ol>
             )}
           </section>
+          </div>
         </div>
 
         {/* Footer */}
-        <div className="shrink-0 px-5 py-3 border-t border-slate-100">
+        <div className="shrink-0 px-6 py-3 border-t border-slate-100">
           <button
             onClick={onSave}
             disabled={pending}

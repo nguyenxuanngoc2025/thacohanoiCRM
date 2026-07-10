@@ -79,7 +79,7 @@ export default async function LeadsPage() {
     supabase.from('brands').select('id, name').order('name'),
     supabase.from('showrooms').select('id, name, is_active').order('name'),
     supabase.from('users').select('id, full_name, showroom_id, sales_team_id').eq('role', 'tvbh').eq('is_active', true).order('full_name'),
-    supabase.from('sales_teams').select('id, name, showroom_id, brand_id').order('name'),
+    supabase.from('sales_teams').select('id, name, showroom_id, brand_ids').order('name'),
   ]);
 
   // Đếm số lần liên hệ theo lead
@@ -124,7 +124,7 @@ export default async function LeadsPage() {
     .filter((s) => s.is_active !== false);
   const assignees: AssigneeOption[] = ((rawAssignees ?? []) as AssigneeOption[]);
   const teams: TeamOption[] = ((rawTeams ?? []) as TeamOption[])
-    .filter((t) => !brandClosed(t.brand_id) && !inactiveSrIds.has(String((t as { showroom_id?: string }).showroom_id ?? '')));
+    .filter((t) => (t.brand_ids.length === 0 || t.brand_ids.some((b) => !brandClosed(b))) && !inactiveSrIds.has(String(t.showroom_id ?? '')));
 
   return (
     <LeadsView

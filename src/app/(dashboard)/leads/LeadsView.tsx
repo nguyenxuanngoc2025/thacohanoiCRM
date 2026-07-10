@@ -21,7 +21,7 @@ export interface ModelOption {
 export interface BrandOption { id: string; name: string }
 export interface ShowroomOption { id: string; name: string }
 export interface AssigneeOption { id: string; full_name: string; showroom_id: string | null; sales_team_id: string | null }
-export interface TeamOption { id: string; name: string; showroom_id: string; brand_id: string }
+export interface TeamOption { id: string; name: string; showroom_id: string; brand_ids: string[] }
 
 const THRESHOLD = 140; // px cuộn trong bảng để thu hết card
 

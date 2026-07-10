@@ -42,9 +42,9 @@ export default function NewLeadModal({
 
   const brandModels = models.filter((m) => m.brand_id === brandId);
 
-  // Phòng khả dụng: theo showroom đã chọn (+ thương hiệu nếu đã chọn, vì phòng cố định 1 brand).
+  // Phòng khả dụng: theo showroom đã chọn (+ thương hiệu nếu đã chọn, vì phòng gắn TẬP brand_ids).
   const availableTeams = teams.filter(
-    (t) => (!showroomId || t.showroom_id === showroomId) && (!brandId || t.brand_id === brandId),
+    (t) => (!showroomId || t.showroom_id === showroomId) && (!brandId || t.brand_ids.includes(brandId)),
   );
   // TVBH khả dụng: nếu đã chọn phòng → chỉ TVBH của phòng; chưa chọn phòng nhưng có showroom → TVBH của showroom.
   const availableAssignees = salesTeamId
