@@ -231,14 +231,18 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
 
       const teamCands: StrategyCandidate[] = [];
       for (const tid of teamPool) {
-        // Đếm lead active CHUNG (không tách theo kênh). Áp mốc effectiveFrom giống cấp 1 để
-        // tải không bị lệch bởi lead cũ trước lần đổi cấu hình.
+        // Đếm tải THEO ĐÚNG HÃNG của lead đang vào (brand_id) → mỗi hãng cân bằng độc lập:
+        // phòng đa hãng KIA+Mazda thì lead KIA chia đều theo tải KIA, lead Mazda theo tải Mazda
+        // (không gộp chung 2 hãng làm lệch). Showroom 1 hãng → lọc hãng vô tác dụng, y như cũ.
+        // Áp mốc effectiveFrom giống cấp 1 để tải không lệch bởi lead cũ trước lần đổi cấu hình.
         let teamCountQ = db.from('leads').select('id', { count: 'exact', head: true })
           .eq('sales_team_id', tid).or('status.is.null,status.neq.Fail');
+        if (channel.brand_id) teamCountQ = teamCountQ.eq('brand_id', channel.brand_id);
         if (effectiveFrom) teamCountQ = teamCountQ.gte('created_at', effectiveFrom);
         const { count } = await teamCountQ;
         let teamLastQ = db.from('leads').select('created_at')
           .eq('sales_team_id', tid).order('created_at', { ascending: false }).limit(1);
+        if (channel.brand_id) teamLastQ = teamLastQ.eq('brand_id', channel.brand_id);
         if (effectiveFrom) teamLastQ = teamLastQ.gte('created_at', effectiveFrom);
         const { data: last } = await teamLastQ.maybeSingle();
         teamCands.push({
@@ -261,13 +265,16 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
         const shareByUser = new Map<string, number>((uMeta ?? []).map((u) => [u.id, Number(u.assign_share_pct) || 0]));
         const tvbhCands: StrategyCandidate[] = [];
         for (const id of tvbhIds) {
-          // Áp mốc effectiveFrom giống cấp 1 và cấp 2 → cân bằng tải TVBH sau khi đổi cấu hình.
+          // Cũng đếm tải THEO ĐÚNG HÃNG của lead (brand_id) → trong phòng đa hãng, mỗi TVBH
+          // nhận đều KIA và đều Mazda riêng biệt (không gộp). Áp mốc effectiveFrom như cấp 1, 2.
           let tvbhCountQ = db.from('leads').select('id', { count: 'exact', head: true })
             .eq('assigned_to', id).or('status.is.null,status.neq.Fail');
+          if (channel.brand_id) tvbhCountQ = tvbhCountQ.eq('brand_id', channel.brand_id);
           if (effectiveFrom) tvbhCountQ = tvbhCountQ.gte('created_at', effectiveFrom);
           const { count } = await tvbhCountQ;
           let tvbhLastQ = db.from('leads').select('created_at')
             .eq('assigned_to', id).order('created_at', { ascending: false }).limit(1);
+          if (channel.brand_id) tvbhLastQ = tvbhLastQ.eq('brand_id', channel.brand_id);
           if (effectiveFrom) tvbhLastQ = tvbhLastQ.gte('created_at', effectiveFrom);
           const { data: last } = await tvbhLastQ.maybeSingle();
           tvbhCands.push({
