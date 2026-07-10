@@ -44,6 +44,11 @@ export async function POST(request: NextRequest) {
     for (const entry of body.entry ?? []) {
       const pageId = String(entry.id);
 
+      // Chẩn đoán: ghi rõ mỗi entry có nhánh nào (giúp soi tin nhắn về standby hay messaging).
+      console.log(
+        `[fb-webhook] entry page=${pageId} changes=${(entry.changes ?? []).length} messaging=${(entry.messaging ?? []).length} standby=${(entry.standby ?? []).length}`,
+      );
+
       // a) Lead Ads (form) — leadgen
       // b) Comment công khai có SĐT — field 'feed', item 'comment'
       for (const change of entry.changes ?? []) {
@@ -88,8 +93,12 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // c) Tin nhắn Messenger có SĐT (chỉ thu lead, KHÔNG trả lời tự động)
-      for (const m of entry.messaging ?? []) {
+      // c) Tin nhắn Messenger có SĐT (chỉ thu lead, KHÔNG trả lời tự động).
+      // Gộp cả `messaging` LẪN `standby`: khi page bật Trợ lý AI/tự động (primary receiver),
+      // Facebook đẩy tin cho app mình qua kênh `standby` chứ không phải `messaging`. Nếu chỉ đọc
+      // `messaging` sẽ mất toàn bộ lead tin nhắn của các page có AI. Cấu trúc 2 kênh giống nhau.
+      const inbound = [...(entry.messaging ?? []), ...(entry.standby ?? [])];
+      for (const m of inbound) {
         if (m.message?.is_echo) continue; // bỏ tin do page gửi
         const phone = extractPhone(m.message?.text);
         if (!phone) continue;
