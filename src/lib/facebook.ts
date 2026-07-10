@@ -4,6 +4,18 @@ const GRAPH = `https://graph.facebook.com/${process.env.FB_GRAPH_VERSION ?? 'v21
 
 export interface FbLeadField { name: string; values: string[] }
 
+// Tên field trong Lead Ads không cố định: FB có thể trả "full_name" HOẶC "full name"
+// (dấu cách) tuỳ biểu mẫu → chuẩn hoá về 1 dạng trước khi so khớp, tránh sót tên/SĐT.
+const normFieldKey = (s: string) => s.toLowerCase().trim().replace(/[_\s]+/g, '_');
+
+/** Tạo hàm đọc giá trị field theo danh sách key (khớp không phân biệt dấu cách/gạch dưới). */
+export function makeFieldGetter(fields: FbLeadField[]) {
+  return (keys: string[]) => {
+    const wanted = keys.map(normFieldKey);
+    return fields.find((f) => wanted.includes(normFieldKey(f.name)))?.values?.[0] ?? null;
+  };
+}
+
 /**
  * Xác thực chữ ký webhook Facebook (header `X-Hub-Signature-256`).
  * Facebook ký body bằng HMAC-SHA256 với App Secret làm khoá:
@@ -46,8 +58,7 @@ export async function fetchLeadDetail(leadgenId: string): Promise<{
     console.error('[facebook] fetchLeadDetail non-200:', res.status, raw);
   }
   const fields: FbLeadField[] = raw?.field_data ?? [];
-  const get = (keys: string[]) =>
-    fields.find((f) => keys.includes(f.name))?.values?.[0] ?? null;
+  const get = makeFieldGetter(fields);
 
   // Tên form (dùng cho dò dòng xe) — gọi riêng node form, lỗi thì bỏ qua (không chặn lead).
   let formName: string | null = null;
@@ -120,7 +131,7 @@ export async function fetchPageLeadsSince(pageId: string, sinceUnix: number): Pr
       if (!r.ok) { console.error('[facebook] list leads lỗi:', form.name, j?.error); break; }
       for (const lead of j?.data ?? []) {
         const fields: FbLeadField[] = lead?.field_data ?? [];
-        const get = (keys: string[]) => fields.find((f) => keys.includes(f.name))?.values?.[0] ?? null;
+        const get = makeFieldGetter(fields);
         out.push({
           leadgenId: String(lead.id),
           createdTime: lead.created_time,
