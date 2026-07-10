@@ -4,7 +4,7 @@ import React, { useState, useEffect, useTransition } from 'react';
 import { X, PhoneCall, RefreshCw, Clock, Save, Pencil, Check } from 'lucide-react';
 import { formatPhoneDisplay } from '@/lib/phone';
 import { sourceLabel, sourcePlatform } from '@/lib/source';
-import { STATUS_OPTIONS, STATUS_LABEL, type LeadStatus } from '@/lib/lead-status';
+import { STATUS_OPTIONS, type LeadStatus } from '@/lib/lead-status';
 import { updateLead, reassignLead, reassignTeam, renameLead, getLeadLogs, type LeadLogItem } from './actions';
 import type { LeadRow } from './LeadsTable';
 import type { ModelOption, AssigneeOption, TeamOption } from './LeadsView';
@@ -237,8 +237,17 @@ export default function LeadDrawer({
           {b10Enabled && (
             <section className="rounded-xl border border-slate-200 p-3">
               <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">Đối soát B10 (DDMS)</div>
-              <InfoRow label="Đã lên B10" value={lead.b10_on ? 'Rồi' : 'Chưa đối soát'} />
-              <InfoRow label="Trạng thái B10" value={lead.b10_status ? STATUS_LABEL[lead.b10_status] : 'Chưa có trên B10'} />
+              <div className="flex justify-between items-center gap-3 py-1.5 text-sm">
+                <span className="text-slate-400">Đã lên B10</span>
+                {lead.b10_on ? (
+                  <span className="inline-flex items-center gap-1 text-emerald-600 font-medium">
+                    <Check size={16} /> Đã lên
+                  </span>
+                ) : (
+                  <span className="text-slate-400">Chưa đối soát</span>
+                )}
+              </div>
+              <InfoRow label="Trạng thái B10" value={lead.b10_status ?? 'Chưa có trên B10'} />
               <div className="py-1.5 text-sm">
                 <div className="text-slate-400 mb-1">Nội dung chăm sóc</div>
                 <div className="text-slate-700 whitespace-pre-wrap">{lead.b10_care_note || '—'}</div>
