@@ -3,7 +3,7 @@
 import React, { useMemo } from 'react';
 import {
   ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area, BarChart, Bar,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, FunnelChart, Funnel, LabelList,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend,
 } from 'recharts';
 import {
   computeFunnel, groupBySource, groupByBrand, groupByDimension,
@@ -41,7 +41,6 @@ export default function OverviewTab({
     [leads, reportLevel],
   );
 
-  const funnelData = funnel.map((s, i) => ({ name: s.label, value: s.count, pct: s.pct, fill: PALETTE[i % PALETTE.length] }));
   const statusData = statusDist.map((s) => ({ name: s.label, value: s.count, code: s.code }));
   const brandData = byBrand.map((r) => ({ name: r.label, value: r.leads }));
   const sourceData = bySource.slice(0, 8).map((r) => ({ name: r.label, lead: r.leads, won: r.won }));
@@ -55,17 +54,7 @@ export default function OverviewTab({
       {/* Phễu + Xu hướng */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <Panel title="Phễu chuyển đổi" desc="Số lead còn lại qua từng bậc">
-          <div style={{ height: 260 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <FunnelChart>
-                <Tooltip content={<TipFunnel />} />
-                <Funnel dataKey="value" data={funnelData} isAnimationActive>
-                  <LabelList position="right" fill="#475569" stroke="none" dataKey="name" style={{ fontSize: 12 }} />
-                  <LabelList position="left" fill="#0f172a" stroke="none" dataKey="value" style={{ fontSize: 12, fontWeight: 700 }} />
-                </Funnel>
-              </FunnelChart>
-            </ResponsiveContainer>
-          </div>
+          <FunnelBars funnel={funnel} />
         </Panel>
 
         <Panel title="Lead mới theo ngày" desc={`Tổng ${fmt(trend.reduce((s, d) => s + d.count, 0))} lead`}>
@@ -181,6 +170,49 @@ export default function OverviewTab({
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+/** Bảng màu phễu: xanh đậm → xanh ngọc, thu dần theo bậc. */
+const FUNNEL_COLORS = ['#003a78', '#004B9B', '#1d6fc9', '#0891b2', '#0d9488'];
+
+/**
+ * Phễu chuyển đổi kiểu dashboard: thanh ngang căn giữa thu hẹp dần theo số lead,
+ * số nằm trong thanh, cột phải là % so tổng, giữa các bậc là tỉ lệ chuyển đổi.
+ */
+function FunnelBars({ funnel }: { funnel: { label: string; count: number; pct: number }[] }) {
+  const total = funnel[0]?.count ?? 0;
+  if (total === 0) return <Empty />;
+  return (
+    <div className="py-2">
+      {funnel.map((s, i) => {
+        const widthPct = Math.max((s.count / total) * 100, 6);
+        const prev = funnel[i - 1];
+        const conv = i > 0 && prev && prev.count > 0 ? Math.round((s.count / prev.count) * 1000) / 10 : null;
+        const color = FUNNEL_COLORS[i] ?? FUNNEL_COLORS[FUNNEL_COLORS.length - 1];
+        return (
+          <div key={i}>
+            {conv !== null && (
+              <div className="flex items-center justify-center py-1">
+                <span className="text-[11px] text-slate-400">↓ {conv}%</span>
+              </div>
+            )}
+            <div className="flex items-center gap-3">
+              <div className="w-28 shrink-0 text-right text-[13px] text-slate-600 leading-tight">{s.label}</div>
+              <div className="flex-1">
+                <div
+                  className="h-10 rounded-lg flex items-center justify-center text-white text-sm font-bold mx-auto shadow-sm transition-all"
+                  style={{ width: `${widthPct}%`, minWidth: 46, background: color }}
+                >
+                  {fmt(s.count)}
+                </div>
+              </div>
+              <div className="w-12 shrink-0 text-right text-[13px] font-semibold text-slate-500">{s.pct}%</div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function shorten(s: string): string {
   return s.length > 16 ? `${s.slice(0, 15)}…` : s;
 }
@@ -218,12 +250,6 @@ function box(children: React.ReactNode) {
       {children}
     </div>
   );
-}
-
-function TipFunnel({ active, payload }: { active?: boolean; payload?: TipPayload[] }) {
-  if (!active || !payload?.length) return null;
-  const p = payload[0];
-  return box(<><div className="font-semibold text-slate-700">{p.name}</div><div className="text-slate-500">{fmt(p.value)} lead · {p.payload?.pct}%</div></>);
 }
 
 function TipGeneric({ active, payload, label, unit }: { active?: boolean; payload?: TipPayload[]; label?: string; unit: string }) {
