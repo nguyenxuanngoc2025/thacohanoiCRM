@@ -4,6 +4,7 @@ import AssignView, { type UnassignedLead, type TvbhLoad, type AssignTeam } from 
 import { CAN_ASSIGN } from '@/lib/nav';
 import { getOpenBrandIds, getInactiveShowroomIds, isBrandClosed } from '@/lib/company-brands';
 import { resolveCreatorScope } from '@/lib/lead-scope';
+import { teamInScope } from '@/lib/assign-routing';
 import { type AssignStrategy } from '@/lib/assign';
 import { type UserRole } from '@/types/database';
 
@@ -86,21 +87,8 @@ export default async function AssignPage() {
     loadMap[r.assigned_to] = (loadMap[r.assigned_to] ?? 0) + 1;
   }
 
-  const tvbh: TvbhLoad[] = ((rawTvbh ?? []) as unknown as {
-    id: string; full_name: string; showroom_id: string | null; sales_team_id: string | null;
-    assign_share_pct: number | null; showroom: { name: string } | null; sales_team: { name: string } | null;
-  }[]).filter((t) => srActive(t.showroom_id)).map((t) => ({
-    id: t.id,
-    full_name: t.full_name,
-    showroom_id: t.showroom_id,
-    showroom_name: t.showroom?.name ?? null,
-    sales_team_id: t.sales_team_id,
-    team_name: t.sales_team?.name ?? null,
-    share_pct: t.assign_share_pct ?? 0,
-    open_count: loadMap[t.id] ?? 0,
-  }));
-
-  // Phòng trong phạm vi UI: showroom đang bật + có bán ≥1 hãng đang mở (hoặc chưa gán hãng).
+  // Phòng trong phạm vi UI: showroom đang bật + có bán ≥1 hãng đang mở (hoặc chưa gán hãng)
+  // + nằm trong phạm vi người xem (tp_phong chỉ thấy phòng mình).
   const teams: AssignTeam[] = ((rawTeams ?? []) as unknown as {
     id: string; name: string; showroom_id: string | null; brand_ids: string[] | null;
     team_assign_strategy: string | null; showroom: { name: string } | null;
@@ -110,6 +98,10 @@ export default async function AssignPage() {
       const bids = t.brand_ids ?? [];
       return bids.length === 0 || bids.some((b) => !brandClosed(b));
     })
+    .filter((t) => !scope || teamInScope(
+      { showroomIds: scope.showroomIds, brandIds: scope.brandIds, teamId: scope.teamId },
+      { id: t.id, showroom_id: t.showroom_id, brand_ids: t.brand_ids ?? [] },
+    ))
     .map((t) => ({
       id: t.id,
       name: t.name,
@@ -118,6 +110,25 @@ export default async function AssignPage() {
       brand_ids: t.brand_ids ?? [],
       team_assign_strategy: (t.team_assign_strategy as AssignStrategy | null) ?? 'least_loaded',
     }));
+
+  // TVBH chỉ hiện nếu thuộc phòng trong phạm vi (mirror lọc phòng ở trên).
+  const allowedTeamIds = new Set(teams.map((t) => t.id));
+  const tvbh: TvbhLoad[] = ((rawTvbh ?? []) as unknown as {
+    id: string; full_name: string; showroom_id: string | null; sales_team_id: string | null;
+    assign_share_pct: number | null; showroom: { name: string } | null; sales_team: { name: string } | null;
+  }[])
+    .filter((t) => srActive(t.showroom_id))
+    .filter((t) => t.sales_team_id != null && allowedTeamIds.has(t.sales_team_id))
+    .map((t) => ({
+    id: t.id,
+    full_name: t.full_name,
+    showroom_id: t.showroom_id,
+    showroom_name: t.showroom?.name ?? null,
+    sales_team_id: t.sales_team_id,
+    team_name: t.sales_team?.name ?? null,
+    share_pct: t.assign_share_pct ?? 0,
+    open_count: loadMap[t.id] ?? 0,
+  }));
 
   const leads: UnassignedLead[] = ((rawUnassigned ?? []) as unknown as RawUnassigned[])
     .filter((l) => srActive(l.showroom_id))

@@ -7,6 +7,7 @@ import { reassignLead, autoDistributeLeads, assignLeadToTeamAuto } from '../lead
 import { formatPhoneDisplay } from '@/lib/phone';
 import { matchTeamsForLead } from '@/lib/assign-routing';
 import { type AssignStrategy } from '@/lib/assign';
+import ModalPortal from '@/components/ui/ModalPortal';
 
 export interface UnassignedLead {
   id: string;
@@ -72,6 +73,7 @@ export default function AssignView({
   const [flash, setFlash] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [strategy, setStrategy] = useState<Exclude<AssignStrategy, 'manual' | 'day_roster'>>('least_loaded');
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const flashMsg = (m: string) => { setFlash(m); setTimeout(() => setFlash(null), 4000); };
 
@@ -115,10 +117,15 @@ export default function AssignView({
     });
   };
 
+  const strategyLabel = STRATEGIES.find((s) => s.value === strategy)?.label ?? 'Chia đều';
+
   const applyAuto = () => {
     if (leads.length === 0) return;
-    const label = STRATEGIES.find((s) => s.value === strategy)?.label ?? 'Chia đều';
-    if (!window.confirm(`Phân giao ${leads.length} lead chưa giao theo kiểu "${label}"?`)) return;
+    setConfirmOpen(true);
+  };
+
+  const runAuto = () => {
+    setConfirmOpen(false);
     startTransition(async () => {
       const r = await autoDistributeLeads(strategy);
       if (!r.ok) { flashMsg(r.error ?? 'Phân giao thất bại.'); return; }
@@ -133,6 +140,30 @@ export default function AssignView({
         <div className="shrink-0 px-4 py-2.5 text-sm bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-lg">
           {flash}
         </div>
+      )}
+
+      {confirmOpen && (
+        <ModalPortal>
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/40" onClick={() => setConfirmOpen(false)}>
+            <div className="w-full max-w-sm bg-white rounded-xl shadow-xl p-5" onClick={(e) => e.stopPropagation()}>
+              <h3 className="text-base font-bold text-slate-900">Xác nhận phân giao</h3>
+              <p className="text-sm text-slate-600 mt-2">
+                Phân giao <b>{leads.length}</b> lead chưa giao theo kiểu <b>“{strategyLabel}”</b>?
+              </p>
+              <div className="mt-5 flex justify-end gap-2">
+                <button onClick={() => setConfirmOpen(false)}
+                  className="text-sm font-semibold text-slate-600 rounded-lg px-3 py-1.5 hover:bg-slate-100">
+                  Huỷ
+                </button>
+                <button onClick={runAuto}
+                  className="text-sm font-semibold text-white rounded-lg px-3 py-1.5 hover:opacity-90"
+                  style={{ background: `linear-gradient(135deg, ${NAVY}, #0468BF)` }}>
+                  Áp dụng
+                </button>
+              </div>
+            </div>
+          </div>
+        </ModalPortal>
       )}
 
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-6">
@@ -186,7 +217,7 @@ export default function AssignView({
                     <AssignPicker
                       lead={l} teams={teams} tvbhByTeam={tvbhByTeam}
                       isTeamScope={isTeamScope} showSrLayer={showSrLayer}
-                      busy={pending && busyId === l.id}
+                      busy={pending && (busyId === l.id || busyId === null)}
                       onPickTvbh={(id) => assignOne(l.id, id)}
                       onPickTeam={(id) => assignTeam(l.id, id)}
                     />
@@ -226,7 +257,7 @@ export default function AssignView({
                           <AssignPicker
                             lead={l} teams={teams} tvbhByTeam={tvbhByTeam}
                             isTeamScope={isTeamScope} showSrLayer={showSrLayer}
-                            busy={pending && busyId === l.id}
+                            busy={pending && (busyId === l.id || busyId === null)}
                             onPickTvbh={(id) => assignOne(l.id, id)}
                             onPickTeam={(id) => assignTeam(l.id, id)}
                           />
@@ -396,11 +427,11 @@ function WorkloadPanel({ tvbh, maxLoad, grouped }: { tvbh: TvbhLoad[]; maxLoad: 
   }
 
   // Gộp theo phòng.
-  const groups = new Map<string, { name: string; members: TvbhLoad[] }>();
+  const groups = new Map<string, { key: string; name: string; members: TvbhLoad[] }>();
   for (const t of tvbh) {
     const key = t.sales_team_id ?? '__none__';
     const name = t.team_name ?? 'Chưa gán phòng';
-    const g = groups.get(key) ?? { name, members: [] };
+    const g = groups.get(key) ?? { key, name, members: [] };
     g.members.push(t);
     groups.set(key, g);
   }
@@ -411,7 +442,7 @@ function WorkloadPanel({ tvbh, maxLoad, grouped }: { tvbh: TvbhLoad[]; maxLoad: 
       {ordered.map((g) => {
         const total = g.members.reduce((s, m) => s + m.open_count, 0);
         return (
-          <div key={g.name}>
+          <div key={g.key}>
             <div className="flex items-center gap-1.5 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wide">
               <Users size={12} className="opacity-60" />
               <span>{g.name}</span>
