@@ -10,7 +10,7 @@ const TYPE_META: Record<string, { label: string; icon: React.ElementType; color:
   note: { label: 'Ghi chú', icon: FileText, color: '#475569' },
   status_change: { label: 'Đổi trạng thái', icon: RefreshCw, color: '#b45309' },
   contact: { label: 'Liên hệ', icon: Phone, color: '#047857' },
-  system: { label: 'Hệ thống', icon: Cpu, color: '#004B9B' },
+  system: { label: 'Hệ thống', icon: Cpu, color: 'var(--color-brand)' },
 };
 
 function timeAgo(iso: string): string {

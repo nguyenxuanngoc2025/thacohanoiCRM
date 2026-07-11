@@ -164,9 +164,9 @@ export default function LeadDrawer({
                   onChange={(e) => setFullName(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') onRename(); if (e.key === 'Escape') cancelName(); }}
                   placeholder="Nhập tên khách hàng"
-                  className="text-lg font-bold text-slate-900 border-b border-[#004B9B] outline-none w-full bg-transparent"
+                  className="text-lg font-bold text-slate-900 border-b border-brand outline-none w-full bg-transparent"
                 />
-                <button onClick={onRename} disabled={pending} className="text-[#004B9B] p-1 shrink-0 disabled:opacity-50" title="Lưu tên">
+                <button onClick={onRename} disabled={pending} className="text-brand p-1 shrink-0 disabled:opacity-50" title="Lưu tên">
                   <Check size={18} />
                 </button>
                 <button onClick={cancelName} className="text-slate-400 hover:text-slate-600 p-1 shrink-0" title="Huỷ">
@@ -176,7 +176,7 @@ export default function LeadDrawer({
             ) : (
               <div className="flex items-center gap-1.5">
                 <span className="text-lg font-bold text-slate-900 truncate">{fullName.trim() || '—'}</span>
-                <button onClick={() => setEditingName(true)} className="text-slate-300 hover:text-[#004B9B] p-1 shrink-0" title="Sửa tên">
+                <button onClick={() => setEditingName(true)} className="text-slate-300 hover:text-brand p-1 shrink-0" title="Sửa tên">
                   <Pencil size={14} />
                 </button>
               </div>
@@ -209,7 +209,7 @@ export default function LeadDrawer({
                   value={salesTeamId}
                   disabled={pending || showroomTeams.length === 0}
                   onChange={(e) => onReassignTeam(e.target.value)}
-                  className="text-sm border border-slate-200 rounded-lg px-2 py-1 bg-white focus:border-[#004B9B] outline-none disabled:opacity-50 max-w-[60%]"
+                  className="text-sm border border-slate-200 rounded-lg px-2 py-1 bg-white focus:border-brand outline-none disabled:opacity-50 max-w-[60%]"
                 >
                   <option value="">— Chưa phân phòng —</option>
                   {showroomTeams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
@@ -225,7 +225,7 @@ export default function LeadDrawer({
                   value={assignedTo}
                   disabled={pending}
                   onChange={(e) => onReassign(e.target.value)}
-                  className="text-sm border border-slate-200 rounded-lg px-2 py-1 bg-white focus:border-[#004B9B] outline-none disabled:opacity-50 max-w-[60%]"
+                  className="text-sm border border-slate-200 rounded-lg px-2 py-1 bg-white focus:border-brand outline-none disabled:opacity-50 max-w-[60%]"
                 >
                   <option value="">— Chưa giao —</option>
                   {teamAssignees.map((a) => <option key={a.id} value={a.id}>{a.full_name}</option>)}
@@ -274,7 +274,7 @@ export default function LeadDrawer({
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value as LeadStatus | '')}
-                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:border-[#004B9B] outline-none"
+                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:border-brand outline-none"
               >
                 <option value="">— Chưa phân loại —</option>
                 {STATUS_OPTIONS.map((s) => (
@@ -288,7 +288,7 @@ export default function LeadDrawer({
               <select
                 value={modelId}
                 onChange={(e) => setModelId(e.target.value)}
-                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:border-[#004B9B] outline-none"
+                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:border-brand outline-none"
               >
                 <option value="">— Chưa rõ —</option>
                 {brandModels.map((m) => (
@@ -304,7 +304,7 @@ export default function LeadDrawer({
                 onChange={(e) => setNote(e.target.value)}
                 rows={3}
                 placeholder="VD: Đã tư vấn giá lăn bánh, khách hẹn cuối tuần ghé xem xe…"
-                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:border-[#004B9B] outline-none resize-none"
+                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:border-brand outline-none resize-none"
               />
             </div>
 
@@ -314,7 +314,7 @@ export default function LeadDrawer({
                 type="date"
                 value={nextDate}
                 onChange={(e) => setNextDate(e.target.value)}
-                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:border-[#004B9B] outline-none"
+                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:border-brand outline-none"
               />
             </div>
 
@@ -334,7 +334,7 @@ export default function LeadDrawer({
                   <li key={g.id} className="flex gap-3">
                     <div className="mt-0.5 shrink-0">
                       {g.type === 'contact'
-                        ? <PhoneCall size={15} className="text-[#004B9B]" />
+                        ? <PhoneCall size={15} className="text-brand" />
                         : g.type === 'status_change'
                           ? <RefreshCw size={15} className="text-amber-600" />
                           : <Clock size={15} className="text-slate-400" />}
@@ -359,7 +359,7 @@ export default function LeadDrawer({
             onClick={onSave}
             disabled={pending}
             className="w-full inline-flex items-center justify-center gap-2 text-sm font-semibold text-white rounded-lg px-4 py-2.5 disabled:opacity-50"
-            style={{ background: '#004B9B' }}
+            style={{ background: 'var(--color-brand)' }}
           >
             <Save size={16} /> {pending ? 'Đang lưu…' : 'Lưu cập nhật'}
           </button>

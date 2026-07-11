@@ -66,12 +66,12 @@ export default function RevenueManager({
             <option value="churned">Đã rời</option>
           </select>
           <label className="flex items-center gap-2 text-sm text-slate-600 px-2 cursor-pointer">
-            <input type="checkbox" checked={onlyDebt} onChange={(e) => setOnlyDebt(e.target.checked)} className="accent-[#004B9B]" />
+            <input type="checkbox" checked={onlyDebt} onChange={(e) => setOnlyDebt(e.target.checked)} className="accent-brand" />
             Chỉ còn nợ
           </label>
         </div>
         <button onClick={() => setAdding(true)}
-          className="text-sm font-medium px-3.5 py-2 rounded-lg text-white" style={{ background: '#004B9B' }}>
+          className="text-sm font-medium px-3.5 py-2 rounded-lg text-white" style={{ background: 'var(--color-brand)' }}>
           + Hợp đồng mới
         </button>
       </div>
@@ -212,7 +212,7 @@ function AddContractModal({
         </div>
         <div className="flex justify-end gap-2 px-5 py-3.5 border-t border-slate-100">
           <button onClick={onClose} disabled={busy} className="text-sm font-medium px-4 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50">Hủy</button>
-          <button onClick={submit} disabled={busy} className="text-sm font-medium px-4 py-2 rounded-lg text-white" style={{ background: '#004B9B' }}>
+          <button onClick={submit} disabled={busy} className="text-sm font-medium px-4 py-2 rounded-lg text-white" style={{ background: 'var(--color-brand)' }}>
             {busy ? 'Đang lưu...' : 'Tạo hợp đồng'}
           </button>
         </div>
@@ -301,7 +301,7 @@ function ContractDetailModal({
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="text-sm font-semibold text-slate-800">Lịch thu dự kiến</h4>
                   <button onClick={() => { setMode('schedule'); setDate(''); setAmount(''); setNote(''); }}
-                    className="text-xs font-medium" style={{ color: '#004B9B' }}>+ Thêm đợt</button>
+                    className="text-xs font-medium" style={{ color: 'var(--color-brand)' }}>+ Thêm đợt</button>
                 </div>
                 {data.schedule.length === 0 ? <p className="text-sm text-slate-400">Chưa có lịch.</p> : (
                   <ul className="space-y-1">
@@ -319,7 +319,7 @@ function ContractDetailModal({
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="text-sm font-semibold text-slate-800">Lịch sử thực nhận</h4>
                   <button onClick={() => { setMode('payment'); setDate(''); setAmount(''); setNote(''); }}
-                    className="text-xs font-medium" style={{ color: '#004B9B' }}>+ Ghi nhận thu</button>
+                    className="text-xs font-medium" style={{ color: 'var(--color-brand)' }}>+ Ghi nhận thu</button>
                 </div>
                 {data.payments.length === 0 ? <p className="text-sm text-slate-400">Chưa có khoản thu.</p> : (
                   <ul className="space-y-1">
@@ -350,7 +350,7 @@ function ContractDetailModal({
                     <button onClick={() => setMode('none')} disabled={busy}
                       className="text-sm font-medium px-3 py-1.5 rounded-lg border border-slate-200 bg-white">Hủy</button>
                     <button onClick={submitSub} disabled={busy}
-                      className="text-sm font-medium px-3 py-1.5 rounded-lg text-white" style={{ background: '#004B9B' }}>
+                      className="text-sm font-medium px-3 py-1.5 rounded-lg text-white" style={{ background: 'var(--color-brand)' }}>
                       {busy ? 'Đang lưu...' : 'Lưu'}
                     </button>
                   </div>

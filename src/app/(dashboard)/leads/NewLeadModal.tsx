@@ -141,7 +141,7 @@ export default function NewLeadModal({
     });
   };
 
-  const inputCls = 'w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:border-[#004B9B] outline-none';
+  const inputCls = 'w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:border-brand outline-none';
   const lblCls = 'text-sm text-slate-600 block mb-1';
 
   return (
@@ -150,7 +150,7 @@ export default function NewLeadModal({
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90dvh] flex flex-col" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 shrink-0">
           <h3 className="font-bold text-slate-900 inline-flex items-center gap-2">
-            <UserPlus size={18} style={{ color: '#004B9B' }} /> Thêm lead thủ công
+            <UserPlus size={18} style={{ color: 'var(--color-brand)' }} /> Thêm lead thủ công
           </h3>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700"><X size={18} /></button>
         </div>
@@ -179,7 +179,7 @@ export default function NewLeadModal({
                 {showrooms.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
               {recShowroom && (
-                <p className="mt-1 inline-flex items-center gap-1 text-xs text-[#004B9B]">
+                <p className="mt-1 inline-flex items-center gap-1 text-xs text-brand">
                   <Sparkles size={12} /> Gợi ý xoay vòng: {recShowroom}
                 </p>
               )}
@@ -248,7 +248,7 @@ export default function NewLeadModal({
               {availableAssignees.map((a) => <option key={a.id} value={a.id}>{a.full_name}</option>)}
             </select>
             {recAssignee && (
-              <p className="mt-1 inline-flex items-center gap-1 text-xs text-[#004B9B]">
+              <p className="mt-1 inline-flex items-center gap-1 text-xs text-brand">
                 <Sparkles size={12} /> Gợi ý xoay vòng: {recAssignee}
               </p>
             )}
@@ -271,7 +271,7 @@ export default function NewLeadModal({
           </button>
           <button onClick={submit} disabled={pending}
             className="text-sm font-semibold text-white rounded-lg px-4 py-2 disabled:opacity-50"
-            style={{ background: '#004B9B' }}>
+            style={{ background: 'var(--color-brand)' }}>
             {pending ? 'Đang tạo…' : 'Tạo lead'}
           </button>
         </div>

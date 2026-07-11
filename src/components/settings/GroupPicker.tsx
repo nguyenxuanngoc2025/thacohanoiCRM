@@ -53,7 +53,7 @@ export default function GroupPicker({ value, onChange }: { value: string; onChan
     <div className="relative" ref={ref}>
       <div className="flex gap-2">
         <button type="button" onClick={() => setOpen((o) => !o)}
-          className="flex-1 flex items-center justify-between border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white hover:border-[#004B9B] transition-colors">
+          className="flex-1 flex items-center justify-between border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white hover:border-brand transition-colors">
           <span className={selected ? 'text-slate-800' : 'text-slate-400'}>
             {selected ? selected.name : value ? `ID: ${value}` : (loading ? 'Đang tải group…' : '— Chọn group —')}
           </span>

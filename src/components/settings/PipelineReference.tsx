@@ -40,7 +40,7 @@ export default function PipelineReference({ counts }: { counts: Record<string, n
           ))}
         </div>
         <div className="flex items-center gap-2 text-xs text-slate-500 pt-1">
-          <ListChecks size={14} style={{ color: '#004B9B' }} />
+          <ListChecks size={14} style={{ color: 'var(--color-brand)' }} />
           Tổng {total} lead trong công ty · 3 vòng đánh giá (vòng 1 = lead mới, sang vòng sau khi cần chăm sóc lại).
         </div>
       </Panel>

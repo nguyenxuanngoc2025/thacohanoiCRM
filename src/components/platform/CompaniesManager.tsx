@@ -91,7 +91,7 @@ export default function CompaniesManager({
       <div className="flex items-center justify-between">
         <p className="text-sm text-slate-500">{companies.length} công ty</p>
         <button onClick={() => setAdding(true)}
-          className="text-sm font-medium px-3.5 py-2 rounded-lg text-white" style={{ background: '#004B9B' }}>
+          className="text-sm font-medium px-3.5 py-2 rounded-lg text-white" style={{ background: 'var(--color-brand)' }}>
           + Thêm công ty
         </button>
       </div>
@@ -140,7 +140,7 @@ export default function CompaniesManager({
                         className="text-xs font-medium px-2.5 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-slate-600">Xem</button>
                       <button onClick={() => setEdit(c)}
                         className="text-xs font-medium px-2.5 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-50"
-                        style={{ color: '#004B9B' }}>Sửa</button>
+                        style={{ color: 'var(--color-brand)' }}>Sửa</button>
                       <button onClick={() => toggleSuspend(c)}
                         className="text-xs font-medium px-2.5 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-50"
                         style={{ color: suspended ? '#166534' : '#e11d48' }}>
@@ -359,7 +359,7 @@ function AddCompanyModal({
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Subdomain</label>
-            <div className="flex items-stretch border border-slate-200 rounded-lg overflow-hidden focus-within:border-[#004B9B]">
+            <div className="flex items-stretch border border-slate-200 rounded-lg overflow-hidden focus-within:border-brand">
               <input value={subdomain} onChange={(e) => setSubdomain(e.target.value)} placeholder="danang"
                 className="flex-1 min-w-0 px-3 py-2 text-sm outline-none" autoComplete="off" />
               <span className="px-3 py-2 text-sm text-slate-400 bg-slate-50 border-l border-slate-100 whitespace-nowrap select-none">.crmthacoauto.com</span>
@@ -379,8 +379,8 @@ function AddCompanyModal({
                 return (
                   <label key={b.id}
                     className="flex items-center gap-2.5 px-3 py-2 rounded-lg border cursor-pointer"
-                    style={{ borderColor: checked ? '#004B9B' : '#e2e8f0', background: checked ? '#e6f0fa' : '#fff' }}>
-                    <input type="checkbox" checked={checked} onChange={() => toggleBrand(b.id)} className="accent-[#004B9B]" />
+                    style={{ borderColor: checked ? 'var(--color-brand)' : '#e2e8f0', background: checked ? '#e6f0fa' : '#fff' }}>
+                    <input type="checkbox" checked={checked} onChange={() => toggleBrand(b.id)} className="accent-brand" />
                     <span className="text-sm font-medium text-slate-700">{b.name}</span>
                   </label>
                 );
@@ -399,7 +399,7 @@ function AddCompanyModal({
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Tên đăng nhập</label>
-                <div className="flex items-stretch border border-slate-200 rounded-lg overflow-hidden focus-within:border-[#004B9B]">
+                <div className="flex items-stretch border border-slate-200 rounded-lg overflow-hidden focus-within:border-brand">
                   <input value={adminUser} onChange={(e) => setAdminUser(e.target.value)} placeholder="admindanang"
                     className="flex-1 min-w-0 px-3 py-2 text-sm outline-none" autoComplete="off" />
                   <span className="px-3 py-2 text-sm text-slate-400 bg-slate-50 border-l border-slate-100 whitespace-nowrap select-none">@{EMAIL_DOMAIN}</span>
@@ -419,7 +419,7 @@ function AddCompanyModal({
           <button onClick={onClose} disabled={busy}
             className="text-sm font-medium px-4 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50">Hủy</button>
           <button onClick={submit} disabled={busy}
-            className="text-sm font-medium px-4 py-2 rounded-lg text-white" style={{ background: '#004B9B' }}>
+            className="text-sm font-medium px-4 py-2 rounded-lg text-white" style={{ background: 'var(--color-brand)' }}>
             {busy ? 'Đang tạo...' : 'Tạo công ty'}
           </button>
         </div>
@@ -514,8 +514,8 @@ function QuotaModal({
                 return (
                   <label key={b.id}
                     className="flex items-center gap-2.5 px-3 py-2 rounded-lg border cursor-pointer"
-                    style={{ borderColor: checked ? '#004B9B' : '#e2e8f0', background: checked ? '#e6f0fa' : '#fff' }}>
-                    <input type="checkbox" checked={checked} onChange={() => toggleBrand(b.id)} className="accent-[#004B9B]" />
+                    style={{ borderColor: checked ? 'var(--color-brand)' : '#e2e8f0', background: checked ? '#e6f0fa' : '#fff' }}>
+                    <input type="checkbox" checked={checked} onChange={() => toggleBrand(b.id)} className="accent-brand" />
                     <span className="text-sm font-medium text-slate-700">{b.name}</span>
                   </label>
                 );
@@ -530,7 +530,7 @@ function QuotaModal({
               </label>
               <button type="button" onClick={() => setSrAdding(true)} disabled={quotaReached}
                 className="text-xs font-medium px-2.5 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
-                style={{ color: '#004B9B' }}
+                style={{ color: 'var(--color-brand)' }}
                 title={quotaReached ? 'Đã đạt trần showroom — nâng quota trước.' : undefined}>
                 + Thêm showroom
               </button>
@@ -544,7 +544,7 @@ function QuotaModal({
                 return (
                 <div key={s.id}
                   className="px-3 py-2 rounded-lg border"
-                  style={{ borderColor: s.is_active ? '#004B9B' : '#e2e8f0', background: s.is_active ? '#e6f0fa' : '#f8fafc' }}>
+                  style={{ borderColor: s.is_active ? 'var(--color-brand)' : '#e2e8f0', background: s.is_active ? '#e6f0fa' : '#f8fafc' }}>
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-sm font-medium text-slate-700 min-w-0 truncate">
                       {s.name}{s.code && <span className="text-slate-400 font-mono text-xs"> · {s.code}</span>}
@@ -561,7 +561,7 @@ function QuotaModal({
                       </button>
                       <button type="button" disabled={srBusy === s.id} onClick={() => setSrEdit(s)}
                         className="text-xs font-medium px-2 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-50"
-                        style={{ color: '#004B9B' }}>Sửa</button>
+                        style={{ color: 'var(--color-brand)' }}>Sửa</button>
                       <button type="button" disabled={srBusy === s.id} onClick={() => onDeleteSr(s)}
                         className="text-xs font-medium px-2 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-50"
                         style={{ color: '#e11d48' }}>Xoá</button>
@@ -572,7 +572,7 @@ function QuotaModal({
                     <div className="flex flex-wrap gap-1 mt-1.5">
                       {srBrandNames.map((n) => (
                         <span key={n} className="inline-block text-[11px] font-medium rounded-md px-1.5 py-0.5"
-                          style={{ background: '#fff', color: '#004B9B', border: '1px solid #cbd8ea' }}>{n}</span>
+                          style={{ background: '#fff', color: 'var(--color-brand)', border: '1px solid #cbd8ea' }}>{n}</span>
                       ))}
                     </div>
                   ) : (
@@ -586,9 +586,9 @@ function QuotaModal({
           </div>
           <div className="pt-1 border-t border-slate-100">
             <label className="flex items-start gap-2.5 px-3 py-2 mt-3 rounded-lg border cursor-pointer"
-              style={{ borderColor: b10Enabled ? '#004B9B' : '#e2e8f0', background: b10Enabled ? '#e6f0fa' : '#fff' }}>
+              style={{ borderColor: b10Enabled ? 'var(--color-brand)' : '#e2e8f0', background: b10Enabled ? '#e6f0fa' : '#fff' }}>
               <input type="checkbox" checked={b10Enabled} onChange={(e) => setB10Enabled(e.target.checked)}
-                className="mt-0.5 accent-[#004B9B]" />
+                className="mt-0.5 accent-brand" />
               <span>
                 <span className="block text-sm font-medium text-slate-700">Bật đối soát B10</span>
                 <span className="block text-xs text-slate-400">Hiện trang Đối soát, cột B10 trên Lead và chỉ số B10 trong Báo cáo cho công ty này.</span>
@@ -601,7 +601,7 @@ function QuotaModal({
           <button onClick={onClose} disabled={busy}
             className="text-sm font-medium px-4 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50">Hủy</button>
           <button onClick={submit} disabled={busy}
-            className="text-sm font-medium px-4 py-2 rounded-lg text-white" style={{ background: '#004B9B' }}>
+            className="text-sm font-medium px-4 py-2 rounded-lg text-white" style={{ background: 'var(--color-brand)' }}>
             {busy ? 'Đang lưu...' : 'Lưu'}
           </button>
         </div>
@@ -677,8 +677,8 @@ function ShowroomEditModal({
                 return (
                   <label key={b.id}
                     className="flex items-center gap-2.5 px-3 py-2 rounded-lg border cursor-pointer"
-                    style={{ borderColor: checked ? '#004B9B' : '#e2e8f0', background: checked ? '#e6f0fa' : '#fff' }}>
-                    <input type="checkbox" checked={checked} onChange={() => toggleBrand(b.id)} className="accent-[#004B9B]" />
+                    style={{ borderColor: checked ? 'var(--color-brand)' : '#e2e8f0', background: checked ? '#e6f0fa' : '#fff' }}>
+                    <input type="checkbox" checked={checked} onChange={() => toggleBrand(b.id)} className="accent-brand" />
                     <span className="text-sm font-medium text-slate-700">{b.name}</span>
                   </label>
                 );
@@ -694,7 +694,7 @@ function ShowroomEditModal({
           <button onClick={onClose} disabled={busy}
             className="text-sm font-medium px-4 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50">Hủy</button>
           <button onClick={submit} disabled={busy}
-            className="text-sm font-medium px-4 py-2 rounded-lg text-white" style={{ background: '#004B9B' }}>
+            className="text-sm font-medium px-4 py-2 rounded-lg text-white" style={{ background: 'var(--color-brand)' }}>
             {busy ? 'Đang lưu...' : editing ? 'Lưu' : 'Thêm'}
           </button>
         </div>

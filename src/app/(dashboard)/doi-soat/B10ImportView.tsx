@@ -84,7 +84,7 @@ export default function B10ImportView({ savedMapping }: { savedMapping: Mapping 
           <div className="sm:col-span-2">
             <button onClick={submit} disabled={busy}
               className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
-              style={{ background: '#004B9B' }}>
+              style={{ background: 'var(--color-brand)' }}>
               {busy ? <Loader2 size={15} className="animate-spin" /> : <FileCheck2 size={15} />}
               {busy ? 'Đang đối soát…' : 'Đối soát'}
             </button>
@@ -99,7 +99,7 @@ export default function B10ImportView({ savedMapping }: { savedMapping: Mapping 
           <h2 className="font-semibold text-slate-800">Kết quả đối soát</h2>
           <Stat label="Tổng dòng đọc được" value={summary.totalRows} />
           <Stat label="Khớp & cập nhật" value={summary.matched} tone="#047857" />
-          <Stat label="Tự nâng phân loại (TVBH chưa cập nhật)" value={summary.statusRaised} tone="#004B9B" />
+          <Stat label="Tự nâng phân loại (TVBH chưa cập nhật)" value={summary.statusRaised} tone="var(--color-brand)" />
           <Stat label="Lệch B10 cao hơn (đã báo, chưa tự sửa)" value={summary.conflicts} tone={summary.conflicts > 0 ? '#b45309' : undefined} />
           <Stat label="Không tìm thấy lead" value={summary.notFound} />
           <Stat label="Ngoài phạm vi" value={summary.outOfScope} />

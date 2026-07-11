@@ -169,7 +169,7 @@ export const ROLE_NEEDS: Record<UserRole, string> = {
 
 const C_ADMIN = { bg: '#fef3c7', text: '#92400e', border: '#fde68a' };
 const C_BRAND = { bg: '#f5f3ff', text: '#6d28d9', border: '#ddd6fe' };
-const C_SHOWROOM = { bg: '#e6f0fa', text: '#004B9B', border: '#bfdbfe' };
+const C_SHOWROOM = { bg: '#e6f0fa', text: 'var(--color-brand)', border: '#bfdbfe' };
 const C_TVBH = { bg: '#f0fdf4', text: '#166534', border: '#86efac' };
 
 export const ROLE_COLOR: Record<UserRole, { bg: string; text: string; border: string }> = {

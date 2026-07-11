@@ -108,7 +108,7 @@ export default function AssignmentManager({
               {pinRules.map((r) => (
                 <tr key={r.id} className="border-t border-slate-100">
                   <td className="px-4 py-2.5 font-medium text-slate-800 flex items-center gap-2">
-                    <GitBranch size={14} style={{ color: '#004B9B' }} /> {showroomName(r.showroom_id)}
+                    <GitBranch size={14} style={{ color: 'var(--color-brand)' }} /> {showroomName(r.showroom_id)}
                   </td>
                   <td className="px-4 py-2.5 text-slate-600">
                     <span className="font-medium text-slate-800">{userName(r.specific_user_id)}</span>
@@ -117,7 +117,7 @@ export default function AssignmentManager({
                   <td className="px-4 py-2.5 text-center"><StatusPill active={r.is_active} /></td>
                   <td className="px-4 py-2.5">
                     <div className="flex items-center justify-center gap-1.5">
-                      <IconBtn title="Sửa" onClick={() => setEdit(r)}><Edit2 size={14} style={{ color: '#004B9B' }} /></IconBtn>
+                      <IconBtn title="Sửa" onClick={() => setEdit(r)}><Edit2 size={14} style={{ color: 'var(--color-brand)' }} /></IconBtn>
                       <IconBtn title="Xoá" onClick={() => delRule(r)}><Trash2 size={14} className="text-rose-600" /></IconBtn>
                     </div>
                   </td>
@@ -400,7 +400,7 @@ function DayRosterEditor({
     <div className="mt-2 rounded-lg border border-slate-200 bg-white p-3">
       {dialog}
       <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 mb-2">
-        <CalendarDays size={14} style={{ color: '#004B9B' }} /> Lịch phòng trực nhận lead (14 ngày tới)
+        <CalendarDays size={14} style={{ color: 'var(--color-brand)' }} /> Lịch phòng trực nhận lead (14 ngày tới)
       </div>
       {teams.length === 0 ? (
         <div className="text-xs text-slate-400">Showroom chưa có phòng bán hàng để xếp lịch.</div>
@@ -409,7 +409,7 @@ function DayRosterEditor({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {days.map((d) => (
               <div key={d.iso} className="flex items-center gap-2">
-                <span className={`shrink-0 w-20 text-xs ${d.isToday ? 'font-bold text-[#004B9B]' : 'text-slate-500'}`}>
+                <span className={`shrink-0 w-20 text-xs ${d.isToday ? 'font-bold text-brand' : 'text-slate-500'}`}>
                   {d.wd} {d.dd}/{d.mm}{d.isToday ? ' · Nay' : ''}
                 </span>
                 <div className="flex-1 min-w-0">
@@ -459,7 +459,7 @@ function ContactDeadlinePanel({
       {dialog}
       <div className="rounded-lg bg-slate-50 border border-slate-100 p-4 space-y-3 text-sm text-slate-600">
         <div className="flex items-center gap-2 text-sm font-bold text-slate-800">
-          <Bell size={15} style={{ color: '#004B9B' }} /> TVBH có trách nhiệm gì khi nhận lead?
+          <Bell size={15} style={{ color: 'var(--color-brand)' }} /> TVBH có trách nhiệm gì khi nhận lead?
         </div>
         <div className="flex items-start gap-2.5">
           <span className="mt-0.5 w-5 h-5 shrink-0 inline-flex items-center justify-center rounded-full bg-white border border-slate-200 text-[11px] font-bold text-slate-700">1</span>
@@ -485,7 +485,7 @@ function ContactDeadlinePanel({
 
       <div className="border border-slate-200 rounded-lg p-4 space-y-3 max-w-md">
         <div className="flex items-center gap-2 text-sm font-bold text-slate-800">
-          <Clock size={14} style={{ color: '#004B9B' }} /> Cấu hình (áp dụng toàn công ty)
+          <Clock size={14} style={{ color: 'var(--color-brand)' }} /> Cấu hình (áp dụng toàn công ty)
         </div>
         <Field label="Hạn liên hệ lần đầu (giờ)"><TextInput type="number" min={0} value={frh} onChange={(e) => setFrh(e.target.value)} /></Field>
         <Field label="Khoảng cách giữa 2 lần nhắc (giờ)"><TextInput type="number" min={0} value={fuh} onChange={(e) => setFuh(e.target.value)} /></Field>

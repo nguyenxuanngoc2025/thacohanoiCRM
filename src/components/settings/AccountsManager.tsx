@@ -118,7 +118,7 @@ export default function AccountsManager({
       {/* Header */}
       <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Shield size={18} style={{ color: '#004B9B' }} />
+          <Shield size={18} style={{ color: 'var(--color-brand)' }} />
           <div>
             <h2 className="text-sm font-bold text-slate-900">Danh sách tài khoản</h2>
             <p className="text-xs text-slate-400 mt-0.5">Phân quyền theo cấu trúc: Công ty → Showroom → TVBH</p>
@@ -127,7 +127,7 @@ export default function AccountsManager({
         <button
           onClick={() => setEditTarget('new')}
           className="inline-flex items-center gap-1.5 text-sm font-medium text-white rounded-lg px-3 py-1.5 transition-colors"
-          style={{ background: 'linear-gradient(135deg, #004B9B, #0468BF)' }}
+          style={{ background: 'linear-gradient(135deg, var(--color-brand), #0468BF)' }}
         >
           <Plus size={15} /> Thêm tài khoản
         </button>
@@ -147,13 +147,13 @@ export default function AccountsManager({
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Tìm tên, email..."
-                className="w-full border border-slate-200 rounded-lg pl-9 pr-3 py-1.5 text-sm outline-none focus:border-[#004B9B] bg-white"
+                className="w-full border border-slate-200 rounded-lg pl-9 pr-3 py-1.5 text-sm outline-none focus:border-brand bg-white"
               />
             </div>
             <select
               value={filterRole}
               onChange={(e) => setFilterRole(e.target.value)}
-              className="flex-1 sm:flex-none border border-slate-200 rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[#004B9B] bg-white"
+              className="flex-1 sm:flex-none border border-slate-200 rounded-lg px-3 py-1.5 text-sm outline-none focus:border-brand bg-white"
             >
               <option value="">Tất cả vai trò</option>
               {CREATABLE_ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
@@ -223,7 +223,7 @@ export default function AccountsManager({
                           <KeyRound size={14} className="text-emerald-600" />
                         </IconBtn>
                         <IconBtn title="Chỉnh sửa" onClick={() => setEditTarget(u)}>
-                          <Edit2 size={14} style={{ color: '#004B9B' }} />
+                          <Edit2 size={14} style={{ color: 'var(--color-brand)' }} />
                         </IconBtn>
                         {!isSelf && (
                           <IconBtn title="Xoá tài khoản" onClick={() => setDeleteTarget(u)}>
@@ -437,10 +437,10 @@ function EditModal({
         <div className="p-5 space-y-4">
           <Field label="Họ tên">
             <input value={fullName} onChange={(e) => setFullName(e.target.value)}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#004B9B]" placeholder="Nguyễn Văn A" />
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand" placeholder="Nguyễn Văn A" />
           </Field>
           <Field label="Tên đăng nhập">
-            <div className="flex items-stretch border border-slate-200 rounded-lg overflow-hidden focus-within:border-[#004B9B]">
+            <div className="flex items-stretch border border-slate-200 rounded-lg overflow-hidden focus-within:border-brand">
               <input type="text" value={email} onChange={(e) => setEmail(e.target.value)}
                 className="flex-1 min-w-0 px-3 py-2 text-sm outline-none" placeholder="nguyenvana" autoComplete="off" />
               <span className="px-3 py-2 text-sm text-slate-400 bg-slate-50 border-l border-slate-100 whitespace-nowrap select-none">@{EMAIL_DOMAIN}</span>
@@ -453,7 +453,7 @@ function EditModal({
           </Field>
           <Field label="Vai trò">
             <select value={role} onChange={(e) => setRole(e.target.value as UserRole)}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#004B9B] bg-white">
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand bg-white">
               {CREATABLE_ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
             </select>
             <p className="text-[11px] text-slate-400 mt-1">{ROLE_SCOPE[role]}</p>
@@ -461,7 +461,7 @@ function EditModal({
           {needsTeam && (
             <Field label="Phòng bán hàng">
               <select value={teamId} onChange={(e) => setTeamId(e.target.value)}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#004B9B] bg-white">
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand bg-white">
                 <option value="">— Chọn phòng bán hàng —</option>
                 {salesTeams.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
               </select>
@@ -476,7 +476,7 @@ function EditModal({
               <div className="border border-slate-200 rounded-lg p-2 max-h-44 overflow-y-auto flex flex-col gap-1">
                 {showrooms.map((s) => (
                   <label key={s.id} className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer px-1.5 py-1 rounded hover:bg-slate-50">
-                    <input type="checkbox" checked={showroomIds.includes(s.id)} onChange={() => toggleShowroom(s.id)} className="accent-[#004B9B]" />
+                    <input type="checkbox" checked={showroomIds.includes(s.id)} onChange={() => toggleShowroom(s.id)} className="accent-brand" />
                     {s.name}
                   </label>
                 ))}
@@ -490,7 +490,7 @@ function EditModal({
               <div className="border border-slate-200 rounded-lg p-2 max-h-44 overflow-y-auto flex flex-col gap-1">
                 {brands.map((b) => (
                   <label key={b.id} className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer px-1.5 py-1 rounded hover:bg-slate-50">
-                    <input type="checkbox" checked={brandIds.includes(b.id)} onChange={() => toggleBrand(b.id)} className="accent-[#004B9B]" />
+                    <input type="checkbox" checked={brandIds.includes(b.id)} onChange={() => toggleBrand(b.id)} className="accent-brand" />
                     {b.name}
                   </label>
                 ))}
@@ -501,7 +501,7 @@ function EditModal({
           )}
           {!isNew && (
             <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-              <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} className="accent-[#004B9B]" />
+              <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} className="accent-brand" />
               Tài khoản đang hoạt động
             </label>
           )}
@@ -514,7 +514,7 @@ function EditModal({
           <button onClick={onClose} className="text-sm font-medium text-slate-600 border border-slate-200 rounded-lg px-4 py-2 hover:bg-slate-50">Hủy</button>
           <button onClick={submit} disabled={submitting}
             className="text-sm font-medium text-white rounded-lg px-4 py-2 disabled:opacity-60"
-            style={{ background: 'linear-gradient(135deg, #004B9B, #0468BF)' }}>
+            style={{ background: 'linear-gradient(135deg, var(--color-brand), #0468BF)' }}>
             {submitting ? 'Đang lưu...' : (isNew ? 'Tạo tài khoản' : 'Lưu thay đổi')}
           </button>
         </div>

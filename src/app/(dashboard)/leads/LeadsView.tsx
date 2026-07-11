@@ -139,7 +139,7 @@ export default function LeadsView({
             <div className="text-[10px] font-medium uppercase tracking-wide text-slate-400 truncate">{c.label}</div>
             <div
               className="text-lg font-semibold mt-0.5 tabular-nums"
-              style={{ color: c.accent ? '#004B9B' : '#0f172a' }}
+              style={{ color: c.accent ? 'var(--color-brand)' : '#0f172a' }}
             >
               {c.value}
             </div>

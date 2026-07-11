@@ -353,7 +353,7 @@ export default function GoogleSheetConnect({
               const on = selectedTabs.includes(t);
               return (
                 <button key={t} type="button" onClick={() => toggleTab(t)} disabled={busy}
-                  className={`rounded-lg border px-3 py-1.5 text-sm disabled:opacity-50 ${on ? 'border-[#004B9B] bg-[#004B9B] text-white' : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400'}`}>
+                  className={`rounded-lg border px-3 py-1.5 text-sm disabled:opacity-50 ${on ? 'border-brand bg-brand text-white' : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400'}`}>
                   {t}
                 </button>
               );
@@ -473,8 +473,8 @@ export default function GoogleSheetConnect({
                 return (
                   <label key={s.id}
                     className="flex items-center gap-2.5 px-3 py-2 rounded-lg border cursor-pointer transition-colors"
-                    style={{ borderColor: checked ? '#004B9B' : '#e2e8f0', background: checked ? '#e6f0fa' : '#fff' }}>
-                    <input type="checkbox" checked={checked} onChange={() => toggleShowroom(s.id)} className="accent-[#004B9B]" />
+                    style={{ borderColor: checked ? 'var(--color-brand)' : '#e2e8f0', background: checked ? '#e6f0fa' : '#fff' }}>
+                    <input type="checkbox" checked={checked} onChange={() => toggleShowroom(s.id)} className="accent-brand" />
                     <span className="text-sm font-medium text-slate-700">{s.name}</span>
                   </label>
                 );
@@ -483,7 +483,7 @@ export default function GoogleSheetConnect({
           </div>
 
           <button onClick={requestSave} disabled={busy}
-            className="rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" style={{ background: '#004B9B' }}>
+            className="rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" style={{ background: 'var(--color-brand)' }}>
             {editingId ? 'Xem trước & cập nhật' : 'Xem trước & lưu'}
           </button>
         </div>
@@ -508,7 +508,7 @@ export default function GoogleSheetConnect({
                   <Eye size={12} /> Xem demo
                 </button>
                 <button onClick={() => startEdit(s)} disabled={busy}
-                  className="inline-flex items-center gap-1 text-xs font-semibold rounded-lg px-2 py-1 border border-slate-200 hover:bg-slate-50 disabled:opacity-50" style={{ color: '#004B9B' }}>
+                  className="inline-flex items-center gap-1 text-xs font-semibold rounded-lg px-2 py-1 border border-slate-200 hover:bg-slate-50 disabled:opacity-50" style={{ color: 'var(--color-brand)' }}>
                   <Edit2 size={12} /> Sửa
                 </button>
                 <button onClick={() => del(s)} disabled={busy}
@@ -570,7 +570,7 @@ export default function GoogleSheetConnect({
                 Quay lại sửa
               </button>
               <button onClick={doSave} disabled={busy}
-                className="rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" style={{ background: '#004B9B' }}>
+                className="rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" style={{ background: 'var(--color-brand)' }}>
                 {busy ? 'Đang lưu…' : (editingId ? 'Xác nhận cập nhật' : 'Xác nhận & lưu')}
               </button>
             </div>
@@ -702,7 +702,7 @@ function Segmented({ value, onChange, options }: {
         const on = o.value === value;
         return (
           <button key={o.value} type="button" onClick={() => onChange(o.value)}
-            className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${on ? 'bg-[#004B9B] text-white' : 'text-slate-600 hover:text-slate-900'}`}>
+            className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${on ? 'bg-brand text-white' : 'text-slate-600 hover:text-slate-900'}`}>
             {o.label}
           </button>
         );

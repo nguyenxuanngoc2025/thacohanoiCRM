@@ -50,7 +50,7 @@ export interface AssignScope {
   teamId: string | null;
 }
 
-const NAVY = '#004B9B';
+const NAVY = 'var(--color-brand)';
 
 const STRATEGIES: { value: Exclude<AssignStrategy, 'manual' | 'day_roster'>; label: string }[] = [
   { value: 'least_loaded', label: 'Chia đều' },
@@ -179,7 +179,7 @@ export default function AssignView({
                 value={strategy}
                 onChange={(e) => setStrategy(e.target.value as typeof strategy)}
                 disabled={pending}
-                className="text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white outline-none focus:border-[#004B9B] disabled:opacity-50"
+                className="text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white outline-none focus:border-brand disabled:opacity-50"
               >
                 {STRATEGIES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
               </select>
@@ -334,7 +334,7 @@ function AssignPicker({
         ref={btnRef}
         onClick={toggle}
         disabled={busy}
-        className="inline-flex items-center justify-between gap-1.5 text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white outline-none hover:border-[#004B9B] disabled:opacity-50 min-w-[170px]"
+        className="inline-flex items-center justify-between gap-1.5 text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white outline-none hover:border-brand disabled:opacity-50 min-w-[170px]"
       >
         <span className="text-slate-500">{busy ? 'Đang giao…' : 'Chọn người/phòng'}</span>
         <ChevronDown size={13} className="opacity-60 shrink-0" />

@@ -230,7 +230,7 @@ function ColumnMenu({ order, hidden, showB10, toggleCol, moveCol }: {
                   style={{
                     background: isOver ? '#e6f0fa' : undefined,
                     opacity: dragKey === k ? 0.4 : 1,
-                    borderTop: isOver ? '2px solid #004B9B' : '2px solid transparent',
+                    borderTop: isOver ? '2px solid var(--color-brand)' : '2px solid transparent',
                   }}
                 >
                   <GripVertical size={14} className="text-slate-300 shrink-0 cursor-grab active:cursor-grabbing" />
@@ -238,7 +238,7 @@ function ColumnMenu({ order, hidden, showB10, toggleCol, moveCol }: {
                     type="checkbox"
                     checked={!hidden.has(k)}
                     onChange={() => toggleCol(k)}
-                    className="accent-[#004B9B]"
+                    className="accent-brand"
                   />
                   <span className="flex-1">{c.label}</span>
                 </label>

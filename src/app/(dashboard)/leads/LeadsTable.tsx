@@ -215,9 +215,9 @@ function Filter({ value, onChange, placeholder, options }: {
         onClick={toggle}
         className="inline-flex w-full items-center justify-between gap-1.5 text-sm border rounded-lg px-2.5 py-1.5 outline-none transition-colors"
         style={{
-          borderColor: active ? '#004B9B' : '#e2e8f0',
+          borderColor: active ? 'var(--color-brand)' : '#e2e8f0',
           background: active ? '#e6f0fa' : '#fff',
-          color: active ? '#004B9B' : '#64748b',
+          color: active ? 'var(--color-brand)' : '#64748b',
           fontWeight: active ? 600 : 400,
         }}
       >
@@ -237,7 +237,7 @@ function Filter({ value, onChange, placeholder, options }: {
             <button
               onClick={() => pick('')}
               className="block w-full text-left text-sm rounded-md px-2.5 py-1.5 hover:bg-slate-50"
-              style={{ color: !active ? '#004B9B' : '#475569', fontWeight: !active ? 600 : 400 }}
+              style={{ color: !active ? 'var(--color-brand)' : '#475569', fontWeight: !active ? 600 : 400 }}
             >
               {placeholder}
             </button>
@@ -246,7 +246,7 @@ function Filter({ value, onChange, placeholder, options }: {
                 key={o.value}
                 onClick={() => pick(o.value)}
                 className="block w-full text-left text-sm rounded-md px-2.5 py-1.5 hover:bg-slate-50"
-                style={{ color: value === o.value ? '#004B9B' : '#475569', fontWeight: value === o.value ? 600 : 400 }}
+                style={{ color: value === o.value ? 'var(--color-brand)' : '#475569', fontWeight: value === o.value ? 600 : 400 }}
               >
                 {o.label}
               </button>
@@ -324,7 +324,7 @@ function ModelPicker({ lead, models, pending, start }: {
               brandModels.map((m) => (
                 <button key={m.id} onClick={() => pick(m.id)}
                   className={`flex items-center gap-2 w-full text-left text-sm rounded-md px-2 py-1.5 hover:bg-slate-50 ${
-                    lead.model_id === m.id ? 'text-[#004B9B] font-medium' : 'text-slate-700'
+                    lead.model_id === m.id ? 'text-brand font-medium' : 'text-slate-700'
                   }`}>
                   {lead.model_id === m.id && <Check size={13} />}
                   <span className={lead.model_id === m.id ? '' : 'pl-[21px]'}>{m.name}</span>
@@ -413,7 +413,7 @@ function StatusPicker({ lead, variant, pending, start }: {
       </button>
     ) : (
       <button ref={btnRef} disabled={pending} onClick={toggle}
-        className="inline-flex items-center justify-center gap-1 min-w-[112px] text-xs font-medium text-[#004B9B] border border-blue-200 rounded-full px-2.5 py-1 hover:bg-blue-50 disabled:opacity-50">
+        className="inline-flex items-center justify-center gap-1 min-w-[112px] text-xs font-medium text-brand border border-blue-200 rounded-full px-2.5 py-1 hover:bg-blue-50 disabled:opacity-50">
         <PhoneCall size={12} /> Chưa liên hệ
       </button>
     );
@@ -488,11 +488,11 @@ function StatusPicker({ lead, variant, pending, start }: {
                           onChange={(e) => setKhac(e.target.value)}
                           onKeyDown={(e) => { if (e.key === 'Enter') confirmKhac(); }}
                           placeholder="Nhập lý do…"
-                          className="w-full text-sm border border-slate-200 rounded-md px-2 py-1.5 outline-none focus:border-[#004B9B]"
+                          className="w-full text-sm border border-slate-200 rounded-md px-2 py-1.5 outline-none focus:border-brand"
                         />
                         <button onClick={confirmKhac}
                           className="mt-1.5 w-full text-sm font-medium text-white rounded-md px-2 py-1.5"
-                          style={{ background: '#004B9B' }}>
+                          style={{ background: 'var(--color-brand)' }}>
                           Lưu lý do
                         </button>
                       </div>
@@ -524,7 +524,7 @@ function StatusPicker({ lead, variant, pending, start }: {
                   <>
                     <div className="h-px bg-slate-100 my-1" />
                     <button onClick={markOnly}
-                      className="flex items-center gap-2 w-full text-left text-sm rounded-md px-2 py-1.5 hover:bg-slate-50 text-[#004B9B]">
+                      className="flex items-center gap-2 w-full text-left text-sm rounded-md px-2 py-1.5 hover:bg-slate-50 text-brand">
                       <PhoneCall size={13} /> Chỉ đánh dấu đã liên hệ
                     </button>
                   </>
@@ -867,7 +867,7 @@ export default function LeadsTable({
             className="text-sm rounded-full px-3 py-1 transition-colors"
             style={{
               fontWeight: tab === t.key ? 600 : 500,
-              color: tab === t.key ? (t.key === 'overdue' ? '#be123c' : '#004B9B') : (t.key === 'overdue' && counts.overdue > 0 ? '#e11d48' : '#64748b'),
+              color: tab === t.key ? (t.key === 'overdue' ? '#be123c' : 'var(--color-brand)') : (t.key === 'overdue' && counts.overdue > 0 ? '#e11d48' : '#64748b'),
               background: tab === t.key ? (t.key === 'overdue' ? '#fff1f2' : '#e6f0fa') : 'transparent',
             }}
           >
@@ -883,7 +883,7 @@ export default function LeadsTable({
             value={filters.q}
             onChange={(e) => setF('q', e.target.value)}
             placeholder="Tìm tên / SĐT"
-            className="text-sm border border-slate-200 rounded-lg pl-8 pr-2.5 py-1.5 outline-none focus:border-[#004B9B] w-full"
+            className="text-sm border border-slate-200 rounded-lg pl-8 pr-2.5 py-1.5 outline-none focus:border-brand w-full"
           />
         </div>
 
@@ -893,15 +893,15 @@ export default function LeadsTable({
             onClick={openFilterMenu}
             className="inline-flex items-center gap-1.5 text-sm border rounded-lg px-2.5 py-1.5 transition-colors"
             style={{
-              borderColor: activeFilters ? '#004B9B' : '#e2e8f0',
+              borderColor: activeFilters ? 'var(--color-brand)' : '#e2e8f0',
               background: activeFilters ? '#e6f0fa' : '#fff',
-              color: activeFilters ? '#004B9B' : '#64748b',
+              color: activeFilters ? 'var(--color-brand)' : '#64748b',
               fontWeight: activeFilters ? 600 : 400,
             }}
           >
             <ListFilter size={14} /> Bộ lọc
             {activeFilters > 0 && (
-              <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] text-[11px] font-semibold text-white rounded-full px-1" style={{ background: '#004B9B' }}>
+              <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] text-[11px] font-semibold text-white rounded-full px-1" style={{ background: 'var(--color-brand)' }}>
                 {activeFilters}
               </span>
             )}
@@ -983,7 +983,7 @@ export default function LeadsTable({
                         type="checkbox"
                         checked={!hidden.has(c.key)}
                         onChange={() => toggleCol(c.key)}
-                        className="accent-[#004B9B]"
+                        className="accent-brand"
                       />
                       <span className="flex-1">{c.label}</span>
                     </label>
@@ -1005,7 +1005,7 @@ export default function LeadsTable({
                         style={{
                           background: isOver ? '#e6f0fa' : undefined,
                           opacity: dragKey === c.key ? 0.4 : 1,
-                          borderTop: isOver ? '2px solid #004B9B' : '2px solid transparent',
+                          borderTop: isOver ? '2px solid var(--color-brand)' : '2px solid transparent',
                         }}
                       >
                         <GripVertical size={14} className="text-slate-300 shrink-0 cursor-grab active:cursor-grabbing" />
@@ -1013,7 +1013,7 @@ export default function LeadsTable({
                           type="checkbox"
                           checked={!hidden.has(c.key)}
                           onChange={() => toggleCol(c.key)}
-                          className="accent-[#004B9B]"
+                          className="accent-brand"
                         />
                         <span className="flex-1">{c.label}</span>
                       </label>
@@ -1029,7 +1029,7 @@ export default function LeadsTable({
             <button
               onClick={() => setShowNew(true)}
               className="inline-flex items-center gap-1.5 text-sm font-semibold text-white rounded-lg px-3 py-1.5 hover:opacity-90"
-              style={{ background: '#004B9B' }}
+              style={{ background: 'var(--color-brand)' }}
             >
               <UserPlus size={15} /> Thêm lead
             </button>
@@ -1039,11 +1039,11 @@ export default function LeadsTable({
 
       {canAssign && sel.size > 0 && (
         <div className="flex items-center flex-wrap gap-2 px-3 sm:px-6 py-2.5 bg-blue-50 border-b border-blue-100 shrink-0">
-          <span className="text-sm font-semibold text-[#004B9B]">Đã chọn {sel.size} lead</span>
+          <span className="text-sm font-semibold text-brand">Đã chọn {sel.size} lead</span>
           <select
             value={bulkAssignee}
             onChange={(e) => setBulkAssignee(e.target.value)}
-            className="text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white focus:border-[#004B9B] outline-none"
+            className="text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white focus:border-brand outline-none"
           >
             <option value="">— Chọn người phụ trách —</option>
             <option value="__none__">Bỏ phụ trách</option>
@@ -1053,7 +1053,7 @@ export default function LeadsTable({
             onClick={doBulk}
             disabled={pending || !bulkAssignee}
             className="inline-flex items-center gap-1.5 text-sm font-semibold text-white rounded-lg px-3 py-1.5 disabled:opacity-50"
-            style={{ background: '#004B9B' }}
+            style={{ background: 'var(--color-brand)' }}
           >
             <UserPlus size={14} /> Gán hàng loạt
           </button>
@@ -1124,7 +1124,7 @@ export default function LeadsTable({
                     onClick={(e) => e.stopPropagation()}
                     checked={sel.has(l.id)}
                     onChange={() => toggleOne(l.id)}
-                    className="accent-[#004B9B] mt-1 shrink-0"
+                    className="accent-brand mt-1 shrink-0"
                   />
                 )}
                 <div className="flex-1 min-w-0">
@@ -1173,7 +1173,7 @@ export default function LeadsTable({
                 >
                   <input
                     type="checkbox"
-                    className="accent-[#004B9B] align-middle"
+                    className="accent-brand align-middle"
                     checked={allSelected}
                     onChange={toggleAll}
                   />
@@ -1185,8 +1185,8 @@ export default function LeadsTable({
                   <th key={c.key} className={`${c.pad} py-3 font-semibold whitespace-nowrap`} style={stickyStyle(c.key, true)}>
                     <button
                       onClick={() => onSort(c.key)}
-                      className="inline-flex items-center gap-1 hover:text-[#004B9B] transition-colors uppercase"
-                      style={{ color: active ? '#004B9B' : undefined }}
+                      className="inline-flex items-center gap-1 hover:text-brand transition-colors uppercase"
+                      style={{ color: active ? 'var(--color-brand)' : undefined }}
                     >
                       {c.label}
                       {active
@@ -1215,7 +1215,7 @@ export default function LeadsTable({
                     >
                       <input
                         type="checkbox"
-                        className="accent-[#004B9B] align-middle"
+                        className="accent-brand align-middle"
                         checked={sel.has(l.id)}
                         onChange={() => toggleOne(l.id)}
                       />

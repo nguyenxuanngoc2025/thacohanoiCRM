@@ -10,12 +10,11 @@ import {
 import { NAV_ITEMS } from '@/lib/nav';
 import { logout } from '@/app/login/actions';
 import { type UserRole } from '@/types/database';
+import { BRAND } from '@/lib/brand';
 
 const ICON_MAP: Record<string, React.ElementType> = {
   LayoutDashboard, Users, UserCheck, HeartHandshake, BarChart3, Settings, FileCheck2, GitBranch,
 };
-
-const BRAND = '#004B9B';
 
 export interface MobileNavProps {
   userRole: UserRole;

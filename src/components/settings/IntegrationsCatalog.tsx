@@ -110,7 +110,7 @@ export default function IntegrationsCatalog({
           return (
             <div key={conn.key}
               className="rounded-xl border bg-white shadow-sm overflow-hidden transition-colors"
-              style={{ borderColor: isOpen ? '#004B9B' : '#e2e8f0', opacity: conn.state === 'soon' ? 0.7 : 1, gridColumn: isOpen ? '1 / -1' : undefined }}>
+              style={{ borderColor: isOpen ? 'var(--color-brand)' : '#e2e8f0', opacity: conn.state === 'soon' ? 0.7 : 1, gridColumn: isOpen ? '1 / -1' : undefined }}>
               <div className="p-4">
                 <div className="flex items-start gap-3">
                   <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${conn.color}14` }}>
@@ -128,7 +128,7 @@ export default function IntegrationsCatalog({
                     <button
                       onClick={() => setExpanded(isOpen ? null : conn.key)}
                       className="inline-flex items-center gap-1 text-xs font-semibold rounded-lg px-2.5 py-1.5 border border-slate-200 hover:bg-slate-50 transition-colors"
-                      style={{ color: '#004B9B' }}>
+                      style={{ color: 'var(--color-brand)' }}>
                       {connected ? 'Cấu hình' : 'Kết nối'}
                       <ChevronDown size={13} style={{ transform: isOpen ? 'rotate(180deg)' : 'none' }} />
                     </button>
@@ -285,7 +285,7 @@ function ChannelItem({
           </button>
         )}
         <button title="Sửa" onClick={onEdit} className="w-6 h-6 inline-flex items-center justify-center rounded border border-slate-200 hover:bg-slate-50">
-          <Edit2 size={12} style={{ color: '#004B9B' }} />
+          <Edit2 size={12} style={{ color: 'var(--color-brand)' }} />
         </button>
         <button title="Xoá" onClick={onDelete} className="w-6 h-6 inline-flex items-center justify-center rounded border border-slate-200 hover:bg-slate-50">
           <Trash2 size={12} className="text-rose-600" />
@@ -391,8 +391,8 @@ function ChannelModal({
                 return (
                   <label key={s.id}
                     className="flex items-center gap-2.5 px-3 py-2 rounded-lg border cursor-pointer transition-colors"
-                    style={{ borderColor: checked ? '#004B9B' : '#e2e8f0', background: checked ? '#e6f0fa' : '#fff' }}>
-                    <input type="checkbox" checked={checked} onChange={() => toggleShowroom(s.id)} className="accent-[#004B9B]" />
+                    style={{ borderColor: checked ? 'var(--color-brand)' : '#e2e8f0', background: checked ? '#e6f0fa' : '#fff' }}>
+                    <input type="checkbox" checked={checked} onChange={() => toggleShowroom(s.id)} className="accent-brand" />
                     <span className="text-sm font-medium text-slate-700">{s.name}</span>
                   </label>
                 );

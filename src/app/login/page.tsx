@@ -59,7 +59,7 @@ function SubmitButton() {
   return (
     <button type="submit" disabled={pending} style={{
       marginTop: 6, padding: '13px', borderRadius: 12, border: 'none',
-      background: 'linear-gradient(135deg, #004B9B 0%, #0468BF 100%)', color: '#fff',
+      background: 'linear-gradient(135deg, var(--color-brand) 0%, #0468BF 100%)', color: '#fff',
       fontSize: 15, fontWeight: 600, cursor: pending ? 'not-allowed' : 'pointer',
       letterSpacing: '0.02em', boxShadow: '0 4px 14px rgba(0,75,155,0.3)',
       transition: 'opacity 0.15s ease', opacity: pending ? 0.7 : 1,
@@ -133,11 +133,11 @@ function LoginForm() {
 
         {/* RIGHT PANEL */}
         <div style={{ width: 520, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#fff', position: 'relative' }}>
-          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'linear-gradient(90deg, #004B9B 0%, #0468BF 100%)' }} />
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'linear-gradient(90deg, var(--color-brand) 0%, #0468BF 100%)' }} />
           <div style={{ width: '100%', maxWidth: 360, padding: '0 32px', animation: mounted ? 'fadeUp 0.7s cubic-bezier(0.16,1,0.3,1) 0.15s both' : 'none' }}>
             <div style={{ marginBottom: 36, textAlign: 'center' }}>
               <div style={{
-                width: 60, height: 60, borderRadius: '50%', background: 'linear-gradient(135deg, #004B9B, #0468BF)',
+                width: 60, height: 60, borderRadius: '50%', background: 'linear-gradient(135deg, var(--color-brand), #0468BF)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 18px', boxShadow: '0 6px 20px rgba(0,75,155,0.22)',
               }}>
                 <svg width="26" height="26" fill="none" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
@@ -207,7 +207,7 @@ function FloatInput({
   return (
     <div style={{
       position: 'relative', display: 'flex', alignItems: 'stretch', borderRadius: 12,
-      border: `1.5px solid ${focused ? '#004B9B' : 'rgba(0,0,0,0.1)'}`, background: '#f8fafc',
+      border: `1.5px solid ${focused ? 'var(--color-brand)' : 'rgba(0,0,0,0.1)'}`, background: '#f8fafc',
       boxShadow: focused ? '0 0 0 4px rgba(0,75,155,0.08)' : 'none',
       transition: 'border-color 0.2s ease, box-shadow 0.2s ease', overflow: 'hidden',
     }}>
@@ -224,7 +224,7 @@ function FloatInput({
           fontWeight: 400, color: '#94a3b8', whiteSpace: 'nowrap', userSelect: 'none', background: 'rgba(0,0,0,0.015)',
         }}>{suffix}</span>
       )}
-      <label htmlFor={id} className="fi-label" style={{ color: focused ? '#004B9B' : '#94a3b8' }}>{label}</label>
+      <label htmlFor={id} className="fi-label" style={{ color: focused ? 'var(--color-brand)' : '#94a3b8' }}>{label}</label>
     </div>
   );
 }

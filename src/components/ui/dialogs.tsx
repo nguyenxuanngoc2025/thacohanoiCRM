@@ -106,7 +106,7 @@ export function useDialogs() {
                 onChange={(e) => setVal(e.target.value)}
                 placeholder={req.inputPlaceholder}
                 onKeyDown={(e) => { if (e.key === 'Enter') close(val); }}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-[#004B9B]"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand"
               />
             )}
           </div>
@@ -121,7 +121,7 @@ export function useDialogs() {
             <button
               onClick={() => close(req.kind === 'confirm' ? true : req.kind === 'prompt' ? val : undefined)}
               className={`rounded-lg text-white text-sm font-medium px-4 py-2 transition-colors ${
-                req.danger ? 'bg-rose-600 hover:bg-rose-700' : 'bg-[#004B9B] hover:bg-[#003a78]'
+                req.danger ? 'bg-rose-600 hover:bg-rose-700' : 'bg-brand hover:bg-[#003a78]'
               }`}>
               {req.confirmText}
             </button>

@@ -133,7 +133,7 @@ export default function NotificationsManager(
       <div className="flex items-center gap-2 shrink-0">
         <StatusPill active={c.is_active} />
         <IconBtn title="Gửi thử" onClick={() => sendTest(c)}><Send size={14} style={{ color: '#0068FF' }} /></IconBtn>
-        <IconBtn title="Sửa" onClick={() => setEdit(c)}><Edit2 size={14} style={{ color: '#004B9B' }} /></IconBtn>
+        <IconBtn title="Sửa" onClick={() => setEdit(c)}><Edit2 size={14} style={{ color: 'var(--color-brand)' }} /></IconBtn>
         <IconBtn title="Xoá" onClick={() => { setDelError(null); setConfirmDel(c); }}><Trash2 size={14} className="text-rose-600" /></IconBtn>
       </div>
     </div>
@@ -342,7 +342,7 @@ function NotifModal(
                   return (
                     <label key={t.id} className="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-slate-50">
                       <input type="checkbox" checked={on} onChange={() => toggleTeam(t.id)}
-                        className="w-4 h-4 rounded border-slate-300" style={{ accentColor: '#004B9B' }} />
+                        className="w-4 h-4 rounded border-slate-300" style={{ accentColor: 'var(--color-brand)' }} />
                       <span className="text-sm text-slate-700">{teamLabel(t.id)}</span>
                     </label>
                   );
@@ -376,7 +376,7 @@ function NotifModal(
                   <button key={e} type="button" onClick={() => toggleEvent(e)}
                     className="text-xs font-medium rounded-full px-3 py-1.5 border transition-colors"
                     style={on
-                      ? { background: '#e6f0fa', borderColor: '#004B9B', color: '#004B9B' }
+                      ? { background: '#e6f0fa', borderColor: 'var(--color-brand)', color: 'var(--color-brand)' }
                       : { borderColor: '#e2e8f0', color: '#64748b' }}>
                     {EVENT_LABELS[e]}
                   </button>

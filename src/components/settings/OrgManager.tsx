@@ -49,7 +49,7 @@ export default function OrgManager({
                       <div className="flex flex-wrap gap-1">
                         {brandNamesOf(s.brand_ids).map((n) => (
                           <span key={n} className="inline-block text-xs font-medium rounded-md px-2 py-0.5"
-                            style={{ background: '#e6f0fa', color: '#004B9B' }}>{n}</span>
+                            style={{ background: '#e6f0fa', color: 'var(--color-brand)' }}>{n}</span>
                         ))}
                       </div>
                     )}

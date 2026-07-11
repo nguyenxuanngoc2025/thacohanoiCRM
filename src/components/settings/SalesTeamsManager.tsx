@@ -44,7 +44,7 @@ export default function SalesTeamsManager({
     <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
       <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Boxes size={18} style={{ color: '#004B9B' }} />
+          <Boxes size={18} style={{ color: 'var(--color-brand)' }} />
           <div>
             <h2 className="text-sm font-bold text-slate-900">Phòng bán hàng</h2>
             <p className="text-xs text-slate-400 mt-0.5">Lớp giữa Showroom → TVBH. Kiểu chia lead đặt ở mục Phân giao (cây phân giao).</p>
@@ -53,7 +53,7 @@ export default function SalesTeamsManager({
         <button
           onClick={() => setEditTarget('new')}
           className="inline-flex items-center gap-1.5 text-sm font-medium text-white rounded-lg px-3 py-1.5 transition-colors"
-          style={{ background: 'linear-gradient(135deg, #004B9B, #0468BF)' }}
+          style={{ background: 'linear-gradient(135deg, var(--color-brand), #0468BF)' }}
         >
           <Plus size={15} /> Thêm phòng
         </button>
@@ -91,7 +91,7 @@ export default function SalesTeamsManager({
                   </div>
                   <button title="Chỉnh sửa" onClick={() => setEditTarget(t)}
                     className="w-7 h-7 inline-flex items-center justify-center rounded-md border border-slate-200 hover:bg-slate-50">
-                    <Edit2 size={14} style={{ color: '#004B9B' }} />
+                    <Edit2 size={14} style={{ color: 'var(--color-brand)' }} />
                   </button>
                   {!t.is_default && (
                     <button title="Xoá phòng" onClick={() => setDeleteTarget(t)}
@@ -194,12 +194,12 @@ function EditTeamModal({
         <div className="p-5 space-y-4">
           <Field label="Tên phòng">
             <input value={name} onChange={(e) => setName(e.target.value)}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#004B9B]" placeholder="Phòng KIA 1" />
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand" placeholder="Phòng KIA 1" />
           </Field>
           {isNew ? (
             <Field label="Showroom">
               <select value={showroomId} onChange={(e) => { setShowroomId(e.target.value); setBrandIds([]); }}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#004B9B] bg-white">
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand bg-white">
                 <option value="">— Chọn showroom —</option>
                 {showrooms.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
@@ -221,7 +221,7 @@ function EditTeamModal({
                   const on = brandIds.includes(b.id);
                   return (
                     <button key={b.id} type="button" onClick={() => toggleBrand(b.id)}
-                      className={`inline-flex items-center gap-1.5 text-sm font-medium border rounded-lg px-3 py-1.5 transition-colors ${on ? 'border-[#004B9B] text-[#004B9B] bg-blue-50' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                      className={`inline-flex items-center gap-1.5 text-sm font-medium border rounded-lg px-3 py-1.5 transition-colors ${on ? 'border-brand text-brand bg-blue-50' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
                       {on && <Check size={14} />} {b.name}
                     </button>
                   );
@@ -232,7 +232,7 @@ function EditTeamModal({
           </Field>
           <Field label="Trưởng phòng (TP Phòng)">
             <select value={headUserId} onChange={(e) => setHeadUserId(e.target.value)}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#004B9B] bg-white">
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand bg-white">
               <option value="">— Chưa gán —</option>
               {headOptions.map((u) => <option key={u.id} value={u.id}>{u.full_name ?? u.email}</option>)}
             </select>
@@ -243,7 +243,7 @@ function EditTeamModal({
           <button onClick={onClose} className="text-sm font-medium text-slate-600 border border-slate-200 rounded-lg px-4 py-2 hover:bg-slate-50">Hủy</button>
           <button onClick={submit} disabled={submitting}
             className="text-sm font-medium text-white rounded-lg px-4 py-2 disabled:opacity-60"
-            style={{ background: 'linear-gradient(135deg, #004B9B, #0468BF)' }}>
+            style={{ background: 'linear-gradient(135deg, var(--color-brand), #0468BF)' }}>
             {submitting ? 'Đang lưu...' : (isNew ? 'Tạo phòng' : 'Lưu thay đổi')}
           </button>
         </div>

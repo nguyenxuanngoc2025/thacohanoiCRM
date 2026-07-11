@@ -26,7 +26,7 @@ export interface Platform {
  */
 export const PLATFORMS: Platform[] = [
   { key: 'facebook', name: 'Facebook',          desc: 'Lead Ads · Messenger · bình luận',     icon: Megaphone,      color: '#1877F2', state: 'active', unit: 'fanpage',  digital: true },
-  { key: 'website',  name: 'Website form',       desc: 'Form trên web · landing page',         icon: Globe,          color: '#004B9B', state: 'active', unit: 'biểu mẫu', digital: true },
+  { key: 'website',  name: 'Website form',       desc: 'Form trên web · landing page',         icon: Globe,          color: 'var(--color-brand)', state: 'active', unit: 'biểu mẫu', digital: true },
   { key: 'zalo',     name: 'Zalo OA',            desc: 'Tin nhắn OA · quảng cáo Zalo Lead',    icon: MessageCircle,  color: '#0068FF', state: 'active', unit: 'OA',       digital: true },
   { key: 'google_sheet', name: 'Google Sheet',     desc: 'Hút lead từ Google Sheet agency chia sẻ', icon: Search,         color: '#0F9D58', state: 'active', unit: 'sheet',    digital: true },
   { key: 'google',   name: 'Google (gọi hotline)', desc: 'Khách tìm qua Google rồi gọi hotline',  icon: PhoneCall,      color: '#EA4335', state: 'active', unit: 'cuộc gọi', digital: true },

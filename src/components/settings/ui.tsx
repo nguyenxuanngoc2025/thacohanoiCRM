@@ -3,7 +3,7 @@
 import React from 'react';
 import { Check } from 'lucide-react';
 
-const NAVY = '#004B9B';
+const NAVY = 'var(--color-brand)';
 
 export function PanelHeader({
   title, desc, action,
@@ -28,7 +28,7 @@ export function PrimaryBtn({
       onClick={onClick}
       disabled={disabled}
       className="inline-flex items-center gap-1.5 text-sm font-medium text-white rounded-lg px-3 py-1.5 transition-colors disabled:opacity-60"
-      style={{ background: 'linear-gradient(135deg, #004B9B, #0468BF)' }}
+      style={{ background: 'linear-gradient(135deg, var(--color-brand), #0468BF)' }}
     >
       {children}
     </button>
@@ -64,7 +64,7 @@ export function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className={`w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#004B9B] ${props.className ?? ''}`}
+      className={`w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand ${props.className ?? ''}`}
     />
   );
 }
@@ -73,7 +73,7 @@ export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select
       {...props}
-      className={`w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#004B9B] bg-white ${props.className ?? ''}`}
+      className={`w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand bg-white ${props.className ?? ''}`}
     />
   );
 }

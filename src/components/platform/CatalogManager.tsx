@@ -120,7 +120,7 @@ function TextBtn({ children, onClick, danger }: { children: React.ReactNode; onC
     <button
       onClick={onClick}
       className="text-xs font-medium px-2.5 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-50 transition-colors"
-      style={{ color: danger ? '#e11d48' : '#004B9B' }}
+      style={{ color: danger ? '#e11d48' : 'var(--color-brand)' }}
     >
       {children}
     </button>
@@ -205,7 +205,7 @@ function ModelModal({
         <TextInput value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} placeholder="0" inputMode="numeric" />
       </Field>
       <label className="flex items-center gap-2 text-sm text-slate-700">
-        <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} className="accent-[#004B9B]" />
+        <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} className="accent-brand" />
         Đang kinh doanh (hiện trong danh sách chọn)
       </label>
     </ModalShell>

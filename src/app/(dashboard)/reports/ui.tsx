@@ -2,10 +2,11 @@
 
 import React, { useState, useRef } from 'react';
 import { ChevronDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { BRAND } from '@/lib/brand';
 
-export const BRAND = '#004B9B';
+export { BRAND };
 /** Bảng màu chủ đạo cho biểu đồ (đồng bộ tông xanh thương hiệu + bổ trợ). */
-export const PALETTE = ['#004B9B', '#1d4ed8', '#0891b2', '#0d9488', '#b45309', '#be123c', '#7c3aed', '#64748b'];
+export const PALETTE = [BRAND, '#1d4ed8', '#0891b2', '#0d9488', '#b45309', '#be123c', '#7c3aed', '#64748b'];
 export const fmt = (n: number) => n.toLocaleString('vi-VN');
 
 export interface Opt { value: string; label: string }

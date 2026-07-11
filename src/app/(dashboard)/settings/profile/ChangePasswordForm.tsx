@@ -66,7 +66,7 @@ export default function ChangePasswordForm({ email }: { email: string }) {
         type="submit"
         disabled={busy}
         className="text-sm font-semibold rounded-lg px-4 py-2 text-white shadow-sm disabled:opacity-60"
-        style={{ background: '#004B9B' }}
+        style={{ background: 'var(--color-brand)' }}
       >
         {busy ? 'Đang đổi…' : 'Đổi mật khẩu'}
       </button>
@@ -83,7 +83,7 @@ function Input({ label, value, onChange }: { label: string; value: string; onCha
         value={value}
         onChange={(e) => onChange(e.target.value)}
         autoComplete="new-password"
-        className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-[#004B9B]"
+        className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-brand"
       />
     </div>
   );

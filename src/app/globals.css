@@ -9,6 +9,10 @@
   --radius-xl:  0.5rem;    /* 8px  (mặc định 12px) */
   --radius-2xl: 0.625rem;  /* 10px (mặc định 16px) */
   --radius-3xl: 0.75rem;   /* 12px (mặc định 24px) */
+
+  /* Màu thương hiệu — nguồn DUY NHẤT cho CSS/Tailwind (bg-brand, text-brand,
+     border-brand, accent-brand, var(--color-brand)). Đồng bộ với src/lib/brand.ts. */
+  --color-brand: #004b9b;
 }
 
 /* ============================================================

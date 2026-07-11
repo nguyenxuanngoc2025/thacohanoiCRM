@@ -113,7 +113,7 @@ export default function SettingsClient({
               className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm whitespace-nowrap border transition-colors"
               style={{
                 fontWeight: isActive ? 600 : 500,
-                color: isActive ? '#004B9B' : '#475569',
+                color: isActive ? 'var(--color-brand)' : '#475569',
                 background: isActive ? '#e6f0fa' : '#fff',
                 borderColor: isActive ? '#bfdbfe' : '#e2e8f0',
               }}
@@ -141,7 +141,7 @@ export default function SettingsClient({
                   className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-left transition-colors"
                   style={{
                     fontWeight: isActive ? 600 : 500,
-                    color: isActive ? '#004B9B' : '#475569',
+                    color: isActive ? 'var(--color-brand)' : '#475569',
                     background: isActive ? '#e6f0fa' : 'transparent',
                   }}
                 >

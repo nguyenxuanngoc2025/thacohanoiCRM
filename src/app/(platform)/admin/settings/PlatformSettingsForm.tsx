@@ -97,7 +97,7 @@ function SettingCard({
         placeholder={placeholder}
         type={isSecret ? 'password' : 'text'}
         autoComplete={isSecret ? 'new-password' : undefined}
-        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-mono outline-none focus:border-[#004B9B]"
+        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-mono outline-none focus:border-brand"
       />
       {msg && (
         <div
@@ -115,7 +115,7 @@ function SettingCard({
         onClick={save}
         disabled={busy}
         className="rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
-        style={{ background: '#004B9B' }}
+        style={{ background: 'var(--color-brand)' }}
       >
         {busy ? 'Đang lưu...' : 'Lưu'}
       </button>
