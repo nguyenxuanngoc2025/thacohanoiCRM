@@ -3,6 +3,7 @@ import {
   computeKpis, computeFunnel, groupBySource, groupByAssignee, groupByModel,
   dailyTrend, failReasons, statusDistribution, isOverdue, crossShowroomBrand, crossDimension,
   effectiveStatus, groupByTeam, groupByDimension, childDimension, compareKpis, rankChildren,
+  sourceQuality,
   type ReportLead, type ReportLevel,
 } from './reports';
 
@@ -357,5 +358,23 @@ describe('rankChildren — xếp hạng cấp dưới + Δ%chốt', () => {
 
   it('personal (childDimension null) trả mảng rỗng', () => {
     expect(rankChildren([L({})], [], 'personal', NOW)).toEqual([]);
+  });
+});
+
+describe('sourceQuality — nguồn theo %chốt + Δ', () => {
+  it('sắp theo %chốt giảm dần, ghép Δ so kỳ trước', () => {
+    const cur = [
+      L({ source: 'google', status: 'KHĐ' }),
+      L({ source: 'facebook', status: 'KHĐ' }),
+      L({ source: 'facebook', status: 'Fail' }),
+    ];
+    const prev = [
+      L({ source: 'facebook', status: 'KHĐ' }), // %chốt fb trước = 100
+    ];
+    const rows = sourceQuality(cur, prev, NOW);
+    expect(rows[0].key).toBe('Google'); // 100% chốt → trước
+    const fb = rows.find((r) => r.key === 'Facebook')!;
+    expect(fb.winRate).toBe(50);
+    expect(fb.winRateDelta).toBe(-50); // 50 - 100
   });
 });

@@ -207,6 +207,14 @@ export function groupBySource(leads: ReportLead[], nowMs: number): GroupRow[] {
   return groupBy(leads, (l) => l.source ? sourcePlatform(l.source) : '__none__', (l) => l.source ? sourcePlatform(l.source) : 'Không rõ nguồn', nowMs);
 }
 
+/** Nguồn theo %chốt giảm dần kèm Δ%chốt so kỳ trước (chất lượng, không chỉ số lượng). */
+export function sourceQuality(current: ReportLead[], previous: ReportLead[], nowMs: number): RankedRow[] {
+  const prevByKey = new Map(groupBySource(previous, nowMs).map((r) => [r.key, r]));
+  const rows: RankedRow[] = groupBySource(current, nowMs).map((r) => ({ ...r, winRateDelta: Math.round((r.winRate - (prevByKey.get(r.key)?.winRate ?? 0)) * 10) / 10 }));
+  rows.sort((a, b) => b.winRate - a.winRate || b.leads - a.leads);
+  return rows;
+}
+
 export function groupByShowroom(leads: ReportLead[], nowMs: number): GroupRow[] {
   return groupBy(leads, (l) => l.showroom_id ?? '__none__', (l) => l.showroom_name ?? 'Chưa gán showroom', nowMs);
 }
