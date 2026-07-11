@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { checkCronSecret } from '@/lib/cron-auth';
-import { buildPeriodReport, type ReportLead } from '@/lib/daily-report';
+import { buildPeriodReport, buildChannelReport, type ReportLead } from '@/lib/daily-report';
 import { getMutedTeamIdsGlobal, getInactiveShowroomIdsGlobal, isBrandClosed } from '@/lib/company-brands';
 
 export const dynamic = 'force-dynamic';
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
   // Lead TẠO trong kỳ
   const { data: leads, error } = await db
     .from('leads')
-    .select('company_id, brand_id, showroom_id, sales_team_id, status, last_contact_at, next_contact_at, showrooms(name), sales_teams(name), users!assigned_to(full_name)')
+    .select('company_id, brand_id, showroom_id, sales_team_id, status, last_contact_at, next_contact_at, showrooms(name), sales_teams(name), brands(name), users!assigned_to(full_name)')
     .gte('created_at', startUtc)
     .not('showroom_id', 'is', null);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -74,14 +74,14 @@ export async function POST(request: NextRequest) {
   });
 
   const mapped: ReportLead[] = openLeads.map((l) => {
-    const j = l as unknown as { showrooms: { name: string } | null; sales_teams: { name: string } | null; users: { full_name: string } | null };
+    const j = l as unknown as { showrooms: { name: string } | null; sales_teams: { name: string } | null; brands: { name: string } | null; users: { full_name: string } | null };
     return {
       showroom_id: l.showroom_id as string,
       showroom_name: j.showrooms?.name ?? 'Showroom',
       sales_team_id: (l.sales_team_id as string | null) ?? null,
       team_name: j.sales_teams?.name ?? null,
       brand_id: (l.brand_id as string | null) ?? null,
-      brand_name: null,
+      brand_name: j.brands?.name ?? null,
       last_contact_at: l.last_contact_at ?? null,
       next_contact_at: l.next_contact_at ?? null,
       status: l.status ?? null,
@@ -91,37 +91,45 @@ export async function POST(request: NextRequest) {
 
   const { data: channels } = await db
     .from('notification_channels')
-    .select('id, channel, target, events, showroom_id, sales_team_id, scope')
+    .select('id, channel, target, name, events, showroom_id, sales_team_id, sales_team_ids, scope')
     .eq('is_active', true);
 
   const has = (c: { events: string[] | null }) => (c.events ?? []).includes(event);
 
-  // Seed: phòng/showroom đã cấu hình group cho kỳ này → luôn có báo cáo (0 lead vẫn gửi).
-  const teamSeedIds = period === 'daily'
-    ? [...new Set((channels ?? []).filter((c) => has(c) && c.scope === 'sales' && c.sales_team_id && !mutedTeamIds.has(c.sales_team_id as string)).map((c) => c.sales_team_id as string))]
-    : [];
+  // Mọi phòng thuộc các kênh sales → tên phòng (cho báo cáo cấp-kênh, kể cả phòng 0 lead).
+  const salesChans = (channels ?? []).filter((c) => has(c) && c.scope === 'sales');
+  const allTeamIds = [...new Set(salesChans.flatMap((c) =>
+    ((c.sales_team_ids as string[] | null) ?? (c.sales_team_id ? [c.sales_team_id as string] : []))
+  ).filter((id) => !mutedTeamIds.has(id)))];
+  const { data: teamNameRows } = allTeamIds.length
+    ? await db.from('sales_teams').select('id, name').in('id', allTeamIds)
+    : { data: [] as { id: string; name: string }[] };
+  const teamNameById = new Map((teamNameRows ?? []).map((t) => [t.id, t.name]));
+
+  // Seed showroom: BLĐ theo showroom đã cấu hình group cho kỳ này → luôn có báo cáo (0 lead vẫn gửi).
   const showroomSeedIds = [...new Set((channels ?? []).filter((c) => has(c) && c.scope === 'management' && c.showroom_id && !inactiveSrIds.has(c.showroom_id as string)).map((c) => c.showroom_id as string))];
-  const [{ data: teamRows }, { data: srRows }] = await Promise.all([
-    teamSeedIds.length ? db.from('sales_teams').select('id, name').in('id', teamSeedIds) : Promise.resolve({ data: [] as { id: string; name: string }[] }),
-    showroomSeedIds.length ? db.from('showrooms').select('id, name').in('id', showroomSeedIds) : Promise.resolve({ data: [] as { id: string; name: string }[] }),
-  ]);
+  const { data: srRows } = showroomSeedIds.length
+    ? await db.from('showrooms').select('id, name').in('id', showroomSeedIds)
+    : { data: [] as { id: string; name: string }[] };
 
   const report = buildPeriodReport(mapped, dateLabel, now, {
-    teams: (teamRows ?? []).map((t) => ({ id: t.id, name: t.name })),
+    teams: [],
     showrooms: (srRows ?? []).map((s) => ({ id: s.id, name: s.name })),
   });
 
   const inserts: Record<string, unknown>[] = [];
 
-  // Nhóm bán hàng (theo phòng): CHỈ nhận báo cáo NGÀY.
+  // Nhóm bán hàng: CHỈ nhận báo cáo NGÀY. Mỗi KÊNH dựng báo cáo cấp-kênh theo tập phòng của nó.
   if (period === 'daily') {
-    for (const t of report.perTeam) {
-      if (mutedTeamIds.has(t.id)) continue;
-      const targets = (channels ?? []).filter((c) => has(c) && c.scope === 'sales' && c.sales_team_id === t.id);
-      for (const c of targets) {
-        inserts.push({ channel: c.channel, channel_id: c.id, status: 'pending',
-          payload: { event, target: c.target, text: t.text } });
-      }
+    for (const c of salesChans) {
+      const ids = ((c.sales_team_ids as string[] | null) ?? (c.sales_team_id ? [c.sales_team_id as string] : []))
+        .filter((id) => !mutedTeamIds.has(id));
+      if (ids.length === 0) continue;
+      const teams = ids.map((id) => ({ id, name: teamNameById.get(id) ?? 'Phòng' }));
+      const cr = buildChannelReport(mapped, dateLabel, now, { headerName: c.name ?? 'Showroom', teams });
+      const { renderChannelDaily } = await import('@/lib/notify-templates');
+      inserts.push({ channel: c.channel, channel_id: c.id, status: 'pending',
+        payload: { event, target: c.target, text: renderChannelDaily(cr) } });
     }
   }
 
