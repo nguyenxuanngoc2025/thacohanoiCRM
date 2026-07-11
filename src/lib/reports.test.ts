@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   computeKpis, computeFunnel, groupBySource, groupByAssignee, groupByModel,
   dailyTrend, failReasons, statusDistribution, isOverdue, crossShowroomBrand, crossDimension,
-  effectiveStatus, groupByTeam, groupByDimension, childDimension, compareKpis,
+  effectiveStatus, groupByTeam, groupByDimension, childDimension, compareKpis, rankChildren,
   type ReportLead, type ReportLevel,
 } from './reports';
 
@@ -333,5 +333,29 @@ describe('childDimension — cấp dưới để so sánh', () => {
     expect(childDimension('showroom')).toBe('team');
     expect(childDimension('team')).toBe('assignee');
     expect(childDimension('personal')).toBeNull();
+  });
+});
+
+describe('rankChildren — xếp hạng cấp dưới + Δ%chốt', () => {
+  it('company xếp hạng showroom theo %chốt giảm dần, ghép Δ 2 kỳ', () => {
+    const cur = [
+      L({ showroom_id: 's1', showroom_name: 'HN', status: 'KHĐ', last_contact_at: '2026-06-11T00:00:00Z' }),
+      L({ showroom_id: 's1', showroom_name: 'HN', status: 'Fail' }),
+      L({ showroom_id: 's2', showroom_name: 'SG', status: 'KHĐ' }),
+    ];
+    const prev = [
+      L({ showroom_id: 's1', showroom_name: 'HN', status: 'Fail' }), // %chốt trước = 0
+      L({ showroom_id: 's2', showroom_name: 'SG', status: 'KHĐ' }),  // %chốt trước = 100
+    ];
+    const rows = rankChildren(cur, prev, 'company', NOW);
+    expect(rows[0].key).toBe('s2'); // 100% chốt → hạng 1
+    expect(rows[0].winRateDelta).toBe(0); // 100 - 100
+    const hn = rows.find((r) => r.key === 's1')!;
+    expect(hn.winRate).toBe(50);
+    expect(hn.winRateDelta).toBe(50); // 50 - 0
+  });
+
+  it('personal (childDimension null) trả mảng rỗng', () => {
+    expect(rankChildren([L({})], [], 'personal', NOW)).toEqual([]);
   });
 });

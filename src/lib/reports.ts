@@ -274,6 +274,24 @@ export function childDimension(level: ReportLevel): Dimension | null {
   }
 }
 
+export interface RankedRow extends GroupRow {
+  winRateDelta: number; // %chốt kỳ này - %chốt kỳ trước (âm = đang tụt)
+}
+
+/**
+ * Xếp hạng các đơn vị cấp ngay dưới (theo childDimension) sắp %chốt giảm dần,
+ * ghép Δ%chốt so kỳ trước theo key. personal → [] (không xếp hạng đồng nghiệp).
+ */
+export function rankChildren(current: ReportLead[], previous: ReportLead[], level: ReportLevel, nowMs: number): RankedRow[] {
+  const dim = childDimension(level);
+  if (!dim) return [];
+  const curRows = groupByDimension(current, dim, nowMs);
+  const prevByKey = new Map(groupByDimension(previous, dim, nowMs).map((r) => [r.key, r]));
+  const ranked: RankedRow[] = curRows.map((r) => ({ ...r, winRateDelta: Math.round((r.winRate - (prevByKey.get(r.key)?.winRate ?? 0)) * 10) / 10 }));
+  ranked.sort((a, b) => b.winRate - a.winRate || b.leads - a.leads);
+  return ranked;
+}
+
 export function groupByDimension(leads: ReportLead[], dim: Dimension, nowMs: number): GroupRow[] {
   switch (dim) {
     case 'showroom': return groupByShowroom(leads, nowMs);
