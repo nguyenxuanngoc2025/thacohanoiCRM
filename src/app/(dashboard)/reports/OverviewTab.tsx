@@ -6,30 +6,49 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, FunnelChart, Funnel, LabelList,
 } from 'recharts';
 import {
-  computeFunnel, groupBySource, groupByShowroom, groupByBrand,
-  dailyTrend, statusDistribution, type ReportLead,
+  computeFunnel, groupBySource, groupByBrand, groupByDimension,
+  dailyTrend, statusDistribution, childDimension, isOverdue,
+  DIMENSION_LABEL, type ReportLead, type ReportLevel,
 } from '@/lib/reports';
-import { STATUS_COLOR } from '@/lib/lead-status';
+import { STATUS_COLOR, STATUS_LABEL } from '@/lib/lead-status';
 import { Panel, PALETTE, BRAND, fmt } from './ui';
 
 const AXIS = { fontSize: 11, fill: '#94a3b8' };
 
 export default function OverviewTab({
-  leads, fromMs, toMs,
-}: { leads: ReportLead[]; fromMs: number; toMs: number }) {
+  leads, fromMs, toMs, reportLevel, prevLeads,
+}: {
+  leads: ReportLead[];
+  fromMs: number;
+  toMs: number;
+  reportLevel: ReportLevel;
+  prevLeads: ReportLead[];
+}) {
+  const now = Date.now();
+  const childDim = childDimension(reportLevel);
+
   const funnel = useMemo(() => computeFunnel(leads), [leads]);
   const statusDist = useMemo(() => statusDistribution(leads), [leads]);
-  const byBrand = useMemo(() => groupByBrand(leads, Date.now()), [leads]);
-  const bySource = useMemo(() => groupBySource(leads, Date.now()), [leads]);
-  const byShowroom = useMemo(() => groupByShowroom(leads, Date.now()), [leads]);
+  const byBrand = useMemo(() => groupByBrand(leads, now), [leads]);
+  const bySource = useMemo(() => groupBySource(leads, now), [leads]);
+  const byChild = useMemo(
+    () => (childDim ? groupByDimension(leads, childDim, now) : []),
+    [leads, childDim],
+  );
   const trend = useMemo(() => dailyTrend(leads, fromMs, toMs), [leads, fromMs, toMs]);
+  const overdueLeads = useMemo(
+    () => (reportLevel === 'personal' ? leads.filter((l) => isOverdue(l, now)) : []),
+    [leads, reportLevel],
+  );
 
   const funnelData = funnel.map((s, i) => ({ name: s.label, value: s.count, pct: s.pct, fill: PALETTE[i % PALETTE.length] }));
   const statusData = statusDist.map((s) => ({ name: s.label, value: s.count, code: s.code }));
   const brandData = byBrand.map((r) => ({ name: r.label, value: r.leads }));
   const sourceData = bySource.slice(0, 8).map((r) => ({ name: r.label, lead: r.leads, won: r.won }));
-  const showroomData = byShowroom.map((r) => ({ name: shorten(r.label), lead: r.leads, won: r.won, winRate: r.winRate }));
+  const childData = byChild.map((r) => ({ name: shorten(r.label), lead: r.leads, won: r.won, winRate: r.winRate }));
   const trendData = trend.map((d) => ({ date: d.date.slice(5), count: d.count }));
+
+  const showBrandDonut = reportLevel === 'company' || reportLevel === 'showroom';
 
   return (
     <div className="space-y-5">
@@ -70,17 +89,19 @@ export default function OverviewTab({
         </Panel>
       </div>
 
-      {/* Donut trạng thái + Pie thương hiệu */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      {/* Donut trạng thái + Pie thương hiệu (chỉ hiện ở cấp công ty / showroom) */}
+      <div className={`grid grid-cols-1 gap-5 ${showBrandDonut ? 'lg:grid-cols-2' : ''}`}>
         <Panel title="Phân bổ theo trạng thái">
           <DonutOrEmpty data={statusData} colorOf={(d) => STATUS_COLOR[d.code as keyof typeof STATUS_COLOR] ?? '#cbd5e1'} />
         </Panel>
-        <Panel title="Cơ cấu theo thương hiệu">
-          <DonutOrEmpty data={brandData} colorOf={(_d, i) => PALETTE[i % PALETTE.length]} />
-        </Panel>
+        {showBrandDonut && (
+          <Panel title="Cơ cấu theo thương hiệu">
+            <DonutOrEmpty data={brandData} colorOf={(_d, i) => PALETTE[i % PALETTE.length]} />
+          </Panel>
+        )}
       </div>
 
-      {/* Bar nguồn + Bar showroom */}
+      {/* Bar nguồn */}
       <Panel title="Lead & hợp đồng theo nguồn" desc="So sánh số lead và số ký HĐ từng kênh">
         <div style={{ height: Math.max(220, sourceData.length * 42) }}>
           <ResponsiveContainer width="100%" height="100%">
@@ -97,11 +118,15 @@ export default function OverviewTab({
         </div>
       </Panel>
 
-      {byShowroom.length > 0 && (
-        <Panel title="Hiệu quả theo showroom" desc="Cột: số lead & ký HĐ — đường: tỉ lệ chốt (%)">
+      {/* So sánh cấp dưới (dynamic) hoặc danh sách gọi (personal) */}
+      {childDim !== null && childData.length > 0 && (
+        <Panel
+          title={`So sánh ${DIMENSION_LABEL[childDim]}`}
+          desc="Cột: số lead & ký HĐ — tỉ lệ chốt (%)"
+        >
           <div style={{ height: 300 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={showroomData} margin={{ top: 8, right: 8, left: -18, bottom: 0 }} barGap={4}>
+              <BarChart data={childData} margin={{ top: 8, right: 8, left: -18, bottom: 0 }} barGap={4}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis dataKey="name" tick={AXIS} tickLine={false} axisLine={false} interval={0} angle={-12} textAnchor="end" height={50} />
                 <YAxis tick={AXIS} tickLine={false} axisLine={false} allowDecimals={false} width={32} />
@@ -112,6 +137,42 @@ export default function OverviewTab({
               </BarChart>
             </ResponsiveContainer>
           </div>
+        </Panel>
+      )}
+
+      {reportLevel === 'personal' && (
+        <Panel title="Danh sách gọi hôm nay">
+          <p className="text-xs text-slate-400 mb-3">Các lead quá hạn cần liên hệ</p>
+          {overdueLeads.length === 0 ? (
+            <div className="py-10 text-center text-slate-400 text-sm">Không có lead quá hạn.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-100 text-slate-500 text-xs">
+                    <th className="text-left py-2 pr-4 font-medium">Dòng xe</th>
+                    <th className="text-left py-2 pr-4 font-medium">Trạng thái</th>
+                    <th className="text-left py-2 font-medium">Hẹn gọi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {overdueLeads.map((l, i) => (
+                    <tr key={i} className="border-b border-slate-50 hover:bg-slate-50">
+                      <td className="py-2 pr-4 text-slate-700">{l.model_name ?? '—'}</td>
+                      <td className="py-2 pr-4 text-slate-600">
+                        {l.status ? STATUS_LABEL[l.status] : 'Chưa phân loại'}
+                      </td>
+                      <td className="py-2 text-slate-500">
+                        {l.next_contact_at
+                          ? new Date(l.next_contact_at).toLocaleDateString('vi-VN')
+                          : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </Panel>
       )}
     </div>
