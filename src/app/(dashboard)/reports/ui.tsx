@@ -113,21 +113,3 @@ export function DeltaArrow({ delta, positiveIsGood = true, pct = false }: { delt
     </span>
   );
 }
-
-export function OverdueCallout({ count, detail, actionLabel, onJump }: { count: number; detail?: string; actionLabel?: string; onJump?: () => void }) {
-  if (count <= 0) return null;
-  return (
-    <div className="rounded-xl border p-3 sm:p-4 flex items-center justify-between gap-3" style={{ background: '#fef2f2', borderColor: '#fecaca' }}>
-      <div className="text-sm">
-        <span className="font-bold" style={{ color: '#be123c' }}>{fmt(count)}</span>{' '}
-        <span className="text-slate-700">lead quá hạn chăm sóc</span>
-        {detail && <span className="text-slate-500"> — {detail}</span>}
-      </div>
-      {actionLabel && onJump && (
-        <button onClick={onJump} className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white shrink-0" style={{ background: '#be123c' }}>
-          {actionLabel}
-        </button>
-      )}
-    </div>
-  );
-}

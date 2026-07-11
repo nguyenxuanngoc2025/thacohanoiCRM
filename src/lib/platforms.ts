@@ -36,8 +36,6 @@ export const PLATFORMS: Platform[] = [
 /** Tên các kênh digital — dùng làm danh mục "Nguồn" cho form thêm lead thủ công. */
 export const DIGITAL_SOURCES = PLATFORMS.filter((p) => p.digital).map((p) => p.name);
 
-export const DEFAULT_SOURCE = DIGITAL_SOURCES[0];
-
 /** Kênh digital dạng {key, name} — form thêm lead chọn theo key để map sang phân nhánh. */
 export const DIGITAL_PLATFORMS = PLATFORMS.filter((p) => p.digital).map((p) => ({ key: p.key, name: p.name }));
 

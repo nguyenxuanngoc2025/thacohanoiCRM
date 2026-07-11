@@ -13,28 +13,6 @@ import { type UserRole } from '@/types/database';
 
 const VALID = new Set<LeadStatus>(STATUS_OPTIONS.map((s) => s.code));
 
-/** Đặt phân loại cho lead (null = bỏ phân loại). Đồng thời ghi log đổi trạng thái. */
-export async function setLeadStatus(leadId: string, status: LeadStatus | null) {
-  if (status !== null && !VALID.has(status)) return;
-  const db = await createClient();
-  const { data: { user } } = await db.auth.getUser();
-  if (!user) return;
-
-  const { data: prev } = await db.from('leads').select('status').eq('id', leadId).maybeSingle();
-  const { error } = await db.from('leads').update({ status }).eq('id', leadId);
-  if (error) return;
-
-  await db.from('lead_logs').insert({
-    lead_id: leadId,
-    user_id: user.id,
-    type: 'status_change',
-    old_status: prev?.status ?? null,
-    new_status: status,
-    content: status ? `Đổi phân loại sang ${status}.` : 'Bỏ phân loại.',
-  });
-  revalidatePath('/leads');
-}
-
 /**
  * Phân loại lead. Gán phân loại đồng thời TỰ đánh dấu đã liên hệ (vì đã phân loại
  * tức là đã làm việc với lead). status=null = bỏ phân loại (KHÔNG đụng last_contact_at).
