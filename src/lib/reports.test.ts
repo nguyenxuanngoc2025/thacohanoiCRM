@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   computeKpis, computeFunnel, groupBySource, groupByAssignee, groupByModel,
   dailyTrend, failReasons, statusDistribution, isOverdue, crossShowroomBrand, crossDimension,
-  effectiveStatus, groupByTeam, groupByDimension, childDimension,
+  effectiveStatus, groupByTeam, groupByDimension, childDimension, compareKpis,
   type ReportLead, type ReportLevel,
 } from './reports';
 
@@ -299,6 +299,30 @@ describe('groupByTeam', () => {
   it('groupByDimension("team") gọi groupByTeam', () => {
     const leads = [L({ sales_team_id: 't1', team_name: 'Phòng 1' })];
     expect(groupByDimension(leads, 'team', NOW)[0].label).toBe('Phòng 1');
+  });
+});
+
+describe('compareKpis — delta so kỳ trước', () => {
+  it('tính delta tuyệt đối cho mỗi KPI (current - previous)', () => {
+    const cur = [
+      L({ status: 'KHĐ', last_contact_at: '2026-06-11T00:00:00Z' }),
+      L({ status: 'KHĐ', last_contact_at: '2026-06-11T00:00:00Z' }),
+      L({ status: null }),
+    ];
+    const prev = [
+      L({ status: 'KHĐ', last_contact_at: '2026-05-11T00:00:00Z' }),
+    ];
+    const c = compareKpis(cur, prev, NOW);
+    expect(c.current.total).toBe(3);
+    expect(c.previous.total).toBe(1);
+    expect(c.delta.total).toBe(2);
+    expect(c.delta.won).toBe(1); // 2 - 1
+    expect(c.delta.winRate).toBeCloseTo(66.7 - 100, 1);
+  });
+
+  it('kỳ trước rỗng: delta = current', () => {
+    const c = compareKpis([L({ status: 'KHĐ' })], [], NOW);
+    expect(c.delta.total).toBe(1);
   });
 });
 

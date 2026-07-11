@@ -96,6 +96,21 @@ export function computeKpis(leads: ReportLead[], nowMs: number): Kpis {
   };
 }
 
+export interface KpiComparison {
+  current: Kpis;
+  previous: Kpis;
+  delta: Record<keyof Kpis, number>; // current - previous cho từng chỉ số
+}
+
+/** KPI 2 kỳ + delta tuyệt đối từng chỉ số. Dùng cho mũi tên ↑↓ trên dải KPI. */
+export function compareKpis(current: ReportLead[], previous: ReportLead[], nowMs: number): KpiComparison {
+  const cur = computeKpis(current, nowMs);
+  const prev = computeKpis(previous, nowMs);
+  const delta = {} as Record<keyof Kpis, number>;
+  (Object.keys(cur) as (keyof Kpis)[]).forEach((k) => { delta[k] = Math.round((cur[k] - prev[k]) * 10) / 10; });
+  return { current: cur, previous: prev, delta };
+}
+
 export interface FunnelStage {
   label: string;
   count: number;
