@@ -4,7 +4,8 @@ import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { STATUS_OPTIONS, type LeadStatus } from '@/lib/lead-status';
 import { normalizePhone } from '@/lib/phone';
-import { pickNextAssignee, type AssigneeLoad } from '@/lib/assign';
+import { pickNextAssignee, pickByStrategy, type AssigneeLoad, type AssignStrategy, type StrategyCandidate } from '@/lib/assign';
+import { matchTeamsForLead, teamInScope, type TeamRoute } from '@/lib/assign-routing';
 import { CAN_CREATE_LEAD, CAN_ASSIGN, CAN_MANAGE_STAFF } from '@/lib/nav';
 import { notifyNewLead, notifyLeadAssigned, notifyLeadsAssignedBulk } from '@/lib/notify-assign';
 import { resolveCreatorScope, assertLeadInScope } from '@/lib/lead-scope';
@@ -267,6 +268,28 @@ export async function reassignLead(leadId: string, newAssigneeId: string | null)
 
   const { data: prev } = await db.from('leads').select('assigned_to').eq('id', leadId).maybeSingle();
   if (prev?.assigned_to === newAssigneeId) return { ok: true as const };
+
+  // Phòng thủ ngoài RLS: phòng của TVBH đích phải nằm trong phạm vi người phân giao.
+  if (newAssigneeId) {
+    const scope = await resolveCreatorScope(db, user.id);
+    if (scope) {
+      const { data: target } = await db
+        .from('users')
+        .select('sales_team_id')
+        .eq('id', newAssigneeId)
+        .maybeSingle();
+      if (target?.sales_team_id) {
+        const { data: tm } = await db
+          .from('sales_teams')
+          .select('id, showroom_id, brand_ids')
+          .eq('id', target.sales_team_id)
+          .maybeSingle();
+        if (tm && !teamInScope(scope, { id: tm.id, showroom_id: tm.showroom_id, brand_ids: (tm.brand_ids as string[] | null) ?? [] })) {
+          return { ok: false as const, error: 'Tư vấn bán hàng ngoài phạm vi của bạn.' };
+        }
+      }
+    }
+  }
 
   const { error } = await db.from('leads').update({ assigned_to: newAssigneeId }).eq('id', leadId);
   if (error) return { ok: false as const, error: error.message };
@@ -589,11 +612,13 @@ export interface AutoDistributeResult {
 }
 
 /**
- * Tự động phân giao đều TẤT CẢ lead chưa có người phụ trách (assigned_to IS NULL):
- * mỗi lead → TVBH ít lead đang mở nhất TRONG CÙNG showroom của lead (xoay vòng đều).
- * Lead không khớp showroom nào có TVBH thì bỏ qua (skipped). Chỉ admin/manager.
+ * Tự động phân giao TẤT CẢ lead chưa có người phụ trách theo `strategy`:
+ * mỗi lead → khớp phòng (theo showroom + hãng, hoặc sales_team_id sẵn có) → chọn 1 TVBH
+ * trong phòng đó bằng pickByStrategy. Lead không khớp phòng nào có TVBH → bỏ qua (skipped).
  */
-export async function autoDistributeLeads(): Promise<AutoDistributeResult> {
+export async function autoDistributeLeads(
+  strategy: AssignStrategy = 'least_loaded',
+): Promise<AutoDistributeResult> {
   const db = await createClient();
   const { data: { user } } = await db.auth.getUser();
   if (!user) return { ok: false, assigned: 0, skipped: 0, error: 'Chưa đăng nhập.' };
@@ -601,31 +626,51 @@ export async function autoDistributeLeads(): Promise<AutoDistributeResult> {
   const { data: me } = await db.from('users').select('role').eq('id', user.id).maybeSingle();
   if (!me || !CAN_ASSIGN.has(me.role as UserRole)) return { ok: false, assigned: 0, skipped: 0, error: 'Bạn không có quyền phân giao.' };
 
-  // TVBH đang hoạt động + có gắn showroom (chỉ TVBH mới nhận lead)
+  const scope = await resolveCreatorScope(db, user.id);
+
+  // Phòng đang có (để khớp lead → phòng). Lọc phạm vi người xem.
+  const { data: rawTeams } = await db
+    .from('sales_teams')
+    .select('id, showroom_id, brand_ids');
+  const allTeams: TeamRoute[] = ((rawTeams ?? []) as { id: string; showroom_id: string | null; brand_ids: string[] | null }[])
+    .map((t) => ({ id: t.id, showroom_id: t.showroom_id, brand_ids: t.brand_ids ?? [] }))
+    .filter((t) => !scope || teamInScope(scope, t));
+  const teamById = new Map(allTeams.map((t) => [t.id, t] as const));
+
+  // TVBH đang hoạt động, gắn phòng. Nhóm theo phòng.
   const { data: tvbhs } = await db
     .from('users')
-    .select('id, showroom_id')
+    .select('id, sales_team_id, assign_share_pct')
     .eq('role', 'tvbh')
     .eq('is_active', true)
-    .not('showroom_id', 'is', null);
+    .not('sales_team_id', 'is', null);
   if (!tvbhs || tvbhs.length === 0) return { ok: false, assigned: 0, skipped: 0, error: 'Chưa có tư vấn bán hàng nào.' };
+  const tvbhByTeam = new Map<string, { id: string; sharePct: number }[]>();
+  for (const t of tvbhs as { id: string; sales_team_id: string; assign_share_pct: number | null }[]) {
+    if (!teamById.has(t.sales_team_id)) continue;
+    const arr = tvbhByTeam.get(t.sales_team_id) ?? [];
+    arr.push({ id: t.id, sharePct: t.assign_share_pct ?? 0 });
+    tvbhByTeam.set(t.sales_team_id, arr);
+  }
 
-  // Tải hiện tại: số lead đang mở của mỗi TVBH
+  // Tải hiện tại + lần nhận gần nhất theo TVBH (cho weighted / round_robin).
   const { data: openLeads } = await db
     .from('leads')
-    .select('assigned_to')
+    .select('assigned_to, created_at')
     .not('assigned_to', 'is', null)
     .or(OPEN_LEADS);
   const load: Record<string, number> = {};
-  for (const t of tvbhs) load[t.id] = 0;
-  for (const r of (openLeads ?? []) as { assigned_to: string }[]) {
-    if (r.assigned_to in load) load[r.assigned_to] += 1;
+  const lastAt: Record<string, number> = {};
+  for (const r of (openLeads ?? []) as { assigned_to: string; created_at: string }[]) {
+    load[r.assigned_to] = (load[r.assigned_to] ?? 0) + 1;
+    const ms = new Date(r.created_at).getTime();
+    if (!(r.assigned_to in lastAt) || ms > lastAt[r.assigned_to]) lastAt[r.assigned_to] = ms;
   }
 
-  // Lead chưa giao (cũ trước → giao trước)
+  // Lead chưa giao (cũ trước → giao trước).
   const { data: unassigned } = await db
     .from('leads')
-    .select('id, showroom_id')
+    .select('id, showroom_id, brand_id, sales_team_id')
     .is('assigned_to', null)
     .order('created_at', { ascending: true });
   if (!unassigned || unassigned.length === 0) return { ok: true, assigned: 0, skipped: 0 };
@@ -633,29 +678,96 @@ export async function autoDistributeLeads(): Promise<AutoDistributeResult> {
   let assigned = 0;
   let skipped = 0;
   const assignedPairs: { leadId: string; assigneeId: string }[] = [];
-  for (const lead of unassigned as { id: string; showroom_id: string | null }[]) {
-    const candidates = tvbhs.filter((t) => (lead.showroom_id ? t.showroom_id === lead.showroom_id : true));
-    const pick = pickNextAssignee(candidates.map((c) => ({ id: c.id, activeLeadCount: load[c.id] ?? 0 })));
+  for (const lead of unassigned as { id: string; showroom_id: string | null; brand_id: string | null; sales_team_id: string | null }[]) {
+    // Phòng khớp lead → gộp TVBH của mọi phòng khớp làm ứng viên.
+    const teams = matchTeamsForLead(lead, allTeams);
+    const pool: StrategyCandidate[] = [];
+    for (const tm of teams) {
+      for (const p of tvbhByTeam.get(tm.id) ?? []) {
+        pool.push({ id: p.id, activeLeadCount: load[p.id] ?? 0, sharePct: p.sharePct, lastAssignedAt: lastAt[p.id] ?? null });
+      }
+    }
+    const pick = pickByStrategy(strategy === 'manual' || strategy === 'day_roster' ? 'least_loaded' : strategy, pool);
     if (!pick) { skipped += 1; continue; }
     const { error } = await db.from('leads').update({ assigned_to: pick }).eq('id', lead.id);
     if (error) { skipped += 1; continue; }
     load[pick] = (load[pick] ?? 0) + 1;
+    lastAt[pick] = Date.now();
     assigned += 1;
     assignedPairs.push({ leadId: lead.id, assigneeId: pick });
     await db.from('lead_logs').insert({
       lead_id: lead.id,
       user_id: user.id,
       type: 'system',
-      content: 'Tự động phân giao (chia đều).',
+      content: `Tự động phân giao (${STRATEGY_LABEL[strategy] ?? 'chia đều'}).`,
     });
   }
 
-  // Báo Zalo: 1 tin tóm tắt/phòng cho các lead vừa chia.
   if (assignedPairs.length > 0) await notifyLeadsAssignedBulk(assignedPairs);
 
   revalidatePath('/leads');
   revalidatePath('/assign');
   return { ok: true, assigned, skipped };
+}
+
+const STRATEGY_LABEL: Record<string, string> = {
+  least_loaded: 'chia đều',
+  weighted: 'chia theo tỷ lệ',
+  round_robin: 'xoay vòng',
+};
+
+/**
+ * Giao 1 lead cho CẢ PHÒNG: tự chọn 1 TVBH trong phòng theo team_assign_strategy của phòng.
+ * Dùng khi người phân giao chọn thẳng phòng ở dropdown thay vì chỉ đích danh 1 TVBH.
+ */
+export async function assignLeadToTeamAuto(
+  leadId: string,
+  teamId: string,
+): Promise<{ ok: boolean; assigneeId?: string; error?: string }> {
+  const db = await createClient();
+  const { data: { user } } = await db.auth.getUser();
+  if (!user) return { ok: false, error: 'Chưa đăng nhập.' };
+  const { data: me } = await db.from('users').select('role').eq('id', user.id).maybeSingle();
+  if (!me || !CAN_ASSIGN.has(me.role as UserRole)) return { ok: false, error: 'Bạn không có quyền phân giao.' };
+
+  const scope = await resolveCreatorScope(db, user.id);
+  const { data: team } = await db
+    .from('sales_teams')
+    .select('id, showroom_id, brand_ids, team_assign_strategy')
+    .eq('id', teamId)
+    .maybeSingle();
+  if (!team) return { ok: false, error: 'Không tìm thấy phòng.' };
+  const teamRoute: TeamRoute = { id: team.id, showroom_id: team.showroom_id, brand_ids: (team.brand_ids as string[] | null) ?? [] };
+  if (scope && !teamInScope(scope, teamRoute)) return { ok: false, error: 'Phòng ngoài phạm vi của bạn.' };
+
+  const { data: tvbhs } = await db
+    .from('users')
+    .select('id, assign_share_pct')
+    .eq('role', 'tvbh')
+    .eq('is_active', true)
+    .eq('sales_team_id', teamId);
+  if (!tvbhs || tvbhs.length === 0) return { ok: false, error: 'Phòng chưa có tư vấn bán hàng.' };
+
+  const { data: openLeads } = await db
+    .from('leads')
+    .select('assigned_to, created_at')
+    .in('assigned_to', tvbhs.map((t) => t.id))
+    .or(OPEN_LEADS);
+  const load: Record<string, number> = {};
+  const lastAt: Record<string, number> = {};
+  for (const r of (openLeads ?? []) as { assigned_to: string; created_at: string }[]) {
+    load[r.assigned_to] = (load[r.assigned_to] ?? 0) + 1;
+    const ms = new Date(r.created_at).getTime();
+    if (!(r.assigned_to in lastAt) || ms > lastAt[r.assigned_to]) lastAt[r.assigned_to] = ms;
+  }
+  const strat = ((team.team_assign_strategy as AssignStrategy | null) ?? 'least_loaded');
+  const pool: StrategyCandidate[] = (tvbhs as { id: string; assign_share_pct: number | null }[]).map((t) => ({
+    id: t.id, activeLeadCount: load[t.id] ?? 0, sharePct: t.assign_share_pct ?? 0, lastAssignedAt: lastAt[t.id] ?? null,
+  }));
+  const pick = pickByStrategy(strat === 'manual' || strat === 'day_roster' ? 'least_loaded' : strat, pool);
+  if (!pick) return { ok: false, error: 'Không chọn được tư vấn bán hàng.' };
+
+  return reassignLead(leadId, pick);
 }
 
 export interface LeadLogItem {
