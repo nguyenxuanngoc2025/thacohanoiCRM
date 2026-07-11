@@ -75,7 +75,7 @@ export default function RankingTab({
       {ranked.length === 0 ? (
         <div className="py-12 text-center text-slate-400 text-sm">Không có dữ liệu trong kỳ / bộ lọc.</div>
       ) : (
-        <div className="overflow-x-auto">
+        <><div className="hidden sm:block overflow-x-auto">
           <table className="w-full text-sm whitespace-nowrap">
             <thead>
               <tr className="text-left text-[11px] uppercase tracking-wide text-slate-400 border-b border-slate-100">
@@ -159,7 +159,58 @@ export default function RankingTab({
             </tfoot>
           </table>
         </div>
+
+        {/* Card view mobile */}
+        <div className="sm:hidden space-y-2">
+          {rankedWithIndex.map((r) => {
+            const chip = RANK_CHIP[r.rank];
+            const declining = r.winRateDelta <= -10;
+            return (
+              <div key={r.key} className="rounded-lg border border-slate-100 p-3"
+                style={declining ? { background: '#fff1f2' } : { background: '#fff' }}>
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {chip ? (
+                      <span className="inline-flex items-center justify-center text-[10px] font-bold rounded px-1.5 py-0.5 shrink-0"
+                        style={{ background: chip.bg, color: chip.color }}>{chip.label}</span>
+                    ) : (
+                      <span className="text-slate-400 text-xs font-medium shrink-0">#{r.rank}</span>
+                    )}
+                    <span className="text-slate-800 font-semibold truncate">{r.label}</span>
+                  </div>
+                  <DeltaArrow delta={r.winRateDelta} pct />
+                </div>
+                <div className="grid grid-cols-2 gap-y-1.5 gap-x-3 text-[13px]">
+                  <CardStat label="Tổng lead" value={fmt(r.leads)} />
+                  {showContacted && <CardStat label="Đã LH" value={fmt(r.contacted)} color={r.contacted === 0 ? '#cbd5e1' : '#1d4ed8'} />}
+                  <CardStat label="KHĐ" value={fmt(r.won)} color={r.won === 0 ? '#cbd5e1' : '#047857'} />
+                  <CardStat label="%chốt" value={`${r.winRate.toFixed(1)}%`} color={r.winRate === 0 ? '#cbd5e1' : '#047857'} />
+                  <CardStat label="Quá hạn" value={fmt(r.overdue)} color={r.overdue === 0 ? '#cbd5e1' : '#be123c'} />
+                </div>
+              </div>
+            );
+          })}
+          <div className="rounded-lg border-2 border-slate-200 p-3">
+            <div className="text-slate-800 font-semibold mb-2">Tổng</div>
+            <div className="grid grid-cols-2 gap-y-1.5 gap-x-3 text-[13px]">
+              <CardStat label="Tổng lead" value={fmt(totals.total)} />
+              {showContacted && <CardStat label="Đã LH" value={fmt(totals.contacted)} color="#1d4ed8" />}
+              <CardStat label="KHĐ" value={fmt(totals.won)} color="#047857" />
+              <CardStat label="%chốt" value={`${totals.winRate}%`} color="#047857" />
+              <CardStat label="Quá hạn" value={fmt(totals.overdue)} color="#be123c" />
+            </div>
+          </div>
+        </div></>
       )}
     </Panel>
+  );
+}
+
+function CardStat({ label, value, color }: { label: string; value: string; color?: string }) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-slate-400">{label}</span>
+      <span className="font-semibold" style={{ color: color ?? '#1e293b' }}>{value}</span>
+    </div>
   );
 }

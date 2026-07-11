@@ -143,7 +143,7 @@ export default function OverviewTab({
           {overdueLeads.length === 0 ? (
             <div className="py-10 text-center text-slate-400 text-sm">Không có lead quá hạn.</div>
           ) : (
-            <div className="overflow-x-auto">
+            <><div className="hidden sm:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-100 text-slate-500 text-xs">
@@ -169,6 +169,19 @@ export default function OverviewTab({
                 </tbody>
               </table>
             </div>
+
+            {/* Card view mobile */}
+            <div className="sm:hidden space-y-2">
+              {overdueLeads.map((l, i) => (
+                <div key={i} className="rounded-lg border border-slate-100 bg-white p-3">
+                  <div className="font-semibold text-slate-800 mb-1.5">{l.model_name ?? '—'}</div>
+                  <div className="flex items-center justify-between text-[13px]">
+                    <span className="text-slate-600">{l.status ? STATUS_LABEL[l.status] : 'Chưa phân loại'}</span>
+                    <span className="text-slate-500">Hẹn gọi: {l.next_contact_at ? new Date(l.next_contact_at).toLocaleDateString('vi-VN') : '—'}</span>
+                  </div>
+                </div>
+              ))}
+            </div></>
           )}
         </Panel>
       )}

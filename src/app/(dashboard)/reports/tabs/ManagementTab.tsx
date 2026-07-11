@@ -269,6 +269,10 @@ function FixedTable({ title, dim, leads, prevLeads, now, periodLabel, cols, colM
   const expandable = !!EXPAND_CHILD[dim];
 
   const topRows = useMemo(() => groupByDimension(leads, dim, now), [leads, dim, now]);
+  const prevDeltaByKey = useMemo(() => {
+    const m = new Map(groupByDimension(prevLeads, dim, now).map((r) => [r.key, r]));
+    return (r: { key: string; winRate: number }) => Math.round((r.winRate - (m.get(r.key)?.winRate ?? 0)) * 10) / 10;
+  }, [prevLeads, dim, now]);
 
   const handleExport = () => {
     const prevByKey = new Map(groupByDimension(prevLeads, dim, now).map((r) => [r.key, r]));
@@ -309,7 +313,7 @@ function FixedTable({ title, dim, leads, prevLeads, now, periodLabel, cols, colM
           Không có dữ liệu trong kỳ / bộ lọc.
         </div>
       ) : (
-        <div className="overflow-x-auto">
+        <><div className="hidden sm:block overflow-x-auto">
           <table className="w-full text-sm whitespace-nowrap">
             <thead>
               <tr className="text-left text-[11px] uppercase tracking-wide text-slate-400 border-b border-slate-100">
@@ -339,6 +343,47 @@ function FixedTable({ title, dim, leads, prevLeads, now, periodLabel, cols, colM
             </tfoot>
           </table>
         </div>
+
+        {/* Card view mobile — hàng cấp trên (chi tiết cấp dưới xem ở màn hình lớn) */}
+        <div className="sm:hidden space-y-2">
+          {topRows.map((r) => (
+            <div key={r.key} className="rounded-lg border border-slate-100 bg-white p-3">
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <span className="text-slate-800 font-semibold truncate">{r.label}</span>
+                <DeltaArrow delta={prevDeltaByKey(r)} pct />
+              </div>
+              <div className="grid grid-cols-2 gap-y-1.5 gap-x-3 text-[13px]">
+                {cols.map((c) => {
+                  const v = c.get(r);
+                  return (
+                    <div key={c.key} className="flex items-center justify-between">
+                      <span className="text-slate-400">{c.label}</span>
+                      <span className="font-semibold" style={{ color: c.color ?? '#334155' }}>
+                        {c.pct ? `${v.toFixed(1)}%` : fmt(v)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+          <div className="rounded-lg border-2 border-slate-200 p-3">
+            <div className="text-slate-800 font-semibold mb-2">Tổng</div>
+            <div className="grid grid-cols-2 gap-y-1.5 gap-x-3 text-[13px]">
+              {cols.map((c) => {
+                const v = c.total(totals);
+                return (
+                  <div key={c.key} className="flex items-center justify-between">
+                    <span className="text-slate-400">{c.label}</span>
+                    <span className="font-semibold" style={{ color: c.color ?? '#0f172a' }}>
+                      {c.pct ? `${v.toFixed(1)}%` : fmt(v)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div></>
       )}
     </Panel>
   );

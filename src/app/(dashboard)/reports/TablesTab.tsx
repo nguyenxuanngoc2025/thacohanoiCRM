@@ -173,7 +173,7 @@ function FlatTable({ rows, cols, firstCol, totals, sortKey, asc, onSort }: {
   const cell = (v: number, pct?: boolean) => (pct ? `${v}%` : fmt(v));
 
   return (
-    <div className="overflow-x-auto">
+    <><div className="hidden sm:block overflow-x-auto">
       <table className="w-full text-sm whitespace-nowrap">
         <thead>
           <tr className="text-left text-[11px] uppercase tracking-wide text-slate-400 border-b border-slate-100">
@@ -225,6 +225,41 @@ function FlatTable({ rows, cols, firstCol, totals, sortKey, asc, onSort }: {
         </tfoot>
       </table>
     </div>
+
+    {/* Card view mobile */}
+    <div className="sm:hidden space-y-2">
+      {sorted.map((r) => (
+        <div key={r.key} className="rounded-lg border border-slate-100 bg-white p-3">
+          <div className="text-slate-800 font-semibold truncate">{r.label}</div>
+          <div className="h-1.5 mt-1.5 mb-2.5 rounded-full bg-slate-100 overflow-hidden">
+            <div className="h-full rounded-full" style={{ width: `${(r.leads / maxLeads) * 100}%`, background: BRAND }} />
+          </div>
+          <div className="grid grid-cols-2 gap-y-1.5 gap-x-3 text-[13px]">
+            {cols.map((c) => {
+              const v = r[c.key];
+              const dim = v === 0;
+              return (
+                <div key={c.key} className="flex items-center justify-between">
+                  <span className="text-slate-400">{c.label}</span>
+                  <span className="font-semibold" style={{ color: dim ? '#cbd5e1' : (c.tone ?? '#334155') }}>{cell(v, c.pct)}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+      <div className="rounded-lg border-2 border-slate-200 p-3">
+        <div className="text-slate-800 font-semibold mb-2">Tổng</div>
+        <div className="grid grid-cols-2 gap-y-1.5 gap-x-3 text-[13px]">
+          {cols.map((c) => (
+            <div key={c.key} className="flex items-center justify-between">
+              <span className="text-slate-400">{c.label}</span>
+              <span className="font-semibold" style={{ color: c.tone ?? '#0f172a' }}>{totalVal(c.key)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div></>
   );
 }
 

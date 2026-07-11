@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
-import { Users, PhoneCall, TrendingUp, FileSignature, Clock, XCircle, LayoutDashboard, Table2, BarChart2, GitBranch, Radio } from 'lucide-react';
+import { Users, PhoneCall, TrendingUp, FileSignature, Clock, XCircle, LayoutDashboard, Table2, BarChart2, GitBranch, Radio, ListFilter } from 'lucide-react';
 import { compareKpis, type ReportLead, type ReportLevel } from '@/lib/reports';
 import { sourcePlatform } from '@/lib/source';
 import { STATUS_LABEL, type LeadStatus } from '@/lib/lead-status';
@@ -75,7 +76,23 @@ export default function ReportsView({
 
   const onBrand = (v: string) => { setBrand(v); setModel(''); };
   const hasFilter = brand || model || showroom || source || assignee || status;
+  const activeFilters = [brand, model, showroom, source, assignee, status].filter(Boolean).length;
   const clearFilters = () => { setBrand(''); setModel(''); setShowroom(''); setSource(''); setAssignee(''); setStatus(''); };
+
+  const [openFilter, setOpenFilter] = useState(false);
+  const [filterPos, setFilterPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const filterBtnRef = useRef<HTMLButtonElement>(null);
+  const toggleFilter = () => {
+    if (openFilter) { setOpenFilter(false); return; }
+    const r = filterBtnRef.current?.getBoundingClientRect();
+    if (r) {
+      const width = Math.min(Math.max(r.width, 460), window.innerWidth - 24);
+      let left = r.left;
+      if (left + width > window.innerWidth - 12) left = window.innerWidth - 12 - width;
+      setFilterPos({ top: r.bottom + 6, left: Math.max(12, left), width });
+    }
+    setOpenFilter(true);
+  };
 
   // Bộ lọc dùng chung cho cả kỳ hiện tại và kỳ trước
   const applyFilters = (list: ReportLead[]) =>
@@ -150,19 +167,50 @@ export default function ReportsView({
         </div>
       </div>
 
-      {/* Lọc nhanh */}
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Lọc nhanh</span>
-        <Dropdown value={brand} onChange={onBrand} placeholder="Tất cả thương hiệu" options={brandOpts} />
-        <Dropdown value={model} onChange={setModel} placeholder="Tất cả dòng xe" options={modelOpts} />
-        <Dropdown value={showroom} onChange={setShowroom} placeholder="Tất cả showroom" options={showroomOpts} />
-        <Dropdown value={source} onChange={setSource} placeholder="Tất cả nguồn" options={sourceOpts} />
-        <Dropdown value={assignee} onChange={setAssignee} placeholder="Tất cả TVBH" options={assigneeOpts} />
-        <Dropdown value={status} onChange={setStatus} placeholder="Tất cả trạng thái" options={statusOpts} />
+      {/* Bộ lọc — gộp thành 1 nút, mở popup */}
+      <div className="flex items-center gap-2">
+        <button ref={filterBtnRef} onClick={toggleFilter}
+          className="inline-flex items-center gap-1.5 text-sm border rounded-lg px-3 py-1.5 transition-colors"
+          style={hasFilter
+            ? { borderColor: BRAND, background: '#e6f0fa', color: BRAND, fontWeight: 600 }
+            : { borderColor: '#e2e8f0', background: '#fff', color: '#64748b' }}>
+          <ListFilter size={14} /> Bộ lọc
+          {activeFilters > 0 && (
+            <span className="ml-0.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-bold text-white" style={{ background: BRAND }}>
+              {activeFilters}
+            </span>
+          )}
+        </button>
         {hasFilter && (
           <button onClick={clearFilters} className="text-xs text-rose-600 hover:underline">Xoá lọc</button>
         )}
       </div>
+      {openFilter && filterPos && createPortal(
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 9998 }} onClick={() => setOpenFilter(false)} />
+          <div style={{
+            position: 'fixed', top: filterPos.top, left: filterPos.left, width: filterPos.width, zIndex: 9999,
+            background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12,
+            boxShadow: '0 12px 32px rgba(0,0,0,0.14)', padding: 14, maxHeight: '80vh', overflowY: 'auto',
+          }}>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-bold text-slate-800">Bộ lọc</span>
+              {hasFilter && (
+                <button onClick={clearFilters} className="text-xs text-rose-600 hover:underline">Xoá lọc</button>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
+              <FilterField label="Thương hiệu"><Dropdown value={brand} onChange={onBrand} placeholder="Tất cả thương hiệu" options={brandOpts} /></FilterField>
+              <FilterField label="Dòng xe"><Dropdown value={model} onChange={setModel} placeholder="Tất cả dòng xe" options={modelOpts} /></FilterField>
+              <FilterField label="Showroom"><Dropdown value={showroom} onChange={setShowroom} placeholder="Tất cả showroom" options={showroomOpts} /></FilterField>
+              <FilterField label="Nguồn"><Dropdown value={source} onChange={setSource} placeholder="Tất cả nguồn" options={sourceOpts} /></FilterField>
+              <FilterField label="TVBH"><Dropdown value={assignee} onChange={setAssignee} placeholder="Tất cả TVBH" options={assigneeOpts} /></FilterField>
+              <FilterField label="Trạng thái"><Dropdown value={status} onChange={setStatus} placeholder="Tất cả trạng thái" options={statusOpts} /></FilterField>
+            </div>
+          </div>
+        </>,
+        document.body,
+      )}
 
       {/* KPI strip — với delta so kỳ trước */}
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
@@ -239,6 +287,15 @@ export default function ReportsView({
         <TablesTab leads={filtered} showB10={showB10} dims={dimensionsForLevel(reportLevel)} />
       )}
     </div>
+  );
+}
+
+function FilterField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{label}</span>
+      {children}
+    </label>
   );
 }
 
