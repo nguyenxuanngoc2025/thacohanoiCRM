@@ -175,14 +175,7 @@ export default function AssignView({
               <p className="text-xs text-slate-400 mt-0.5">Chọn tư vấn/phòng cho từng lead, hoặc chia tự động theo kiểu.</p>
             </div>
             <div className="flex items-center gap-2">
-              <select
-                value={strategy}
-                onChange={(e) => setStrategy(e.target.value as typeof strategy)}
-                disabled={pending}
-                className="text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white outline-none focus:border-brand disabled:opacity-50"
-              >
-                {STRATEGIES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-              </select>
+              <StrategyPicker value={strategy} onChange={setStrategy} disabled={pending} />
               <button
                 onClick={applyAuto}
                 disabled={pending || leads.length === 0}
@@ -287,6 +280,60 @@ export default function AssignView({
         </div>
       </div>
     </div>
+  );
+}
+
+/** Dropdown chọn kiểu chia — custom popup đồng bộ với AssignPicker. */
+function StrategyPicker({
+  value, onChange, disabled,
+}: {
+  value: Exclude<AssignStrategy, 'manual' | 'day_roster'>;
+  onChange: (v: Exclude<AssignStrategy, 'manual' | 'day_roster'>) => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const current = STRATEGIES.find((s) => s.value === value);
+
+  const toggle = () => {
+    if (open) { setOpen(false); return; }
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r) setPos({ top: r.bottom + 4, left: r.left, width: Math.max(r.width, 160) });
+    setOpen(true);
+  };
+  const pick = (v: Exclude<AssignStrategy, 'manual' | 'day_roster'>) => { setOpen(false); onChange(v); };
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        onClick={toggle}
+        disabled={disabled}
+        className="inline-flex items-center justify-between gap-1.5 text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white outline-none hover:border-brand disabled:opacity-50 min-w-[150px]"
+      >
+        <span className="text-slate-700">{current?.label ?? 'Chia đều'}</span>
+        <ChevronDown size={13} className="opacity-60 shrink-0" />
+      </button>
+      {open && pos && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 9998 }} onClick={() => setOpen(false)} />
+          <div style={{
+            position: 'fixed', top: pos.top, left: pos.left, minWidth: pos.width, zIndex: 9999,
+            background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.12)', padding: 6,
+          }}>
+            {STRATEGIES.map((s) => (
+              <button key={s.value} onClick={() => pick(s.value)}
+                className="block w-full text-left text-sm rounded-md px-2.5 py-1.5 hover:bg-slate-50"
+                style={{ color: value === s.value ? NAVY : '#475569', fontWeight: value === s.value ? 600 : 400 }}>
+                {s.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </>
   );
 }
 
