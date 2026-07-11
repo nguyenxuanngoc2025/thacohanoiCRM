@@ -42,6 +42,12 @@ export default function NotificationsManager(
     const sr = srName(t.showroom_id);
     return sr ? `${sr} · ${t.name}` : t.name;
   };
+  // Nhãn kênh nhiều phòng: liệt kê tên các phòng đã chọn.
+  const teamsLabel = (ids: string[]) => {
+    if (!ids || ids.length === 0) return 'Chưa gán phòng';
+    const names = ids.map((id) => salesTeams.find((x) => x.id === id)?.name).filter(Boolean);
+    return names.length ? names.join(', ') : 'Chưa gán phòng';
+  };
 
   const [query, setQuery] = useState('');
   const q = query.trim().toLowerCase();
@@ -54,10 +60,11 @@ export default function NotificationsManager(
   const grouped = useMemo(() => {
     const match = (c: NotifChannelRow) =>
       !q || c.name.toLowerCase().includes(q) || (c.target ?? '').toLowerCase().includes(q);
-    const srOf = (c: NotifChannelRow): string | null =>
-      c.scope === 'sales'
-        ? (salesTeams.find((t) => t.id === c.sales_team_id)?.showroom_id ?? null)
-        : (c.showroom_id ?? null);
+    const srOf = (c: NotifChannelRow): string | null => {
+      if (c.scope !== 'sales') return c.showroom_id ?? null;
+      const first = (c.sales_team_ids && c.sales_team_ids[0]) || c.sales_team_id || null;
+      return first ? (salesTeams.find((t) => t.id === first)?.showroom_id ?? null) : null;
+    };
     const list = channels.filter(match);
     const byShowroom = showrooms
       .map((sr) => ({
@@ -108,7 +115,7 @@ export default function NotificationsManager(
             <span className="bg-slate-100 rounded px-1.5 py-0.5">
               {c.scope === 'management'
                 ? (c.showroom_id ? `BLĐ ${srName(c.showroom_id) ?? ''}` : 'BLĐ toàn công ty')
-                : teamLabel(c.sales_team_id)}
+                : teamsLabel(c.sales_team_ids ?? (c.sales_team_id ? [c.sales_team_id] : []))}
             </span>
             {c.target && <span className="font-mono">· {c.target}</span>}
           </div>
@@ -228,7 +235,9 @@ function NotifModal(
   const [scope, setScope] = useState<Scope>(init?.scope ?? 'sales');
   const [events, setEvents] = useState<string[]>(init?.events ?? ['new_lead', 'overdue', 'daily_report']);
   const [isActive, setIsActive] = useState(init?.is_active ?? true);
-  const [salesTeamId, setSalesTeamId] = useState<string>(init?.sales_team_id ?? '');
+  const [salesTeamIds, setSalesTeamIds] = useState<string[]>(
+    init?.sales_team_ids?.length ? init.sales_team_ids : (init?.sales_team_id ? [init.sales_team_id] : []),
+  );
   const [showroomId, setShowroomId] = useState<string>(init?.showroom_id ?? '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -247,19 +256,21 @@ function NotifModal(
 
   const toggleEvent = (e: string) =>
     setEvents((prev) => prev.includes(e) ? prev.filter((x) => x !== e) : [...prev, e]);
+  const toggleTeam = (id: string) =>
+    setSalesTeamIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
 
   const submit = async () => {
     setError(null);
     if (!name.trim()) { setError('Nhập tên kênh.'); return; }
     if (events.length === 0) { setError('Chọn ít nhất 1 sự kiện.'); return; }
-    if (scope === 'sales' && !salesTeamId) { setError('Chọn phòng bán hàng cho group.'); return; }
+    if (scope === 'sales' && salesTeamIds.length === 0) { setError('Chọn ít nhất 1 phòng bán hàng.'); return; }
     setBusy(true);
     const r = await postAdmin('/api/admin/notification-channels', {
       op: isNew ? 'create' : 'update',
       id: isNew ? undefined : (target as NotifChannelRow).id,
       channel, name: name.trim(), target: tgt.trim() || null, events, is_active: isActive,
       scope,
-      sales_team_id: scope === 'sales' ? salesTeamId : null,
+      sales_team_ids: scope === 'sales' ? salesTeamIds : [],
       showroom_id: scope === 'management' ? (showroomId || null) : null,
     });
     setBusy(false);
@@ -288,11 +299,20 @@ function NotifModal(
             </Select>
           </Field>
           {scope === 'sales' && (
-            <Field label="Phòng bán hàng" hint="Mỗi phòng = 1 group Zalo riêng.">
-              <Select value={salesTeamId} onChange={(e) => setSalesTeamId(e.target.value)}>
-                <option value="">— Chọn phòng —</option>
-                {salesTeams.map((t) => <option key={t.id} value={t.id}>{teamLabel(t.id)}</option>)}
-              </Select>
+            <Field label="Phòng bán hàng nhận thông báo" hint="Chọn 1 hoặc nhiều phòng cùng gửi về group này.">
+              <div className="max-h-56 overflow-y-auto rounded-lg border border-slate-200 divide-y divide-slate-100">
+                {salesTeams.length === 0 && <div className="px-3 py-2 text-sm text-slate-400">Chưa có phòng bán hàng.</div>}
+                {salesTeams.map((t) => {
+                  const on = salesTeamIds.includes(t.id);
+                  return (
+                    <label key={t.id} className="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-slate-50">
+                      <input type="checkbox" checked={on} onChange={() => toggleTeam(t.id)}
+                        className="w-4 h-4 rounded border-slate-300" style={{ accentColor: '#004B9B' }} />
+                      <span className="text-sm text-slate-700">{teamLabel(t.id)}</span>
+                    </label>
+                  );
+                })}
+              </div>
             </Field>
           )}
           {scope === 'management' && (

@@ -115,6 +115,8 @@ export interface NotifChannelRow {
   // theo showroom (showroom_id) hoặc toàn công ty (showroom_id = null).
   showroom_id: string | null;
   sales_team_id: string | null;
+  // Danh sách phòng nhận thông báo (kênh scope='sales'). Mảng rỗng cho scope='management'.
+  sales_team_ids: string[];
   scope: 'sales' | 'management';
 }
 
