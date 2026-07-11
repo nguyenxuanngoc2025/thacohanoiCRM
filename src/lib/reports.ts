@@ -348,6 +348,11 @@ function dimKey(l: ReportLead, dim: Dimension): [string, string] {
   }
 }
 
+/** Khoá gom nhóm của 1 lead theo chiều (phần key, bỏ nhãn) — để lọc lead con khi drill-down. */
+export function keyOfDim(l: ReportLead, dim: Dimension): string {
+  return dimKey(l, dim)[0];
+}
+
 /** Bảng chéo tổng quát: hàng theo rowDim, cột theo colDim; mỗi ô có số lead + ký HĐ. */
 export function crossDimension(leads: ReportLead[], rowDim: Dimension, colDim: Dimension): Pivot {
   const colMap = new Map<string, string>();

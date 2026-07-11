@@ -3,10 +3,10 @@
 import React, { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Users, PhoneCall, TrendingUp, FileSignature, Clock, XCircle, LayoutDashboard, Table2, BarChart2, GitBranch, Radio } from 'lucide-react';
-import { computeKpis, compareKpis, childDimension, groupByDimension, isOverdue, type ReportLead, type ReportLevel } from '@/lib/reports';
+import { compareKpis, type ReportLead, type ReportLevel } from '@/lib/reports';
 import { sourcePlatform } from '@/lib/source';
 import { STATUS_LABEL, type LeadStatus } from '@/lib/lead-status';
-import { Dropdown, uniqOpts, BRAND, fmt, DeltaArrow, OverdueCallout, type Opt } from './ui';
+import { Dropdown, uniqOpts, BRAND, fmt, DeltaArrow, type Opt } from './ui';
 import { tabsForLevel, defaultTab, dimensionsForLevel, type ReportTab } from './report-level';
 import OverviewTab from './OverviewTab';
 import TablesTab from './TablesTab';
@@ -98,18 +98,6 @@ export default function ReportsView({
   const contactRate = (k: typeof kpis) => (k.total ? (k.contacted / k.total) * 100 : 0);
   const contactRateDelta = contactRate(cmp.current) - contactRate(cmp.previous);
   const winRateDelta = cmp.current.winRate - cmp.previous.winRate;
-
-  // Cảnh báo quá hạn: top đơn vị cấp dưới
-  const childDim = childDimension(reportLevel);
-  const overdueDetail = useMemo(() => {
-    if (!childDim) return undefined;
-    const overdueLeads = filtered.filter((l) => isOverdue(l, nowMs));
-    if (!overdueLeads.length) return undefined;
-    const groups = groupByDimension(overdueLeads, childDim, nowMs)
-      .sort((a, b) => b.overdue - a.overdue)
-      .slice(0, 2);
-    return groups.map((g) => `${g.label} (${g.overdue})`).join(', ');
-  }, [filtered, childDim, nowMs]);
 
   const setRange = (r: RangeKey) => router.push(`/reports?range=${r}`);
   const applyCustom = () => router.push(`/reports?range=custom&from=${cFrom}&to=${cTo}`);
@@ -225,14 +213,6 @@ export default function ReportsView({
           positiveIsGood={false}
         />
       </div>
-
-      {/* Cảnh báo quá hạn */}
-      <OverdueCallout
-        count={kpis.overdue}
-        detail={childDim ? overdueDetail : 'Bạn có lead quá hạn cần gọi hôm nay'}
-        actionLabel={childDim ? 'Xem bảng quản trị' : undefined}
-        onJump={childDim ? () => setTab(tabs.includes('management') ? 'management' : 'ranking') : undefined}
-      />
 
       {/* Tabs — chỉ render tab thuộc cấp */}
       <div className="flex items-center gap-1 border-b border-slate-200">
