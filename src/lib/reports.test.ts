@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   computeKpis, computeFunnel, groupBySource, groupByAssignee, groupByModel,
   dailyTrend, failReasons, statusDistribution, isOverdue, crossShowroomBrand, crossDimension,
-  effectiveStatus, groupByTeam, groupByDimension,
-  type ReportLead,
+  effectiveStatus, groupByTeam, groupByDimension, childDimension,
+  type ReportLead, type ReportLevel,
 } from './reports';
 
 const base: ReportLead = {
@@ -299,5 +299,15 @@ describe('groupByTeam', () => {
   it('groupByDimension("team") gọi groupByTeam', () => {
     const leads = [L({ sales_team_id: 't1', team_name: 'Phòng 1' })];
     expect(groupByDimension(leads, 'team', NOW)[0].label).toBe('Phòng 1');
+  });
+});
+
+describe('childDimension — cấp dưới để so sánh', () => {
+  it('map đúng từng cấp', () => {
+    expect(childDimension('company')).toBe('showroom');
+    expect(childDimension('brand')).toBe('showroom');
+    expect(childDimension('showroom')).toBe('team');
+    expect(childDimension('team')).toBe('assignee');
+    expect(childDimension('personal')).toBeNull();
   });
 });

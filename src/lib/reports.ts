@@ -245,6 +245,20 @@ export const DIMENSION_LABEL: Record<Dimension, string> = {
   status: 'Trạng thái',
 };
 
+/** Cấp báo cáo — suy từ vai trò. RLS đã giới hạn dữ liệu; cấp chỉ điều khiển TRÌNH BÀY. */
+export type ReportLevel = 'company' | 'brand' | 'showroom' | 'team' | 'personal';
+
+/** Chiều "cấp ngay dưới" để so sánh/xếp hạng. personal không xếp hạng đồng nghiệp. */
+export function childDimension(level: ReportLevel): Dimension | null {
+  switch (level) {
+    case 'company': return 'showroom';
+    case 'brand': return 'showroom';
+    case 'showroom': return 'team';
+    case 'team': return 'assignee';
+    case 'personal': return null;
+  }
+}
+
 export function groupByDimension(leads: ReportLead[], dim: Dimension, nowMs: number): GroupRow[] {
   switch (dim) {
     case 'showroom': return groupByShowroom(leads, nowMs);
