@@ -378,9 +378,11 @@ function StatusPicker({ lead, variant, pending, start }: {
     const r = btnRef.current?.getBoundingClientRect();
     if (r) {
       const below = window.innerHeight - r.bottom;
+      // Kẹp mép trái để popup (rộng ~220) không tràn ra ngoài màn hình (mobile: nút sát mép phải).
+      const left = Math.max(8, Math.min(r.left, window.innerWidth - 228));
       // Gần đáy màn hình → lật lên trên để không bị footer/scrollbar che.
-      if (below < 300 && r.top > below) setPos({ left: r.left, bottom: window.innerHeight - r.top + 4 });
-      else setPos({ left: r.left, top: r.bottom + 4 });
+      if (below < 300 && r.top > below) setPos({ left, bottom: window.innerHeight - r.top + 4 });
+      else setPos({ left, top: r.bottom + 4 });
     }
     setOpen(true);
   };
@@ -1147,13 +1149,8 @@ export default function LeadsTable({
                     <span className="text-slate-300">·</span>
                     <span className="truncate">{l.brand_name}</span>
                   </div>
-                  <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs">
+                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
                     <span className="text-slate-500">Phòng: <span className="text-slate-700">{l.team_name ?? 'Chưa phân'}</span> · Phụ trách: <span className="text-slate-700">{l.assignee_name ?? 'Chưa giao'}</span></span>
-                    {l.next_contact_at && (
-                      <span className={over ? 'inline-flex items-center gap-1 text-rose-600 font-medium' : 'text-slate-500'}>
-                        {over && <AlertTriangle size={12} />} Hẹn {fmtDay(l.next_contact_at)}
-                      </span>
-                    )}
                   </div>
                 </div>
               </div>

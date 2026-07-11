@@ -260,9 +260,10 @@ interface FixedTableProps {
   now: number;
   periodLabel: string;
   cols: MgmtColumn[];
+  colMenu?: React.ReactNode; // nút Cột hiển thị — chỉ truyền cho bảng đầu tiên (dùng chung cấu hình)
 }
 
-function FixedTable({ title, dim, leads, prevLeads, now, periodLabel, cols }: FixedTableProps) {
+function FixedTable({ title, dim, leads, prevLeads, now, periodLabel, cols, colMenu }: FixedTableProps) {
   const totals = computeKpis(leads, now);
   const dimLabel = DIMENSION_LABEL[dim];
   const expandable = !!EXPAND_CHILD[dim];
@@ -291,13 +292,16 @@ function FixedTable({ title, dim, leads, prevLeads, now, periodLabel, cols }: Fi
       title={title}
       desc={expandable ? 'Bấm ▸ để xem chi tiết cấp dưới' : undefined}
       action={
-        <button
-          onClick={handleExport}
-          className="inline-flex items-center gap-1.5 text-sm font-semibold rounded-lg px-3 py-1.5 text-white shadow-sm"
-          style={{ background: BRAND }}
-        >
-          <Download size={15} /> Xuất Excel
-        </button>
+        <div className="flex items-center gap-2">
+          {colMenu}
+          <button
+            onClick={handleExport}
+            className="inline-flex items-center gap-1.5 text-sm font-semibold rounded-lg px-3 py-1.5 text-white shadow-sm"
+            style={{ background: BRAND }}
+          >
+            <Download size={15} /> Xuất Excel
+          </button>
+        </div>
       }
     >
       {topRows.length === 0 ? (
@@ -413,13 +417,14 @@ export default function ManagementTab({
     );
   }
 
+  // 1 nút "Cột hiển thị" dùng CHUNG cho mọi bảng — chỉ gắn ở bảng đầu tiên.
+  const colMenu = (
+    <ColumnMenu order={order} hidden={hidden} showB10={showB10} toggleCol={toggleCol} moveCol={moveCol} />
+  );
+
   return (
     <div className="space-y-5">
-      {/* 1 nút "Cột hiển thị" dùng CHUNG cho tất cả bảng quản trị trong tab. */}
-      <div className="flex items-center justify-end">
-        <ColumnMenu order={order} hidden={hidden} showB10={showB10} toggleCol={toggleCol} moveCol={moveCol} />
-      </div>
-      {tables.map(({ title, dim }) => (
+      {tables.map(({ title, dim }, i) => (
         <FixedTable
           key={dim}
           title={title}
@@ -429,6 +434,7 @@ export default function ManagementTab({
           now={now}
           periodLabel={periodLabel}
           cols={visibleCols}
+          colMenu={i === 0 ? colMenu : undefined}
         />
       ))}
     </div>
