@@ -38,22 +38,30 @@ const B10_METRICS: MetricCol[] = [
   { key: 'b10Loai', label: 'Loại·B10', tone: '#be123c' },
 ];
 
-const DIM_OPTS: Opt[] = (Object.keys(DIMENSION_LABEL) as Dimension[]).map((d) => ({ value: d, label: DIMENSION_LABEL[d] }));
-const ALL_DIMS = Object.keys(DIMENSION_LABEL) as Dimension[];
-
-export default function TablesTab({ leads, showB10 }: { leads: ReportLead[]; showB10: boolean }) {
+export default function TablesTab({ leads, showB10, dims }: { leads: ReportLead[]; showB10: boolean; dims: Dimension[] }) {
   const nowMs = useMemo(() => Date.now(), []);
-  const [rowDim, setRowDim] = useState<Dimension>('showroom');
+  const [rowDim, setRowDim] = useState<Dimension>(() => dims[0]);
   const [colDim, setColDim] = useState<string>(''); // '' = không tách cột (bảng phẳng)
+
+  // Nếu cấp báo cáo thay đổi và rowDim hiện tại không còn hợp lệ, reset về dims[0].
+  const safeRowDim = dims.includes(rowDim) ? rowDim : dims[0];
+  React.useEffect(() => {
+    if (!dims.includes(rowDim)) {
+      setRowDim(dims[0]);
+      setColDim('');
+    }
+  }, [dims, rowDim]);
+
+  const dimOpts: Opt[] = dims.map((d) => ({ value: d, label: DIMENSION_LABEL[d] }));
   const [hidden, setHidden] = useState<Set<MetricKey>>(new Set());
   const [sortKey, setSortKey] = useState<MetricKey>('leads');
   const [asc, setAsc] = useState(false);
 
   const totals = useMemo(() => computeKpis(leads, nowMs), [leads, nowMs]);
-  const flatRows = useMemo(() => groupByDimension(leads, rowDim, nowMs), [leads, rowDim, nowMs]);
+  const flatRows = useMemo(() => groupByDimension(leads, safeRowDim, nowMs), [leads, safeRowDim, nowMs]);
   const pivot = useMemo<Pivot | null>(
-    () => (colDim ? crossDimension(leads, rowDim, colDim as Dimension) : null),
-    [leads, rowDim, colDim],
+    () => (colDim ? crossDimension(leads, safeRowDim, colDim as Dimension) : null),
+    [leads, safeRowDim, colDim],
   );
 
   const allMetrics = useMemo(() => (showB10 ? [...METRICS, ...B10_METRICS] : METRICS), [showB10]);
@@ -63,17 +71,17 @@ export default function TablesTab({ leads, showB10 }: { leads: ReportLead[]; sho
   });
 
   // Cột tách: mọi chiều khác chiều hàng.
-  const colOpts = DIM_OPTS.filter((o) => o.value !== rowDim);
+  const colOpts = dimOpts.filter((o) => o.value !== safeRowDim);
   const onRowDim = (d: string) => { setRowDim(d as Dimension); if (d === colDim) setColDim(''); };
 
-  const handleExport = () => exportXlsx('bao-cao-lead', buildSheets(leads, nowMs, rowDim, colDim, showB10));
+  const handleExport = () => exportXlsx('bao-cao-lead', buildSheets(leads, nowMs, safeRowDim, colDim, showB10, dims));
 
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-4 py-2.5">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <Field label="Nhóm theo">
-            <Dropdown value={rowDim} onChange={onRowDim} placeholder="Chọn" options={DIM_OPTS} allowClear={false} />
+            <Dropdown value={safeRowDim} onChange={onRowDim} placeholder="Chọn" options={dimOpts} allowClear={false} />
           </Field>
           <Field label="Tách cột">
             <Dropdown value={colDim} onChange={setColDim} placeholder="Không tách" options={colOpts} />
@@ -105,17 +113,17 @@ export default function TablesTab({ leads, showB10 }: { leads: ReportLead[]; sho
 
       <Panel
         title={colDim
-          ? `${DIMENSION_LABEL[rowDim]} × ${DIMENSION_LABEL[colDim as Dimension]}`
-          : `Bảng chỉ số theo ${DIMENSION_LABEL[rowDim].toLowerCase()}`}
+          ? `${DIMENSION_LABEL[safeRowDim]} × ${DIMENSION_LABEL[colDim as Dimension]}`
+          : `Bảng chỉ số theo ${DIMENSION_LABEL[safeRowDim].toLowerCase()}`}
         desc={colDim ? 'Mỗi ô: số lead · số ký HĐ' : 'Bấm tiêu đề cột để sắp xếp · bật/tắt cột ở trên'}
       >
         {leads.length === 0 ? (
           <div className="py-12 text-center text-slate-400 text-sm">Không có lead trong kỳ / bộ lọc.</div>
         ) : pivot ? (
-          <PivotTable pivot={pivot} rowLabel={DIMENSION_LABEL[rowDim]} />
+          <PivotTable pivot={pivot} rowLabel={DIMENSION_LABEL[safeRowDim]} />
         ) : (
           <FlatTable
-            rows={flatRows} cols={visible} firstCol={DIMENSION_LABEL[rowDim]} totals={totals}
+            rows={flatRows} cols={visible} firstCol={DIMENSION_LABEL[safeRowDim]} totals={totals}
             sortKey={sortKey} asc={asc}
             onSort={(k) => { if (k === sortKey) setAsc((v) => !v); else { setSortKey(k); setAsc(false); } }}
           />
@@ -123,7 +131,7 @@ export default function TablesTab({ leads, showB10 }: { leads: ReportLead[]; sho
       </Panel>
 
       <p className="text-xs text-slate-400">
-        Nút <b>Xuất Excel</b> tạo file .xlsx gồm bảng đang xem + 1 sheet cho mỗi chiều (Showroom, Thương hiệu, Dòng xe, Nguồn, TVBH, Trạng thái).
+        Nút <b>Xuất Excel</b> tạo file .xlsx gồm bảng đang xem + 1 sheet cho mỗi chiều ({dims.map((d) => DIMENSION_LABEL[d]).join(', ')}).
       </p>
     </div>
   );
@@ -313,13 +321,13 @@ function pivotSheet(leads: ReportLead[], rowDim: Dimension, colDim: Dimension): 
   return { name: `${DIMENSION_LABEL[rowDim]} x ${DIMENSION_LABEL[colDim]}`, rows: [header, ...body, totalRow] };
 }
 
-function buildSheets(leads: ReportLead[], nowMs: number, rowDim: Dimension, colDim: string, showB10: boolean): SheetData[] {
+function buildSheets(leads: ReportLead[], nowMs: number, rowDim: Dimension, colDim: string, showB10: boolean, dims: Dimension[]): SheetData[] {
   const sheets: SheetData[] = [];
   const metrics = showB10 ? [...METRICS, ...B10_METRICS] : METRICS;
   // Sheet đầu = bảng đang xem.
   if (colDim) sheets.push(pivotSheet(leads, rowDim, colDim as Dimension));
-  // Mỗi chiều 1 sheet chỉ số đầy đủ.
-  for (const d of ALL_DIMS) sheets.push(flatSheet(leads, nowMs, d, metrics));
+  // Mỗi chiều hợp lệ với cấp báo cáo 1 sheet chỉ số đầy đủ.
+  for (const d of dims) sheets.push(flatSheet(leads, nowMs, d, metrics));
   return sheets;
 }
 
