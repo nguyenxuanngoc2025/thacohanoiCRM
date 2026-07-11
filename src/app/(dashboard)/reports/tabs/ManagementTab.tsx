@@ -52,8 +52,8 @@ function slugify(s: string): string {
   return s.toLowerCase().replace(/\s+/g, '-').replace(/\//g, '-');
 }
 
-/** 8 ô số + 1 ô Δ, dùng chung cho mọi cấp dòng. */
-function MetricCells({ r, delta }: { r: GroupRow; delta: number }) {
+/** 8 ô số + (2 ô B10 nếu bật) + 1 ô Δ, dùng chung cho mọi cấp dòng. */
+function MetricCells({ r, delta, showB10 }: { r: GroupRow; delta: number; showB10: boolean }) {
   return (
     <>
       <td className="py-2 px-3 text-right font-semibold text-slate-800">{fmt(r.leads)}</td>
@@ -63,19 +63,26 @@ function MetricCells({ r, delta }: { r: GroupRow; delta: number }) {
       <td className="py-2 px-3 text-right font-semibold" style={{ color: r.won === 0 ? '#cbd5e1' : '#047857' }}>{fmt(r.won)}</td>
       <td className="py-2 px-3 text-right font-semibold" style={{ color: r.winRate === 0 ? '#cbd5e1' : '#047857' }}>{r.winRate.toFixed(1)}%</td>
       <td className="py-2 px-3 text-right" style={{ color: r.overdue === 0 ? '#cbd5e1' : '#be123c' }}>{fmt(r.overdue)}</td>
+      {showB10 && (
+        <>
+          <td className="py-2 px-3 text-right font-semibold" style={{ color: r.b10On === 0 ? '#cbd5e1' : '#7c3aed' }}>{fmt(r.b10On)}</td>
+          <td className="py-2 px-3 text-right" style={{ color: r.b10On === 0 ? '#cbd5e1' : '#7c3aed' }}>{r.b10Rate.toFixed(1)}%</td>
+        </>
+      )}
       <td className="py-2 px-3 text-right"><DeltaArrow delta={delta} pct /></td>
     </>
   );
 }
 
 /** Một dòng có thể mở rộng ra cấp con (đệ quy). */
-function DrillRow({ row, dim, leads, prevLeads, now, depth }: {
+function DrillRow({ row, dim, leads, prevLeads, now, depth, showB10 }: {
   row: GroupRow;
   dim: Dimension;
   leads: ReportLead[];
   prevLeads: ReportLead[];
   now: number;
   depth: number;
+  showB10: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const childDim = EXPAND_CHILD[dim];
@@ -119,28 +126,29 @@ function DrillRow({ row, dim, leads, prevLeads, now, depth }: {
             </span>
           </div>
         </td>
-        <MetricCells r={row} delta={delta} />
+        <MetricCells r={row} delta={delta} showB10={showB10} />
       </tr>
       {open && childDim && (
-        <DrillGroup dim={childDim} leads={subLeads} prevLeads={subPrev} now={now} depth={depth + 1} />
+        <DrillGroup dim={childDim} leads={subLeads} prevLeads={subPrev} now={now} depth={depth + 1} showB10={showB10} />
       )}
     </>
   );
 }
 
 /** Nhóm các dòng của một chiều (top-level hoặc cấp con khi mở rộng). */
-function DrillGroup({ dim, leads, prevLeads, now, depth }: {
+function DrillGroup({ dim, leads, prevLeads, now, depth, showB10 }: {
   dim: Dimension;
   leads: ReportLead[];
   prevLeads: ReportLead[];
   now: number;
   depth: number;
+  showB10: boolean;
 }) {
   const rows = useMemo(() => groupByDimension(leads, dim, now), [leads, dim, now]);
   if (rows.length === 0) {
     return (
       <tr>
-        <td colSpan={9} className="py-2 text-slate-300 text-xs" style={{ paddingLeft: 4 + depth * 20 + 21 }}>
+        <td colSpan={showB10 ? 11 : 9} className="py-2 text-slate-300 text-xs" style={{ paddingLeft: 4 + depth * 20 + 21 }}>
           Không có dữ liệu cấp dưới.
         </td>
       </tr>
@@ -149,7 +157,7 @@ function DrillGroup({ dim, leads, prevLeads, now, depth }: {
   return (
     <>
       {rows.map((r) => (
-        <DrillRow key={r.key} row={r} dim={dim} leads={leads} prevLeads={prevLeads} now={now} depth={depth} />
+        <DrillRow key={r.key} row={r} dim={dim} leads={leads} prevLeads={prevLeads} now={now} depth={depth} showB10={showB10} />
       ))}
     </>
   );
@@ -162,9 +170,10 @@ interface FixedTableProps {
   prevLeads: ReportLead[];
   now: number;
   periodLabel: string;
+  showB10: boolean;
 }
 
-function FixedTable({ title, dim, leads, prevLeads, now, periodLabel }: FixedTableProps) {
+function FixedTable({ title, dim, leads, prevLeads, now, periodLabel, showB10 }: FixedTableProps) {
   const totals = computeKpis(leads, now);
   const dimLabel = DIMENSION_LABEL[dim];
   const expandable = !!EXPAND_CHILD[dim];
@@ -178,7 +187,7 @@ function FixedTable({ title, dim, leads, prevLeads, now, periodLabel }: FixedTab
       winRateDelta: Math.round((r.winRate - (prevByKey.get(r.key)?.winRate ?? 0)) * 10) / 10,
     }));
     const slug = `bao-cao-${dim}-${slugify(periodLabel)}`;
-    exportXlsx(slug, [groupSheet(title, rowsWithDelta, totals, true)]);
+    exportXlsx(slug, [groupSheet(title, rowsWithDelta, totals, true, showB10)]);
   };
 
   return (
@@ -212,11 +221,17 @@ function FixedTable({ title, dim, leads, prevLeads, now, periodLabel }: FixedTab
                 <th className="py-2 px-3 text-right" style={{ color: '#047857' }}>KHĐ</th>
                 <th className="py-2 px-3 text-right" style={{ color: '#047857' }}>%chốt</th>
                 <th className="py-2 px-3 text-right" style={{ color: '#be123c' }}>Quá hạn</th>
+                {showB10 && (
+                  <>
+                    <th className="py-2 px-3 text-right" style={{ color: '#7c3aed' }}>Đã lên B10</th>
+                    <th className="py-2 px-3 text-right" style={{ color: '#7c3aed' }}>% B10</th>
+                  </>
+                )}
                 <th className="py-2 px-3 text-right">Δ so kỳ trước</th>
               </tr>
             </thead>
             <tbody>
-              <DrillGroup dim={dim} leads={leads} prevLeads={prevLeads} now={now} depth={0} />
+              <DrillGroup dim={dim} leads={leads} prevLeads={prevLeads} now={now} depth={0} showB10={showB10} />
             </tbody>
             <tfoot>
               <tr className="border-t-2 border-slate-200 text-slate-800 font-semibold">
@@ -228,6 +243,12 @@ function FixedTable({ title, dim, leads, prevLeads, now, periodLabel }: FixedTab
                 <td className="py-2 px-3 text-right" style={{ color: '#047857' }}>{fmt(totals.won)}</td>
                 <td className="py-2 px-3 text-right" style={{ color: '#047857' }}>{totals.winRate.toFixed(1)}%</td>
                 <td className="py-2 px-3 text-right" style={{ color: '#be123c' }}>{fmt(totals.overdue)}</td>
+                {showB10 && (
+                  <>
+                    <td className="py-2 px-3 text-right" style={{ color: '#7c3aed' }}>{fmt(totals.b10On)}</td>
+                    <td className="py-2 px-3 text-right" style={{ color: '#7c3aed' }}>{totals.b10Rate.toFixed(1)}%</td>
+                  </>
+                )}
                 <td className="py-2 px-3 text-right" />
               </tr>
             </tfoot>
@@ -242,7 +263,7 @@ export default function ManagementTab({
   leads,
   prevLeads,
   level,
-  showB10: _showB10,
+  showB10,
   periodLabel,
 }: {
   leads: ReportLead[];
@@ -275,6 +296,7 @@ export default function ManagementTab({
           prevLeads={prevLeads}
           now={now}
           periodLabel={periodLabel}
+          showB10={showB10}
         />
       ))}
     </div>

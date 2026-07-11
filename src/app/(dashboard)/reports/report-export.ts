@@ -13,14 +13,20 @@ export function tableSheet<T>(name: string, cols: SheetCol<T>[], rows: T[], tota
 }
 
 /** 1 bảng khuôn cố định (Bảng quản trị / Xếp hạng) → 1 sheet, kèm cột Δ%chốt + dòng Tổng. */
-export function groupSheet(name: string, rows: (GroupRow | RankedRow)[], totals: Kpis, withDelta: boolean): SheetData {
-  const header = ['Tên', 'Tổng lead', 'Đã LH', 'KHQT', 'GDTD', 'KHĐ', 'Tỉ lệ chốt', 'Quá hạn', ...(withDelta ? ['Δ so kỳ trước'] : [])];
+export function groupSheet(name: string, rows: (GroupRow | RankedRow)[], totals: Kpis, withDelta: boolean, showB10 = false): SheetData {
+  const header = [
+    'Tên', 'Tổng lead', 'Đã LH', 'KHQT', 'GDTD', 'KHĐ', 'Tỉ lệ chốt', 'Quá hạn',
+    ...(showB10 ? ['Đã lên B10', '% B10'] : []),
+    ...(withDelta ? ['Δ so kỳ trước'] : []),
+  ];
   const body = rows.map((r) => [
     r.label, r.leads, r.contacted, r.interested, r.following, r.won, r.winRate, r.overdue,
+    ...(showB10 ? [r.b10On, r.b10Rate] : []),
     ...(withDelta ? [(r as RankedRow).winRateDelta ?? 0] : []),
   ]);
   const totalRow: (string | number)[] = [
     'Tổng', totals.total, totals.contacted, totals.interested, totals.following, totals.won, totals.winRate, totals.overdue,
+    ...(showB10 ? [totals.b10On, totals.b10Rate] : []),
     ...(withDelta ? [''] : []),
   ];
   return { name, rows: [header, ...body, totalRow] };
