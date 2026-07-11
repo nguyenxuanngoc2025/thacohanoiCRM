@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { ROLE_LABELS } from '@/lib/nav';
 import { type UserRole } from '@/types/database';
+import ChangePasswordForm from './ChangePasswordForm';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,7 +34,8 @@ export default async function ProfilePage() {
 
       <div id="password" className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 sm:p-6">
         <h2 className="text-sm font-bold text-slate-900">Đổi mật khẩu</h2>
-        <p className="text-sm text-slate-400 mt-2">Liên hệ quản trị hệ thống để đổi mật khẩu.</p>
+        <p className="text-sm text-slate-400 mt-1">Nhập mật khẩu hiện tại và mật khẩu mới để thay đổi.</p>
+        <ChangePasswordForm email={profile?.email ?? user.email ?? ''} />
       </div>
     </div>
   );
