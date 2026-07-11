@@ -2,32 +2,56 @@
 
 import React, { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Users, PhoneCall, TrendingUp, FileSignature, Clock, XCircle, LayoutDashboard, Table2 } from 'lucide-react';
-import { computeKpis, type ReportLead } from '@/lib/reports';
+import { Users, PhoneCall, TrendingUp, FileSignature, Clock, XCircle, LayoutDashboard, Table2, BarChart2, GitBranch, Radio } from 'lucide-react';
+import { computeKpis, compareKpis, childDimension, groupByDimension, isOverdue, type ReportLead, type ReportLevel } from '@/lib/reports';
 import { sourcePlatform } from '@/lib/source';
 import { STATUS_LABEL, type LeadStatus } from '@/lib/lead-status';
-import { Dropdown, uniqOpts, BRAND, fmt, type Opt } from './ui';
+import { Dropdown, uniqOpts, BRAND, fmt, DeltaArrow, OverdueCallout, type Opt } from './ui';
+import { tabsForLevel, defaultTab, dimensionsForLevel, type ReportTab } from './report-level';
 import OverviewTab from './OverviewTab';
 import TablesTab from './TablesTab';
+// RankingTab, ManagementTab, SourceTab — created in later tasks; imports may cause tsc errors (expected)
+import RankingTab from './tabs/RankingTab';
+import ManagementTab from './tabs/ManagementTab';
+import SourceTab from './tabs/SourceTab';
 
 export type RangeKey = 'this_month' | 'last_month' | '30d' | 'custom';
-type Tab = 'overview' | 'tables';
+
+const TAB_LABELS: Record<ReportTab, string> = {
+  overview: 'Tổng quan',
+  ranking: 'Xếp hạng',
+  management: 'Bảng quản trị',
+  source: 'Nguồn & Kênh',
+  tables: 'Bảng chi tiết',
+};
+
+const TAB_ICONS: Record<ReportTab, React.ReactNode> = {
+  overview: <LayoutDashboard size={15} />,
+  ranking: <BarChart2 size={15} />,
+  management: <GitBranch size={15} />,
+  source: <Radio size={15} />,
+  tables: <Table2 size={15} />,
+};
 
 export default function ReportsView({
-  leads, range, from, to, fromMs, toMs, showB10,
+  leads, prevLeads, range, from, to, fromMs, toMs, showB10, reportLevel, marketing,
 }: {
   leads: ReportLead[];
+  prevLeads: ReportLead[];
   range: RangeKey;
   from: string;
   to: string;
   fromMs: number;
   toMs: number;
   showB10: boolean;
+  reportLevel: ReportLevel;
+  marketing: boolean;
 }) {
   const router = useRouter();
   const nowMs = useMemo(() => Date.now(), []);
 
-  const [tab, setTab] = useState<Tab>('overview');
+  const tabs = tabsForLevel(reportLevel);
+  const [tab, setTab] = useState<ReportTab>(defaultTab(reportLevel, marketing));
   const [brand, setBrand] = useState('');
   const [model, setModel] = useState('');
   const [showroom, setShowroom] = useState('');
@@ -38,13 +62,11 @@ export default function ReportsView({
   const [cTo, setCTo] = useState(to);
 
   const brandOpts = useMemo<Opt[]>(() => uniqOpts(leads, (l) => [l.brand_id, l.brand_name]), [leads]);
-  // Dòng xe lọc theo thương hiệu đang chọn (nếu có) — đúng quan hệ cấp con của thương hiệu.
   const modelOpts = useMemo<Opt[]>(
     () => uniqOpts(brand ? leads.filter((l) => l.brand_id === brand) : leads, (l) => [l.model_id, l.model_name]),
     [leads, brand],
   );
   const showroomOpts = useMemo<Opt[]>(() => uniqOpts(leads, (l) => [l.showroom_id, l.showroom_name]), [leads]);
-  // Nguồn = nguồn marketing CHÍNH (Facebook, Google…). fb_message/fb_comment/lead ads chỉ là chi tiết kênh.
   const sourceOpts = useMemo<Opt[]>(() => uniqOpts(leads, (l) => [l.source ? sourcePlatform(l.source) : null, l.source ? sourcePlatform(l.source) : null]), [leads]);
   const assigneeOpts = useMemo<Opt[]>(() => uniqOpts(leads, (l) => [l.assigned_to, l.assignee_name]), [leads]);
   const statusOpts = useMemo<Opt[]>(
@@ -52,25 +74,58 @@ export default function ReportsView({
     [leads],
   );
 
-  // Đổi thương hiệu thì bỏ dòng xe đang chọn (tránh chọn dòng xe của hãng khác).
   const onBrand = (v: string) => { setBrand(v); setModel(''); };
   const hasFilter = brand || model || showroom || source || assignee || status;
   const clearFilters = () => { setBrand(''); setModel(''); setShowroom(''); setSource(''); setAssignee(''); setStatus(''); };
 
-  const filtered = useMemo(
-    () => leads.filter((l) =>
+  // Bộ lọc dùng chung cho cả kỳ hiện tại và kỳ trước
+  const applyFilters = (list: ReportLead[]) =>
+    list.filter((l) =>
       (!brand || l.brand_id === brand) &&
       (!model || l.model_id === model) &&
       (!showroom || l.showroom_id === showroom) &&
       (!source || (l.source ? sourcePlatform(l.source) === source : false)) &&
       (!assignee || l.assigned_to === assignee) &&
-      (!status || l.status === status)),
-    [leads, brand, model, showroom, source, assignee, status],
-  );
+      (!status || l.status === status));
 
-  const kpis = useMemo(() => computeKpis(filtered, nowMs), [filtered, nowMs]);
+  const filtered = useMemo(() => applyFilters(leads), [leads, brand, model, showroom, source, assignee, status]);
+  const filteredPrev = useMemo(() => applyFilters(prevLeads), [prevLeads, brand, model, showroom, source, assignee, status]);
+
+  // So sánh KPI 2 kỳ
+  const cmp = useMemo(() => compareKpis(filtered, filteredPrev, nowMs), [filtered, filteredPrev, nowMs]);
+  const kpis = cmp.current;
+
+  // Delta tỷ lệ (% - % = điểm %)
+  const contactRate = (k: typeof kpis) => (k.total ? (k.contacted / k.total) * 100 : 0);
+  const contactRateDelta = contactRate(cmp.current) - contactRate(cmp.previous);
+  const winRateDelta = cmp.current.winRate - cmp.previous.winRate;
+
+  // Cảnh báo quá hạn: top đơn vị cấp dưới
+  const childDim = childDimension(reportLevel);
+  const overdueDetail = useMemo(() => {
+    if (!childDim) return undefined;
+    const overdueLeads = filtered.filter((l) => isOverdue(l, nowMs));
+    if (!overdueLeads.length) return undefined;
+    const groups = groupByDimension(overdueLeads, childDim, nowMs)
+      .sort((a, b) => b.overdue - a.overdue)
+      .slice(0, 2);
+    return groups.map((g) => `${g.label} (${g.overdue})`).join(', ');
+  }, [filtered, childDim, nowMs]);
+
   const setRange = (r: RangeKey) => router.push(`/reports?range=${r}`);
   const applyCustom = () => router.push(`/reports?range=custom&from=${cFrom}&to=${cTo}`);
+
+  // Label kỳ cho ManagementTab
+  const periodLabel: string = useMemo(() => {
+    if (range === 'this_month') return 'Tháng này';
+    if (range === 'last_month') return 'Tháng trước';
+    if (range === '30d') return '30 ngày';
+    // custom: dd/mm–dd/mm
+    const fmt2 = (s: string) => { const d = new Date(s); return `${String(d.getUTCDate()).padStart(2,'0')}/${String(d.getUTCMonth()+1).padStart(2,'0')}`; };
+    return `${fmt2(from)}–${fmt2(to)}`;
+  }, [range, from, to]);
+
+  const isPersonal = reportLevel === 'personal';
 
   return (
     <div className="p-4 sm:p-6 space-y-5">
@@ -118,30 +173,92 @@ export default function ReportsView({
         <Dropdown value={assignee} onChange={setAssignee} placeholder="Tất cả TVBH" options={assigneeOpts} />
         <Dropdown value={status} onChange={setStatus} placeholder="Tất cả trạng thái" options={statusOpts} />
         {hasFilter && (
-          <button onClick={clearFilters}
-            className="text-xs text-rose-600 hover:underline">Xoá lọc</button>
+          <button onClick={clearFilters} className="text-xs text-rose-600 hover:underline">Xoá lọc</button>
         )}
       </div>
 
-      {/* KPI strip — luôn hiển thị */}
+      {/* KPI strip — với delta so kỳ trước */}
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
-        <Kpi icon={<Users size={16} />} label="Tổng lead" value={fmt(kpis.total)} tone="#0f172a" />
-        <Kpi icon={<PhoneCall size={16} />} label="Đã liên hệ" value={fmt(kpis.contacted)} sub={`${kpis.contactRate}%`} tone="#1d4ed8" />
-        <Kpi icon={<TrendingUp size={16} />} label="Đang theo dõi" value={fmt(kpis.following)} tone="#b45309" />
-        <Kpi icon={<FileSignature size={16} />} label="Ký hợp đồng" value={fmt(kpis.won)} sub={`Tỉ lệ chốt ${kpis.winRate}%`} tone="#047857" />
-        <Kpi icon={<Clock size={16} />} label="Quá hạn liên hệ" value={fmt(kpis.overdue)} tone="#be123c" />
-        <Kpi icon={<XCircle size={16} />} label="Loại" value={fmt(kpis.fail)} sub={`${kpis.failRate}%`} tone="#64748b" />
+        <Kpi
+          icon={<Users size={16} />}
+          label={isPersonal ? 'Lead được giao' : 'Tổng lead'}
+          value={fmt(kpis.total)}
+          tone="#0f172a"
+          delta={cmp.delta.total}
+        />
+        <Kpi
+          icon={<PhoneCall size={16} />}
+          label={isPersonal ? 'Đã liên hệ' : 'Tỷ lệ liên hệ'}
+          value={isPersonal ? fmt(kpis.contacted) : `${contactRate(kpis).toFixed(1)}%`}
+          tone="#1d4ed8"
+          delta={contactRateDelta}
+          deltaPct
+        />
+        <Kpi
+          icon={<TrendingUp size={16} />}
+          label="Đang giao dịch"
+          value={fmt(kpis.following)}
+          tone="#b45309"
+          delta={cmp.delta.following}
+        />
+        <Kpi
+          icon={<FileSignature size={16} />}
+          label={isPersonal ? 'Đã chốt' : 'Đã chốt'}
+          value={fmt(kpis.won)}
+          tone="#047857"
+          delta={cmp.delta.won}
+        />
+        <Kpi
+          icon={<XCircle size={16} />}
+          label={isPersonal ? 'Tỷ lệ chốt của tôi' : 'Tỷ lệ chốt'}
+          value={`${kpis.winRate}%`}
+          tone="#047857"
+          delta={winRateDelta}
+          deltaPct
+        />
+        <Kpi
+          icon={<Clock size={16} />}
+          label={isPersonal ? 'Quá hạn cần gọi' : 'Quá hạn'}
+          value={fmt(kpis.overdue)}
+          tone="#be123c"
+          valueRed
+          delta={cmp.delta.overdue}
+          positiveIsGood={false}
+        />
       </div>
 
-      {/* Tabs */}
+      {/* Cảnh báo quá hạn */}
+      <OverdueCallout
+        count={kpis.overdue}
+        detail={childDim ? overdueDetail : 'Bạn có lead quá hạn cần gọi hôm nay'}
+        actionLabel={childDim ? 'Xem bảng quản trị' : undefined}
+        onJump={childDim ? () => setTab(tabs.includes('management') ? 'management' : 'ranking') : undefined}
+      />
+
+      {/* Tabs — chỉ render tab thuộc cấp */}
       <div className="flex items-center gap-1 border-b border-slate-200">
-        <TabBtn active={tab === 'overview'} onClick={() => setTab('overview')} icon={<LayoutDashboard size={15} />}>Tổng quan</TabBtn>
-        <TabBtn active={tab === 'tables'} onClick={() => setTab('tables')} icon={<Table2 size={15} />}>Bảng dữ liệu</TabBtn>
+        {tabs.map((t) => (
+          <TabBtn key={t} active={tab === t} onClick={() => setTab(t)} icon={TAB_ICONS[t]}>
+            {TAB_LABELS[t]}
+          </TabBtn>
+        ))}
       </div>
 
-      {tab === 'overview'
-        ? <OverviewTab leads={filtered} fromMs={fromMs} toMs={toMs} />
-        : <TablesTab leads={filtered} showB10={showB10} />}
+      {tab === 'overview' && (
+        <OverviewTab leads={filtered} fromMs={fromMs} toMs={toMs} reportLevel={reportLevel} prevLeads={filteredPrev} />
+      )}
+      {tab === 'ranking' && (
+        <RankingTab leads={filtered} prevLeads={filteredPrev} level={reportLevel} showB10={showB10} />
+      )}
+      {tab === 'management' && (
+        <ManagementTab leads={filtered} prevLeads={filteredPrev} level={reportLevel} showB10={showB10} periodLabel={periodLabel} />
+      )}
+      {tab === 'source' && (
+        <SourceTab leads={filtered} prevLeads={filteredPrev} fromMs={fromMs} toMs={toMs} showB10={showB10} />
+      )}
+      {tab === 'tables' && (
+        <TablesTab leads={filtered} showB10={showB10} dims={dimensionsForLevel(reportLevel)} />
+      )}
     </div>
   );
 }
@@ -158,15 +275,30 @@ function TabBtn({ active, onClick, icon, children }: { active: boolean; onClick:
   );
 }
 
-function Kpi({ icon, label, value, sub, tone }: { icon: React.ReactNode; label: string; value: string; sub?: string; tone: string }) {
+function Kpi({
+  icon, label, value, tone, delta, deltaPct, positiveIsGood = true, valueRed,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  tone: string;
+  delta?: number;
+  deltaPct?: boolean;
+  positiveIsGood?: boolean;
+  valueRed?: boolean;
+}) {
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
       <div className="flex items-center gap-2 text-slate-400">
         <span style={{ color: tone }}>{icon}</span>
         <span className="text-xs font-medium">{label}</span>
       </div>
-      <div className="mt-2 text-2xl font-bold" style={{ color: tone }}>{value}</div>
-      {sub && <div className="text-xs text-slate-400 mt-0.5">{sub}</div>}
+      <div className="mt-2 text-2xl font-bold" style={{ color: valueRed ? '#be123c' : tone }}>{value}</div>
+      {delta !== undefined && (
+        <div className="mt-0.5">
+          <DeltaArrow delta={delta} positiveIsGood={positiveIsGood} pct={deltaPct} />
+        </div>
+      )}
     </div>
   );
 }
