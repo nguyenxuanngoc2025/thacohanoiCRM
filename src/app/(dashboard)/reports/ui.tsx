@@ -10,11 +10,11 @@ export const fmt = (n: number) => n.toLocaleString('vi-VN');
 
 export interface Opt { value: string; label: string }
 
-export function Panel({ title, desc, action, children }: {
-  title?: string; desc?: string; action?: React.ReactNode; children: React.ReactNode;
+export function Panel({ title, desc, action, children, fill }: {
+  title?: string; desc?: string; action?: React.ReactNode; children: React.ReactNode; fill?: boolean;
 }) {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 sm:p-5">
+    <div className={`bg-white rounded-xl border border-slate-200 shadow-sm p-4 sm:p-5${fill ? ' h-full flex flex-col' : ''}`}>
       {(title || action) && (
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
@@ -24,7 +24,7 @@ export function Panel({ title, desc, action, children }: {
           {action}
         </div>
       )}
-      {children}
+      {fill ? <div className="flex-1 flex flex-col justify-center min-h-0">{children}</div> : children}
     </div>
   );
 }

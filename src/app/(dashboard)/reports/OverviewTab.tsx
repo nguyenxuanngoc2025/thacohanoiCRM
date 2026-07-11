@@ -52,9 +52,9 @@ export default function OverviewTab({
   return (
     <div className="space-y-4">
       {/* Hàng 1: Xu hướng (rộng) + Phễu (hẹp) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        <div className="lg:col-span-7">
-          <Panel title="Lead mới theo ngày" desc={`Tổng ${fmt(trend.reduce((s, d) => s + d.count, 0))} lead`}>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
+        <div className="lg:col-span-7 h-full">
+          <Panel fill title="Lead mới theo ngày" desc={`Tổng ${fmt(trend.reduce((s, d) => s + d.count, 0))} lead`}>
             <div style={{ height: 220 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={trendData} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
@@ -75,29 +75,29 @@ export default function OverviewTab({
           </Panel>
         </div>
 
-        <div className="lg:col-span-5">
-          <Panel title="Phễu chuyển đổi" desc="% bên phải là tỉ lệ chuyển đổi giữa các bậc">
+        <div className="lg:col-span-5 h-full">
+          <Panel fill title="Phễu chuyển đổi" desc="% bên phải là tỉ lệ chuyển đổi giữa các bậc">
             <FunnelDiagram funnel={funnel} />
           </Panel>
         </div>
       </div>
 
       {/* Hàng 2: Donut trạng thái + Donut thương hiệu + Nguồn (bento gọn) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        <div className={showBrandDonut ? 'lg:col-span-4' : 'lg:col-span-5'}>
-          <Panel title="Phân bổ theo trạng thái">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
+        <div className={`${showBrandDonut ? 'lg:col-span-4' : 'lg:col-span-5'} h-full`}>
+          <Panel fill title="Phân bổ theo trạng thái">
             <DonutOrEmpty data={statusData} colorOf={(d) => STATUS_COLOR[d.code as keyof typeof STATUS_COLOR] ?? '#cbd5e1'} />
           </Panel>
         </div>
         {showBrandDonut && (
-          <div className="lg:col-span-4">
-            <Panel title="Cơ cấu theo thương hiệu">
+          <div className="lg:col-span-4 h-full">
+            <Panel fill title="Cơ cấu theo thương hiệu">
               <DonutOrEmpty data={brandData} colorOf={(_d, i) => PALETTE[i % PALETTE.length]} />
             </Panel>
           </div>
         )}
-        <div className={showBrandDonut ? 'lg:col-span-4' : 'lg:col-span-7'}>
-          <Panel title="Lead & hợp đồng theo nguồn" desc="Số lead và ký HĐ từng kênh">
+        <div className={`${showBrandDonut ? 'lg:col-span-4' : 'lg:col-span-7'} h-full`}>
+          <Panel fill title="Lead & hợp đồng theo nguồn" desc="Số lead và ký HĐ từng kênh">
             <div style={{ height: Math.max(200, sourceData.length * 34) }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={sourceData} layout="vertical" margin={{ top: 4, right: 12, left: 4, bottom: 4 }} barCategoryGap={12}>
