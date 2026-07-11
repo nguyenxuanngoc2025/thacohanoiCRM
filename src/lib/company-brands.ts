@@ -36,12 +36,16 @@ export async function getMutedTeamIds(supabase: DbClient, companyId: string | nu
   if (openBrandIds.length === 0 && inactiveSr.size === 0) return [];
   const { data } = await supabase
     .from('sales_teams')
-    .select('id, brand_id, showroom_id')
+    .select('id, brand_ids, showroom_id')
     .eq('company_id', companyId);
   return (data ?? [])
     .filter((t) => {
-      const row = t as { brand_id: string; showroom_id: string | null };
-      return isBrandClosed(openBrandIds, String(row.brand_id)) || inactiveSr.has(String(row.showroom_id));
+      const row = t as { brand_ids: string[] | null; showroom_id: string | null };
+      // Phòng đa hãng (brand_ids[]): chỉ mute-hãng khi CÓ gán hãng VÀ mọi hãng đều đóng.
+      // (Cột cũ brand_id NULL với phòng PVD gây mute nhầm — dùng brand_ids là nguồn đúng.)
+      const brands = row.brand_ids ?? [];
+      const brandMuted = brands.length > 0 && brands.every((b) => isBrandClosed(openBrandIds, b));
+      return brandMuted || inactiveSr.has(String(row.showroom_id));
     })
     .map((t) => String((t as { id: string }).id));
 }
@@ -65,12 +69,15 @@ export async function getMutedTeamIdsGlobal(supabase: DbClient): Promise<Set<str
   for (const s of srRows ?? []) {
     if ((s as { is_active: boolean }).is_active === false) inactiveSr.add(String((s as { id: string }).id));
   }
-  const { data: teams } = await supabase.from('sales_teams').select('id, company_id, brand_id, showroom_id');
+  const { data: teams } = await supabase.from('sales_teams').select('id, company_id, brand_ids, showroom_id');
   const muted = new Set<string>();
   for (const t of teams ?? []) {
-    const row = t as { id: string; company_id: string; brand_id: string; showroom_id: string | null };
+    const row = t as { id: string; company_id: string; brand_ids: string[] | null; showroom_id: string | null };
     const open = openByCompany.get(String(row.company_id));
-    const brandMuted = !!open && open.size > 0 && !open.has(String(row.brand_id));
+    // Phòng đa hãng (brand_ids[]): chỉ mute-hãng khi CÓ gán hãng VÀ mọi hãng đều đóng.
+    // (Cột cũ brand_id NULL với phòng PVD gây mute nhầm — dùng brand_ids là nguồn đúng.)
+    const brands = row.brand_ids ?? [];
+    const brandMuted = !!open && open.size > 0 && brands.length > 0 && brands.every((b) => !open.has(String(b)));
     const srMuted = inactiveSr.has(String(row.showroom_id));
     if (brandMuted || srMuted) muted.add(String(row.id));
   }
