@@ -8,6 +8,7 @@ import { STATUS_OPTIONS, type LeadStatus } from '@/lib/lead-status';
 import { updateLead, reassignLead, reassignTeam, renameLead, getLeadLogs, type LeadLogItem } from './actions';
 import type { LeadRow } from './LeadsTable';
 import type { ModelOption, AssigneeOption, TeamOption } from './LeadsView';
+import ModalPortal from '@/components/ui/ModalPortal';
 
 const fmtDate = (v: string) => new Date(v).toLocaleString('vi-VN', {
   day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
@@ -146,9 +147,10 @@ export default function LeadDrawer({
   };
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 1000 }}>
       <div className="absolute inset-0 bg-slate-900/40" onClick={onClose} />
-      <div className="relative w-full max-w-4xl max-h-[92vh] bg-white rounded-2xl shadow-2xl flex flex-col animate-[popIn_0.18s_ease]">
+      <div className="relative w-full max-w-4xl max-h-[92dvh] bg-white rounded-2xl shadow-2xl flex flex-col animate-[popIn_0.18s_ease]">
         <style>{`@keyframes popIn{from{opacity:0;transform:scale(0.97)}to{opacity:1;transform:scale(1)}}`}</style>
 
         {/* Header */}
@@ -364,5 +366,6 @@ export default function LeadDrawer({
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }

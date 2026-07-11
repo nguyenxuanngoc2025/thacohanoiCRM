@@ -7,6 +7,7 @@ import { createLead, recommendAssignment } from './actions';
 import { DIGITAL_PLATFORMS, DEFAULT_PLATFORM_KEY } from '@/lib/platforms';
 import { SOURCE_VARIANTS } from '@/lib/source';
 import type { ModelOption, BrandOption, ShowroomOption, AssigneeOption, TeamOption } from './LeadsView';
+import ModalPortal from '@/components/ui/ModalPortal';
 
 export default function NewLeadModal({
   brands, showrooms, models, assignees, teams, fixedTeamId, onClose,
@@ -144,8 +145,9 @@ export default function NewLeadModal({
   const lblCls = 'text-sm text-slate-600 block mb-1';
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90dvh] flex flex-col" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 shrink-0">
           <h3 className="font-bold text-slate-900 inline-flex items-center gap-2">
             <UserPlus size={18} style={{ color: '#004B9B' }} /> Thêm lead thủ công
@@ -275,5 +277,6 @@ export default function NewLeadModal({
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }
