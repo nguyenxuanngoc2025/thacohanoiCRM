@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildPeriodReport, buildChannelReport, type ReportLead } from './daily-report';
+import { renderChannelDaily } from './notify-templates';
 
 const L = (over: Partial<ReportLead>): ReportLead => ({
   showroom_id: 'sr1', showroom_name: 'KIA HN',
@@ -138,6 +139,21 @@ describe('daily-report', () => {
     expect(p1.brands.map((b) => b.name).sort()).toEqual(['KIA', 'Mazda']);
     const p2 = r.phongs.find((p) => p.name === 'Phòng 2')!;
     expect(p2.stats.total).toBe(1);
+  });
+
+  it('buildChannelReport → renderChannelDaily: ra text có TỔNG QUAN + phòng', () => {
+    const now = new Date('2026-06-24T18:00:00Z');
+    const leads: ReportLead[] = [
+      L({ sales_team_id: 't1', team_name: 'Phòng 1', brand_id: 'kia', brand_name: 'KIA', last_contact_at: '2026-06-24T09:00:00Z' }),
+      L({ sales_team_id: 't2', team_name: 'Phòng 2', brand_id: 'maz', brand_name: 'Mazda' }),
+    ];
+    const r = buildChannelReport(leads, 'NGÀY 24/06', now, {
+      headerName: 'SR PVD', teams: [{ id: 't1', name: 'Phòng 1' }, { id: 't2', name: 'Phòng 2' }],
+    });
+    const text = renderChannelDaily(r);
+    expect(text).toContain('BÁO CÁO NGÀY 24/06 — SR PVD');
+    expect(text).toContain('<b>TỔNG QUAN</b>');
+    expect(text).toContain('<b>PHÒNG Phòng 1</b>');
   });
 
   it('buildChannelReport: phòng seed 0 lead vẫn xuất hiện; chỉ gom lead trong tập phòng', () => {
