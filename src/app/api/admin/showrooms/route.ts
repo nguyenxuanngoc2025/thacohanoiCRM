@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     if (!own) return NextResponse.json({ error: 'Showroom không thuộc công ty của bạn.' }, { status: 404 });
 
     const row: Record<string, unknown> = {};
-    if (['least_loaded', 'round_robin', 'weighted'].includes(body.team_assign_strategy)) {
+    if (['least_loaded', 'round_robin', 'weighted', 'day_roster'].includes(body.team_assign_strategy)) {
       row.team_assign_strategy = body.team_assign_strategy;
     }
     if (Number.isFinite(Number(body.assign_share_pct))) {

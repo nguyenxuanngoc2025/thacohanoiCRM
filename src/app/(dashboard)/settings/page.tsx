@@ -4,6 +4,7 @@ import SettingsClient from '@/components/settings/SettingsClient';
 import type { ChannelRow } from '@/components/settings/types';
 import { getFbBusinessId } from '@/lib/platform-settings';
 import { getOpenBrandIds, isBrandClosed } from '@/lib/company-brands';
+import { vnDateStr } from '@/lib/roster';
 
 export const dynamic = 'force-dynamic';
 
@@ -151,9 +152,17 @@ export default async function SettingsPage() {
   }[]).map((s) => ({
     ...s,
     brand_ids: brandIdsBySr[s.id] ?? [],
-    team_assign_strategy: (s.team_assign_strategy ?? 'weighted') as 'least_loaded' | 'round_robin' | 'weighted',
+    team_assign_strategy: (s.team_assign_strategy ?? 'weighted') as 'least_loaded' | 'round_robin' | 'weighted' | 'day_roster',
     assign_share_pct: Number(s.assign_share_pct) || 0,
   }));
+
+  // Lịch trực phòng nhận (day_roster) từ hôm nay trở đi — chỉ showroom đang hoạt động.
+  const { data: rosterRows } = await service
+    .from('showroom_day_roster')
+    .select('showroom_id, roster_date, sales_team_id')
+    .in('showroom_id', srFilter)
+    .gte('roster_date', vnDateStr(new Date()))
+    .order('roster_date');
 
   // Gom danh sách showroom + % phân bổ cho mỗi kênh (bảng junction channel_account_showrooms)
   const showroomIdsByChannel: Record<string, string[]> = {};
@@ -205,6 +214,7 @@ export default async function SettingsPage() {
         currentUserId={user.id}
         channels={channelsWithShowrooms}
         assignmentRules={assignmentRules ?? []}
+        roster={rosterRows ?? []}
         slaConfig={slaConfig ?? []}
         notifChannels={notifChannelsOpen}
         recentLogs={recentLogs ?? []}

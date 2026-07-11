@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { renderNewLead, renderLeadAssigned, renderLeadsAssignedSummary, renderOverdue, renderDailySr, renderDailyMgmt, maskPhone } from './notify-templates';
+import { renderNewLead, renderLeadAssigned, renderLeadsAssignedSummary, renderRosterMissing, renderOverdue, renderDailySr, renderDailyMgmt, maskPhone } from './notify-templates';
 
 describe('notify-templates', () => {
   it('maskPhone: hiển thị 10 chữ số (0...) + che 3 số cuối', () => {
@@ -93,6 +93,15 @@ describe('notify-templates', () => {
     const t = renderLeadAssigned({ showroom: 'Mazda', fullName: null, phone: '+8490', model: null, assignee: 'C' });
     expect(t).toContain('Khách lẻ');
     expect(t).toContain('Dòng xe quan tâm: chưa xác định');
+  });
+
+  it('renderRosterMissing: nhắc đặt lịch phòng trực, có tên showroom + ngày, không emoji', () => {
+    const t = renderRosterMissing('KIA Hà Nội', '11/07');
+    expect(t).toContain('<b>NHẮC LỊCH PHÒNG NHẬN — KIA Hà Nội</b>');
+    expect(t).toContain('(11/07)');
+    expect(t).toContain('<b>CHƯA phân giao</b>');
+    expect(t).toContain('Cài đặt → Phân giao');
+    expect(t).not.toMatch(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u);
   });
 
   it('renderLeadsAssignedSummary: tổng đậm + liệt kê TVBH/số lead + lời nhắc đậm', () => {

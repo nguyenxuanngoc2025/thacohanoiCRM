@@ -46,7 +46,9 @@ export function pickWeightedTeam(candidates: WeightedLoad[]): string | null {
 
 // 'manual' = không tự chia (chỉ cấp phòng→TVBH dùng): lead về phòng nhưng KHÔNG gán TVBH,
 // trưởng phòng tự chia tay. pickByStrategy trả null cho 'manual'.
-export type AssignStrategy = 'least_loaded' | 'round_robin' | 'weighted' | 'manual';
+// 'day_roster' = chỉ cấp showroom→phòng: phòng nhận theo lịch ngày (xem lib/roster.ts). ingest
+// xử lý riêng TRƯỚC khi gọi pickByStrategy; nếu lọt tới đây (fallback) coi như 'weighted'.
+export type AssignStrategy = 'least_loaded' | 'round_robin' | 'weighted' | 'manual' | 'day_roster';
 
 export interface RoundRobinCandidate {
   id: string;
@@ -78,7 +80,8 @@ export function pickByStrategy(strategy: AssignStrategy, candidates: StrategyCan
   if (strategy === 'round_robin') {
     return pickRoundRobin(candidates.map((c) => ({ id: c.id, lastAssignedAt: c.lastAssignedAt })));
   }
-  if (strategy === 'weighted') {
+  if (strategy === 'weighted' || strategy === 'day_roster') {
+    // day_roster lọt tới đây = fallback (ngày trống lịch / phòng trực không bán hãng) → chia theo tỷ lệ.
     return pickWeightedTeam(candidates.map((c) => ({ id: c.id, weight: c.sharePct, activeLeadCount: c.activeLeadCount })));
   }
   return pickNextAssignee(candidates.map((c) => ({ id: c.id, activeLeadCount: c.activeLeadCount })));

@@ -1,6 +1,14 @@
 // Kiểu dữ liệu dùng chung cho các panel Cài đặt
 
-export type AssignStrategy = 'least_loaded' | 'round_robin' | 'weighted' | 'manual';
+export type AssignStrategy = 'least_loaded' | 'round_robin' | 'weighted' | 'manual' | 'day_roster';
+
+// 1 dòng lịch trực: ngày dương lịch nào (roster_date 'YYYY-MM-DD') phòng nào (sales_team_id)
+// nhận toàn bộ lead của showroom. null = đã tạo dòng nhưng gỡ phòng (coi như chưa đặt).
+export interface RosterRow {
+  showroom_id: string;
+  roster_date: string;
+  sales_team_id: string | null;
+}
 
 export interface ShowroomRow {
   id: string;

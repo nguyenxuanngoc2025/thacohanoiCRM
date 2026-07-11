@@ -4,6 +4,7 @@ import { looksLikePersonName } from '@/lib/person-name';
 import { pickByStrategy, type AssignStrategy, type StrategyCandidate } from '@/lib/assign';
 import { detectModel } from '@/lib/detect-model';
 import { getOpenBrandIds, isBrandClosed } from '@/lib/company-brands';
+import { vnDateStr, resolveRosterTeam } from '@/lib/roster';
 import type { IngestPayload, IngestResult } from '@/types/database';
 
 /** Cửa nạp lead chung — mọi kênh (FB webhook, n8n sau này) gọi vào đây. */
@@ -171,7 +172,7 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
   // Công ty của showroom đã chọn
   const { data: showroom } = await db
     .from('showrooms')
-    .select('id, company_id, is_active')
+    .select('id, company_id, is_active, name')
     .eq('id', chosenShowroomId)
     .maybeSingle();
 
@@ -224,7 +225,52 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
       .from('showrooms').select('team_assign_strategy').eq('id', chosenShowroomId).maybeSingle();
     const teamStrategy = (srCfg?.team_assign_strategy ?? 'weighted') as AssignStrategy;
 
-    if (teamPool.length > 0) {
+    // LỊCH TRỰC THEO NGÀY: quản lý showroom đặt ngày nào phòng nào nhận → ép TOÀN BỘ lead ngày đó
+    // về phòng trực (miễn phòng đó bán hãng của lead). Ngày trống lịch → giữ chưa phân giao + nhắc Zalo.
+    // rosterHandled=true = đã quyết định xong (assign hoặc để trống có chủ đích) → bỏ qua khối chia đều.
+    let rosterHandled = false;
+    if (teamStrategy === 'day_roster') {
+      const today = vnDateStr(new Date());
+      const { data: rosterRow } = await db
+        .from('showroom_day_roster')
+        .select('sales_team_id')
+        .eq('showroom_id', chosenShowroomId)
+        .eq('roster_date', today)
+        .maybeSingle();
+      const res = resolveRosterTeam(rosterRow?.sales_team_id ?? null, teamPool);
+      if (res.mode === 'assign') {
+        chosenTeamId = res.teamId!;
+        rosterHandled = true;
+      } else if (res.mode === 'unassigned') {
+        // Chưa đặt phòng trực hôm nay → lead giữ chưa phân giao; nhắc Zalo (1 lần/ngày/showroom).
+        rosterHandled = true;
+        if (!showroomClosed && !payload.suppress_notify) {
+          const { data: dup } = await db.from('notifications').select('id')
+            .eq('payload->>event', 'roster_reminder')
+            .eq('payload->>showroomId', chosenShowroomId)
+            .eq('payload->>date', today).limit(1);
+          if (!dup || dup.length === 0) {
+            const { data: chs } = await db.from('notification_channels')
+              .select('id, channel, target, scope, showroom_id, sales_team_id')
+              .eq('company_id', showroom.company_id).eq('is_active', true);
+            const mgmt = (chs ?? []).filter((c) => c.scope === 'management' && c.showroom_id === chosenShowroomId);
+            const sales = (chs ?? []).filter((c) => c.scope === 'sales' && c.sales_team_id && teamsInShowroom.includes(c.sales_team_id));
+            const rTargets = mgmt.length > 0 ? mgmt : sales;
+            if (rTargets.length > 0) {
+              const { renderRosterMissing } = await import('@/lib/notify-templates');
+              const rtext = renderRosterMissing(showroom.name ?? 'Showroom', `${today.slice(8, 10)}/${today.slice(5, 7)}`);
+              await db.from('notifications').insert(rTargets.map((c) => ({
+                lead_id: null, channel: c.channel, channel_id: c.id, status: 'pending',
+                payload: { event: 'roster_reminder', showroomId: chosenShowroomId, date: today, target: c.target, text: rtext },
+              })));
+            }
+          }
+        }
+      }
+      // res.mode === 'fallback' → rosterHandled vẫn false → chạy khối chia đều bên dưới (chia weighted cho lead hãng đó).
+    }
+
+    if (!rosterHandled && teamPool.length > 0) {
       const { data: teamMeta } = await db
         .from('sales_teams').select('id, assign_share_pct').in('id', teamPool);
       const shareByTeam = new Map<string, number>((teamMeta ?? []).map((t) => [t.id, Number(t.assign_share_pct) || 0]));

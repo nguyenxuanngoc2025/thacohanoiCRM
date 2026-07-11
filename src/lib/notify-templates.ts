@@ -16,6 +16,15 @@ export function maskPhone(phone: string): string {
   return p.slice(0, -3) + '***';
 }
 
+// Nhắc quản lý showroom đặt lịch phòng trực khi hôm nay chưa có phòng nhận (chiến lược day_roster).
+export function renderRosterMissing(showroom: string, ddmm: string): string {
+  return [
+    `<b>NHẮC LỊCH PHÒNG NHẬN — ${showroom}</b>`,
+    `Hôm nay (${ddmm}) chưa đặt phòng trực nhận lead. Lead mới đang chờ, <b>CHƯA phân giao</b>.`,
+    '<i>Vào Cài đặt → Phân giao để đặt phòng nhận cho hôm nay.</i>',
+  ].join('\n');
+}
+
 export interface NewLeadInput {
   showroom: string;
   fullName: string | null;

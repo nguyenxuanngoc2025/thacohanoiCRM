@@ -14,7 +14,7 @@ import ActivityLog from './ActivityLog';
 import SalesTeamsManager from './SalesTeamsManager';
 import SystemHealthPanel from './SystemHealthPanel';
 import type {
-  ShowroomRow, BrandRow, ModelRow, ChannelRow, AssignmentRuleRow, SlaRow, NotifChannelRow, LeadLogRow, SalesTeamRow,
+  ShowroomRow, BrandRow, ModelRow, ChannelRow, AssignmentRuleRow, SlaRow, NotifChannelRow, LeadLogRow, SalesTeamRow, RosterRow,
 } from './types';
 
 export type { ChannelRow };
@@ -64,7 +64,7 @@ const NAV: NavGroup[] = [
 export default function SettingsClient({
   staff, showrooms, brands, models, salesTeams, companyId, currentUserId, channels,
   assignmentRules, slaConfig, notifChannels, recentLogs, statusCounts,
-  fbBusinessId, googleConnected, zaloBotSession,
+  fbBusinessId, googleConnected, zaloBotSession, roster,
 }: {
   staff: StaffRow[];
   showrooms: ShowroomRow[];
@@ -82,6 +82,7 @@ export default function SettingsClient({
   fbBusinessId: string;
   googleConnected: boolean;
   zaloBotSession: { status: 'connected' | 'disconnected'; displayName: string | null; lastError: string | null };
+  roster: RosterRow[];
 }) {
   const [active, setActive] = useState<ItemKey>('accounts');
   const showroomOpts: ShowroomOption[] = showrooms;
@@ -168,7 +169,7 @@ export default function SettingsClient({
         )}
         {active === 'pipeline' && <PipelineReference counts={statusCounts} />}
         {active === 'assignment' && (
-          <AssignmentManager showrooms={showrooms} salesTeams={salesTeams} staff={staff} rules={assignmentRules} sla={slaConfig} companyId={companyId} />
+          <AssignmentManager showrooms={showrooms} salesTeams={salesTeams} staff={staff} rules={assignmentRules} sla={slaConfig} companyId={companyId} roster={roster} />
         )}
         {active === 'health' && <SystemHealthPanel />}
         {active === 'notifications' && <NotificationsManager channels={notifChannels} showrooms={showrooms} salesTeams={salesTeams} zaloBotSession={zaloBotSession} />}

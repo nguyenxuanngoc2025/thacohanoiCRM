@@ -2,23 +2,25 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { GitBranch, Plus, Edit2, Trash2, X, Clock, Bell, ChevronRight, ChevronDown, Building2, Boxes, User } from 'lucide-react';
-import type { ShowroomRow, SalesTeamRow, AssignmentRuleRow, SlaRow, AssignStrategy } from './types';
+import { GitBranch, Plus, Edit2, Trash2, X, Clock, Bell, ChevronRight, ChevronDown, Building2, Boxes, User, CalendarDays } from 'lucide-react';
+import type { ShowroomRow, SalesTeamRow, AssignmentRuleRow, SlaRow, AssignStrategy, RosterRow } from './types';
 import type { StaffRow } from './AccountsManager';
+import { vnDateStr } from '@/lib/roster';
 import {
   PanelHeader, PrimaryBtn, GhostBtn, Field, TextInput, Select, Toggle, StatusPill, FlashBar, Panel, postAdmin,
 } from './ui';
 
-// Nhãn 3 kiểu chia dùng chung mọi cấp.
+// Nhãn các kiểu chia dùng chung mọi cấp.
 const STRATEGY_LABELS: Record<AssignStrategy, string> = {
   least_loaded: 'Ít lead nhất',
   round_robin: 'Xoay vòng',
   weighted: 'Theo tỷ lệ %',
   manual: 'Thủ công (tự chia)',
+  day_roster: 'Theo lịch phòng trực (ngày)',
 };
 
 export default function AssignmentManager({
-  showrooms, salesTeams, staff, rules, sla, companyId,
+  showrooms, salesTeams, staff, rules, sla, companyId, roster,
 }: {
   showrooms: ShowroomRow[];
   salesTeams: SalesTeamRow[];
@@ -26,6 +28,7 @@ export default function AssignmentManager({
   rules: AssignmentRuleRow[];
   sla: SlaRow[];
   companyId: string;
+  roster: RosterRow[];
 }) {
   const router = useRouter();
   const [flash, setFlash] = useState<string | null>(null);
@@ -59,12 +62,14 @@ export default function AssignmentManager({
           <span className="font-semibold text-slate-800">3 kiểu chia:</span>{' '}
           <b>Ít lead nhất</b> (ưu tiên nơi đang giữ ít lead chờ nhất) ·{' '}
           <b>Xoay vòng</b> (nơi lâu nhất chưa nhận thì tới lượt) ·{' '}
-          <b>Theo tỷ lệ %</b> (mỗi nơi một phần trăm, tổng nên bằng 100%).
+          <b>Theo tỷ lệ %</b> (mỗi nơi một phần trăm, tổng nên bằng 100%) ·{' '}
+          <b>Theo lịch phòng trực</b> (chỉ cấp showroom → phòng: quản lý đặt lịch từng ngày, ngày nào phòng nào trực thì phòng đó nhận trọn lead ngày đó).
         </div>
         <AssignmentTree
           showrooms={showrooms}
           salesTeams={salesTeams}
           staff={staff}
+          roster={roster}
           onDone={(m) => { flashMsg(m); router.refresh(); }}
         />
       </Panel>
@@ -133,13 +138,15 @@ export default function AssignmentManager({
 }
 
 // Select kiểu chia dùng chung. allowManual=true (chỉ cấp phòng→TVBH) thêm lựa chọn "Thủ công".
-function StratSelect({ value, disabled, allowManual, onChange }: { value: AssignStrategy; disabled?: boolean; allowManual?: boolean; onChange: (v: AssignStrategy) => void }) {
+// allowRoster=true (chỉ cấp showroom→phòng) thêm lựa chọn "Theo lịch phòng trực".
+function StratSelect({ value, disabled, allowManual, allowRoster, onChange }: { value: AssignStrategy; disabled?: boolean; allowManual?: boolean; allowRoster?: boolean; onChange: (v: AssignStrategy) => void }) {
   return (
     <Select value={value} disabled={disabled} onChange={(e) => onChange(e.target.value as AssignStrategy)}>
       <option value="least_loaded">{STRATEGY_LABELS.least_loaded}</option>
       <option value="round_robin">{STRATEGY_LABELS.round_robin}</option>
       <option value="weighted">{STRATEGY_LABELS.weighted}</option>
       {allowManual && <option value="manual">{STRATEGY_LABELS.manual}</option>}
+      {allowRoster && <option value="day_roster">{STRATEGY_LABELS.day_roster}</option>}
     </Select>
   );
 }
@@ -169,11 +176,12 @@ function TotalBadge({ total }: { total: number }) {
 
 // Cây phân giao: 1 màn hình đặt kiểu chia cả 3 cấp.
 function AssignmentTree({
-  showrooms, salesTeams, staff, onDone,
+  showrooms, salesTeams, staff, roster, onDone,
 }: {
   showrooms: ShowroomRow[];
   salesTeams: SalesTeamRow[];
   staff: StaffRow[];
+  roster: RosterRow[];
   onDone: (m: string) => void;
 }) {
   const tvbh = staff.filter((s) => s.role === 'tvbh');
@@ -263,10 +271,13 @@ function AssignmentTree({
                   <div className="text-xs font-semibold text-slate-500 mb-1.5">Showroom này chia lead vào các phòng:</div>
                   <div className="max-w-xs">
                     <StratSelect value={srStrat[s.id] ?? 'weighted'} disabled={busy === `sr-${s.id}`}
-                      onChange={(next) => saveSrStrat(s, next)} />
+                      allowRoster onChange={(next) => saveSrStrat(s, next)} />
                   </div>
                   {srStrat[s.id] === 'weighted' && teams.length > 0 && (
                     <div className="mt-1.5"><TotalBadge total={tmTotal} /></div>
+                  )}
+                  {srStrat[s.id] === 'day_roster' && (
+                    <DayRosterEditor showroom={s} teams={teams} roster={roster} onDone={onDone} />
                   )}
                 </div>
 
@@ -332,6 +343,82 @@ function AssignmentTree({
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// Lịch phòng trực theo ngày: quản lý đặt ngày nào phòng nào nhận trọn lead.
+// Hiện 14 ngày kể từ hôm nay (giờ VN). Mỗi ngày 1 dropdown chọn phòng (hoặc "Chưa đặt").
+const WEEKDAYS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+const ROSTER_DAYS = 14;
+
+function DayRosterEditor({
+  showroom, teams, roster, onDone,
+}: {
+  showroom: ShowroomRow;
+  teams: SalesTeamRow[];
+  roster: RosterRow[];
+  onDone: (m: string) => void;
+}) {
+  // Lịch hiện tại của showroom này → tra nhanh theo ngày.
+  const initMap: Record<string, string> = {};
+  for (const r of roster) {
+    if (r.showroom_id === showroom.id && r.sales_team_id) initMap[r.roster_date] = r.sales_team_id;
+  }
+  const [pick, setPick] = useState<Record<string, string>>(initMap);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  // Dựng 14 ngày liên tiếp từ hôm nay (giờ VN). Neo giữa trưa UTC để cộng ngày không lệch biên.
+  const today = vnDateStr(new Date());
+  const anchor = new Date(`${today}T12:00:00Z`);
+  const days = Array.from({ length: ROSTER_DAYS }, (_, i) => {
+    const d = new Date(anchor.getTime() + i * 86400000);
+    const iso = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+    return { iso, wd: WEEKDAYS[d.getUTCDay()], dd: String(d.getUTCDate()).padStart(2, '0'), mm: String(d.getUTCMonth() + 1).padStart(2, '0'), isToday: i === 0 };
+  });
+
+  const save = async (iso: string, teamId: string) => {
+    const prev = pick[iso];
+    setPick((v) => ({ ...v, [iso]: teamId }));
+    setBusy(iso);
+    const r = await postAdmin('/api/admin/showroom-roster', {
+      op: 'set', showroom_id: showroom.id, roster_date: iso, sales_team_id: teamId || null,
+    });
+    setBusy(null);
+    if (!r.ok) { window.alert(r.error); setPick((v) => ({ ...v, [iso]: prev ?? '' })); return; }
+    onDone('Đã lưu lịch phòng trực.');
+  };
+
+  return (
+    <div className="mt-2 rounded-lg border border-slate-200 bg-white p-3">
+      <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 mb-2">
+        <CalendarDays size={14} style={{ color: '#004B9B' }} /> Lịch phòng trực nhận lead (14 ngày tới)
+      </div>
+      {teams.length === 0 ? (
+        <div className="text-xs text-slate-400">Showroom chưa có phòng bán hàng để xếp lịch.</div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {days.map((d) => (
+              <div key={d.iso} className="flex items-center gap-2">
+                <span className={`shrink-0 w-20 text-xs ${d.isToday ? 'font-bold text-[#004B9B]' : 'text-slate-500'}`}>
+                  {d.wd} {d.dd}/{d.mm}{d.isToday ? ' · Nay' : ''}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <Select value={pick[d.iso] ?? ''} disabled={busy === d.iso}
+                    onChange={(e) => save(d.iso, e.target.value)}>
+                    <option value="">— Chưa đặt —</option>
+                    {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </Select>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-2 text-[11px] text-slate-400 leading-relaxed">
+            Ngày <b>chưa đặt phòng</b> → lead giữ <b>chưa phân giao</b> và hệ thống nhắc nhóm Zalo đặt lịch. Nếu lead thuộc hãng phòng trực không bán → chia theo tỷ lệ như thường.
+          </div>
+        </>
+      )}
     </div>
   );
 }
