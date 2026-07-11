@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   computeKpis, computeFunnel, groupBySource, groupByAssignee, groupByModel,
   dailyTrend, failReasons, statusDistribution, isOverdue, crossShowroomBrand, crossDimension,
-  effectiveStatus,
+  effectiveStatus, groupByTeam, groupByDimension,
   type ReportLead,
 } from './reports';
 
@@ -10,6 +10,7 @@ const base: ReportLead = {
   status: null, source: 'facebook', brand_id: 'b1', brand_name: 'KIA',
   model_id: 'm1', model_name: 'Sonet',
   showroom_id: 's1', showroom_name: 'KIA HN', assigned_to: 'u1', assignee_name: 'An',
+  sales_team_id: null, team_name: null,
   created_at: '2026-06-10T03:00:00Z', last_contact_at: null, next_contact_at: null, fail_reason: null,
   b10_on: false, b10_status: null,
 };
@@ -276,5 +277,27 @@ describe('chỉ số B10', () => {
     expect(fb.b10On).toBe(1);
     expect(fb.b10Rate).toBe(50);
     expect(fb.b10Won).toBe(1);
+  });
+});
+
+describe('groupByTeam', () => {
+  it('gom theo phòng bán hàng; lead chưa gán phòng gộp "Chưa gán phòng"', () => {
+    const leads = [
+      L({ sales_team_id: 't1', team_name: 'Phòng 1', status: 'KHĐ' }),
+      L({ sales_team_id: 't1', team_name: 'Phòng 1', status: 'KHQT' }),
+      L({ sales_team_id: 't2', team_name: 'Phòng 2', status: 'Fail' }),
+      L({ sales_team_id: null, team_name: null }),
+    ];
+    const rows = groupByTeam(leads, NOW);
+    expect(rows[0].key).toBe('t1');
+    expect(rows[0].leads).toBe(2);
+    expect(rows[0].won).toBe(1);
+    const none = rows.find((r) => r.key === '__none__');
+    expect(none?.label).toBe('Chưa gán phòng');
+  });
+
+  it('groupByDimension("team") gọi groupByTeam', () => {
+    const leads = [L({ sales_team_id: 't1', team_name: 'Phòng 1' })];
+    expect(groupByDimension(leads, 'team', NOW)[0].label).toBe('Phòng 1');
   });
 });

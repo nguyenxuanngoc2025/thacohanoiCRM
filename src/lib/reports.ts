@@ -14,6 +14,8 @@ export interface ReportLead {
   showroom_name: string | null;
   assigned_to: string | null;
   assignee_name: string | null;
+  sales_team_id: string | null;
+  team_name: string | null;
   created_at: string;
   last_contact_at: string | null;
   next_contact_at: string | null;
@@ -211,6 +213,11 @@ export function groupByAssignee(leads: ReportLead[], nowMs: number): GroupRow[] 
   return rows;
 }
 
+/** Gom theo phòng bán hàng; lead chưa gán phòng gộp vào '__none__'. */
+export function groupByTeam(leads: ReportLead[], nowMs: number): GroupRow[] {
+  return groupBy(leads, (l) => l.sales_team_id ?? '__none__', (l) => l.team_name ?? 'Chưa gán phòng', nowMs);
+}
+
 /** Gom theo trạng thái (đủ chỉ số), giữ thứ tự pipeline; '__none__' = chưa phân loại. */
 export function groupByStatus(leads: ReportLead[], nowMs: number): GroupRow[] {
   const rows = groupBy(
@@ -225,12 +232,13 @@ export function groupByStatus(leads: ReportLead[], nowMs: number): GroupRow[] {
 }
 
 /** Các chiều phân tích dùng cho tab Bảng dữ liệu. */
-export type Dimension = 'showroom' | 'brand' | 'model' | 'source' | 'assignee' | 'status';
+export type Dimension = 'showroom' | 'brand' | 'team' | 'model' | 'source' | 'assignee' | 'status';
 
 // Thứ tự khai báo = thứ tự hiện trong dropdown; 'model' đặt ngay sau 'brand' (dòng xe là cấp con của thương hiệu).
 export const DIMENSION_LABEL: Record<Dimension, string> = {
   showroom: 'Showroom',
   brand: 'Thương hiệu',
+  team: 'Phòng bán hàng',
   model: 'Dòng xe',
   source: 'Nguồn',
   assignee: 'Tư vấn bán hàng',
@@ -241,6 +249,7 @@ export function groupByDimension(leads: ReportLead[], dim: Dimension, nowMs: num
   switch (dim) {
     case 'showroom': return groupByShowroom(leads, nowMs);
     case 'brand': return groupByBrand(leads, nowMs);
+    case 'team': return groupByTeam(leads, nowMs);
     case 'model': return groupByModel(leads, nowMs);
     case 'source': return groupBySource(leads, nowMs);
     case 'assignee': return groupByAssignee(leads, nowMs);
@@ -276,6 +285,7 @@ function dimKey(l: ReportLead, dim: Dimension): [string, string] {
   switch (dim) {
     case 'showroom': return [l.showroom_id ?? '__none__', l.showroom_name ?? 'Chưa gán showroom'];
     case 'brand': return [l.brand_id, l.brand_name];
+    case 'team': return [l.sales_team_id ?? '__none__', l.team_name ?? 'Chưa gán phòng'];
     case 'model': return [l.model_id ?? '__none__', l.model_name ?? 'Chưa gán dòng xe'];
     case 'source': return l.source ? [sourcePlatform(l.source), sourcePlatform(l.source)] : ['__none__', 'Không rõ nguồn'];
     case 'assignee': return [l.assigned_to ?? '__none__', l.assignee_name ?? 'Chưa giao'];
