@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Bell, Plus, Edit2, Trash2, X, Send } from 'lucide-react';
+import { Bell, Plus, Edit2, Trash2, X, Send, ChevronDown, Search } from 'lucide-react';
 import type { NotifChannelRow, ShowroomRow, SalesTeamRow } from './types';
 import {
   PanelHeader, PrimaryBtn, GhostBtn, Field, TextInput, Select, Toggle, StatusPill, FlashBar, Panel, postAdmin,
@@ -43,8 +43,37 @@ export default function NotificationsManager(
     return sr ? `${sr} · ${t.name}` : t.name;
   };
 
-  const salesChannels = useMemo(() => channels.filter((c) => c.scope === 'sales'), [channels]);
-  const mgmtChannels = useMemo(() => channels.filter((c) => c.scope === 'management'), [channels]);
+  const [query, setQuery] = useState('');
+  const q = query.trim().toLowerCase();
+  // Section thu gọn được (key = showroom/company/orphan). Mặc định mở hết.
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const toggle = (k: string) =>
+    setCollapsed((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; });
+
+  // Nhóm kênh theo showroom để dễ tìm/quản lý khi có nhiều showroom × nhiều group.
+  const grouped = useMemo(() => {
+    const match = (c: NotifChannelRow) =>
+      !q || c.name.toLowerCase().includes(q) || (c.target ?? '').toLowerCase().includes(q);
+    const srOf = (c: NotifChannelRow): string | null =>
+      c.scope === 'sales'
+        ? (salesTeams.find((t) => t.id === c.sales_team_id)?.showroom_id ?? null)
+        : (c.showroom_id ?? null);
+    const list = channels.filter(match);
+    const byShowroom = showrooms
+      .map((sr) => ({
+        id: sr.id,
+        name: sr.name,
+        sales: list.filter((c) => c.scope === 'sales' && srOf(c) === sr.id),
+        mgmt: list.filter((c) => c.scope === 'management' && c.showroom_id === sr.id),
+      }))
+      .filter((g) => g.sales.length + g.mgmt.length > 0);
+    const companyMgmt = list.filter((c) => c.scope === 'management' && !c.showroom_id);
+    const orphanSales = list.filter((c) => c.scope === 'sales' && !srOf(c));
+    return { byShowroom, companyMgmt, orphanSales };
+  }, [channels, showrooms, salesTeams, q]);
+
+  const isEmpty =
+    grouped.byShowroom.length === 0 && grouped.companyMgmt.length === 0 && grouped.orphanSales.length === 0;
 
   const del = async (c: NotifChannelRow) => {
     if (!window.confirm(`Xoá kênh thông báo "${c.name}"?`)) return;
@@ -94,6 +123,24 @@ export default function NotificationsManager(
     </div>
   );
 
+  // Khối 1 showroom (hoặc nhóm chung): header bấm để thu gọn + đếm số group.
+  const section = (key: string, title: string, count: number, children: React.ReactNode) => {
+    const open = !collapsed.has(key);
+    return (
+      <div key={key} className="border border-slate-200 rounded-xl overflow-hidden">
+        <button type="button" onClick={() => toggle(key)}
+          className="w-full flex items-center justify-between px-4 py-2.5 bg-slate-50 hover:bg-slate-100 transition-colors">
+          <span className="flex items-center gap-2 font-semibold text-slate-700 text-sm">
+            <ChevronDown size={15} className={`transition-transform ${open ? '' : '-rotate-90'}`} />
+            {title}
+          </span>
+          <span className="text-xs text-slate-400">{count} group</span>
+        </button>
+        {open && <div className="p-3 space-y-2">{children}</div>}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-4">
       <FlashBar msg={flash} />
@@ -112,16 +159,30 @@ export default function NotificationsManager(
           action={<PrimaryBtn onClick={() => setEdit('new')}><Plus size={15} /> Thêm kênh</PrimaryBtn>}
         />
 
-        <div className="mb-2 mt-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Nhóm bán hàng (theo phòng)</div>
-        <div className="space-y-2">
-          {salesChannels.map(row)}
-          {salesChannels.length === 0 && <p className="text-sm text-slate-400 py-4 text-center">Chưa có group phòng bán hàng nào.</p>}
+        <div className="relative mb-3">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <TextInput className="pl-9" placeholder="Tìm group theo tên hoặc mã…"
+            value={query} onChange={(e) => setQuery(e.target.value)} />
         </div>
 
-        <div className="mb-2 mt-5 text-xs font-semibold uppercase tracking-wide text-slate-500">Nhóm Ban lãnh đạo</div>
-        <div className="space-y-2">
-          {mgmtChannels.map(row)}
-          {mgmtChannels.length === 0 && <p className="text-sm text-slate-400 py-4 text-center">Chưa có nhóm Ban lãnh đạo nào.</p>}
+        <div className="space-y-3">
+          {grouped.byShowroom.map((g) => section(`sr:${g.id}`, g.name, g.sales.length + g.mgmt.length, (
+            <>
+              {g.sales.length > 0 && <SubLabel>Bán hàng (theo phòng)</SubLabel>}
+              {g.sales.map(row)}
+              {g.mgmt.length > 0 && <SubLabel>Ban lãnh đạo showroom</SubLabel>}
+              {g.mgmt.map(row)}
+            </>
+          )))}
+          {grouped.companyMgmt.length > 0 &&
+            section('company', 'Ban lãnh đạo — toàn công ty', grouped.companyMgmt.length, grouped.companyMgmt.map(row))}
+          {grouped.orphanSales.length > 0 &&
+            section('orphan', 'Chưa gán showroom', grouped.orphanSales.length, grouped.orphanSales.map(row))}
+          {isEmpty && (
+            <p className="text-sm text-slate-400 py-6 text-center">
+              {q ? 'Không tìm thấy group khớp.' : 'Chưa có kênh thông báo nào.'}
+            </p>
+          )}
         </div>
       </Panel>
 
@@ -133,6 +194,10 @@ export default function NotificationsManager(
       )}
     </div>
   );
+}
+
+function SubLabel({ children }: { children: React.ReactNode }) {
+  return <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 pt-1 first:pt-0">{children}</div>;
 }
 
 function IconBtn({ title, onClick, children }: { title: string; onClick: () => void; children: React.ReactNode }) {
