@@ -170,4 +170,23 @@ describe('daily-report', () => {
     expect(r.phongs).toHaveLength(2);
     expect(r.phongs.find((p) => p.name === 'Phòng 2')!.stats.total).toBe(0);
   });
+
+  it('buildChannelReport: brand_ids seed → hãng 0 lead vẫn hiện chi tiết (stats 0)', () => {
+    const now = new Date('2026-06-24T18:00:00Z');
+    const leads: ReportLead[] = [
+      L({ sales_team_id: 't1', team_name: 'Phòng 1', brand_id: 'kia', brand_name: 'KIA', last_contact_at: '2026-06-24T09:00:00Z' }),
+    ];
+    const r = buildChannelReport(leads, 'NGÀY 24/06', now, {
+      headerName: 'SR PVD',
+      teams: [{ id: 't1', name: 'Phòng 1', brand_ids: ['kia', 'maz'] }],
+      brands: [{ id: 'kia', name: 'KIA' }, { id: 'maz', name: 'Mazda' }],
+    });
+    const p1 = r.phongs.find((p) => p.name === 'Phòng 1')!;
+    // Cả 2 hãng phải xuất hiện dù Mazda 0 lead.
+    expect(p1.brands.map((b) => b.name).sort()).toEqual(['KIA', 'Mazda']);
+    expect(p1.brands.find((b) => b.name === 'Mazda')!.stats.total).toBe(0);
+    expect(p1.brands.find((b) => b.name === 'KIA')!.stats.total).toBe(1);
+    // TỔNG QUAN cũng gồm cả 2 hãng.
+    expect(r.overview.brands.map((b) => b.name).sort()).toEqual(['KIA', 'Mazda']);
+  });
 });

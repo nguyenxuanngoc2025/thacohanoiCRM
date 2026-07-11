@@ -45,6 +45,19 @@ describe('renderChannelDaily', () => {
     expect(t).toContain('BÁO CÁO NGÀY 11/07 — Phòng Duy Nhất');
     expect(t).not.toContain('TỔNG QUAN');
   });
+
+  it('1 hãng: vẫn hiện chi tiết theo thương hiệu (không rút gọn)', () => {
+    const view: ChannelReportView = {
+      dateLabel: 'NGÀY 11/07', headerName: 'SR',
+      overview: { stats: stats({ total: 1 }), brands: [] },
+      phongs: [{ name: 'P1', stats: stats({ total: 0 }), brands: [
+        { name: 'KIA', stats: stats({ total: 0 }) },
+      ], nonCompliant: [] }],
+    };
+    const t = renderChannelDaily(view);
+    expect(t).toContain('Chi tiết theo thương hiệu:');
+    expect(t).toContain('· KIA — Tổng 0');
+  });
 });
 
 describe('renderNewLead tiêu đề', () => {

@@ -102,9 +102,17 @@ export async function POST(request: NextRequest) {
     ((c.sales_team_ids as string[] | null) ?? (c.sales_team_id ? [c.sales_team_id as string] : []))
   ).filter((id) => !mutedTeamIds.has(id)))];
   const { data: teamNameRows } = allTeamIds.length
-    ? await db.from('sales_teams').select('id, name').in('id', allTeamIds)
-    : { data: [] as { id: string; name: string }[] };
+    ? await db.from('sales_teams').select('id, name, brand_ids').in('id', allTeamIds)
+    : { data: [] as { id: string; name: string; brand_ids: string[] }[] };
   const teamNameById = new Map((teamNameRows ?? []).map((t) => [t.id, t.name]));
+  const teamBrandIds = new Map((teamNameRows ?? []).map((t) => [t.id, (t.brand_ids as string[] | null) ?? []]));
+
+  // Danh mục hãng (id → tên) cho chi tiết hãng "0 lead" seed từ brand_ids.
+  const seedBrandIds = [...new Set((teamNameRows ?? []).flatMap((t) => (t.brand_ids as string[] | null) ?? []))];
+  const { data: brandRows } = seedBrandIds.length
+    ? await db.from('brands').select('id, name').in('id', seedBrandIds)
+    : { data: [] as { id: string; name: string }[] };
+  const brandList = (brandRows ?? []).map((b) => ({ id: b.id, name: b.name }));
 
   // Seed showroom: BLĐ theo showroom đã cấu hình group cho kỳ này → luôn có báo cáo (0 lead vẫn gửi).
   const showroomSeedIds = [...new Set((channels ?? []).filter((c) => has(c) && c.scope === 'management' && c.showroom_id && !inactiveSrIds.has(c.showroom_id as string)).map((c) => c.showroom_id as string))];
@@ -125,8 +133,8 @@ export async function POST(request: NextRequest) {
       const ids = ((c.sales_team_ids as string[] | null) ?? (c.sales_team_id ? [c.sales_team_id as string] : []))
         .filter((id) => !mutedTeamIds.has(id));
       if (ids.length === 0) continue;
-      const teams = ids.map((id) => ({ id, name: teamNameById.get(id) ?? 'Phòng' }));
-      const cr = buildChannelReport(mapped, dateLabel, now, { headerName: c.name ?? 'Showroom', teams });
+      const teams = ids.map((id) => ({ id, name: teamNameById.get(id) ?? 'Phòng', brand_ids: teamBrandIds.get(id) ?? [] }));
+      const cr = buildChannelReport(mapped, dateLabel, now, { headerName: c.name ?? 'Showroom', teams, brands: brandList });
       const { renderChannelDaily } = await import('@/lib/notify-templates');
       inserts.push({ channel: c.channel, channel_id: c.id, status: 'pending',
         payload: { event, target: c.target, text: renderChannelDaily(cr) } });

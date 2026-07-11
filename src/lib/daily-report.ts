@@ -60,7 +60,10 @@ export interface ChannelReport {
 
 export interface ChannelReportSeed {
   headerName: string;
-  teams: { id: string; name: string }[];
+  // brand_ids = tập hãng CỐ ĐỊNH phòng bán → luôn hiện chi tiết hãng (kể cả 0 lead).
+  teams: { id: string; name: string; brand_ids?: string[] }[];
+  // Danh mục hãng (id → tên) để đặt tên hãng khi seed từ brand_ids (chưa có lead nào).
+  brands?: { id: string; name: string }[];
 }
 
 function emptyStats(): DailySrStats {
@@ -76,6 +79,11 @@ interface Bucket {
 
 function newBucket(name: string): Bucket {
   return { name, stats: emptyStats(), overdueByAssignee: new Map<string, number>(), byBrand: new Map() };
+}
+
+// Tạo trước 1 hãng trong bucket (stats 0) để chi tiết hãng luôn hiện dù chưa có lead.
+function seedBrand(g: Bucket, brandId: string, name: string): void {
+  if (!g.byBrand.has(brandId)) g.byBrand.set(brandId, { name, stats: emptyStats() });
 }
 
 // Cộng số liệu thuần (không đụng overdueByAssignee) — dùng cho cả bucket chính lẫn sub-bucket hãng.
@@ -186,9 +194,18 @@ export function buildChannelReport(
   leads: ReportLead[], dateLabel: string, now: Date, seed: ChannelReportSeed,
 ): ChannelReport {
   const teamIds = new Set(seed.teams.map((t) => t.id));
+  const brandName = new Map((seed.brands ?? []).map((b) => [b.id, b.name]));
   const overview = newBucket(seed.headerName);
   const teamBuckets = new Map<string, Bucket>();
-  for (const t of seed.teams) teamBuckets.set(t.id, newBucket(t.name));
+  for (const t of seed.teams) {
+    const tb = newBucket(t.name);
+    // Seed sẵn hãng phòng bán (0 lead) → chi tiết hãng LUÔN xuất hiện.
+    for (const bid of t.brand_ids ?? []) {
+      seedBrand(tb, bid, brandName.get(bid) ?? 'Khác');
+      seedBrand(overview, bid, brandName.get(bid) ?? 'Khác');
+    }
+    teamBuckets.set(t.id, tb);
+  }
 
   for (const l of leads) {
     if (!l.sales_team_id || !teamIds.has(l.sales_team_id)) continue;

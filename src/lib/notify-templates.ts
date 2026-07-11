@@ -247,13 +247,14 @@ function renderBrandLine(b: BrandBreakView): string {
   return `· ${b.name} — Tổng ${s.total} · Đã LH ${s.contacted} · Chưa LH ${s.pending} · Quá hạn ${s.overdue} · KHQT ${s.KHQT} · GDTD ${s.GDTD} · Ký HĐ ${s.KyHD} · Loại ${s.Fail}`;
 }
 
-// Khối 1 phạm vi (tổng quan / 1 phòng): dòng tổng + phân loại + (khi >1 hãng) chi tiết hãng.
+// Khối 1 phạm vi (tổng quan / 1 phòng): dòng tổng + phân loại + LUÔN chi tiết hãng.
+// Chi tiết hãng bắt buộc hiện cho MỌI hãng phòng bán (kể cả 0 lead) — seed từ brand_ids.
 function renderScopedStats(s: DailySrStats, brands: BrandBreakView[]): string[] {
   const lines = [
     `Tổng lead: ${s.total} · Đã LH: ${s.contacted} (${pct(s.contacted, s.total)}%) · Chưa LH: ${s.pending} · Quá hạn: ${s.overdue}`,
     `Phân loại: KHQT ${s.KHQT} · GDTD ${s.GDTD} · Ký HĐ ${s.KyHD} · Loại ${s.Fail}`,
   ];
-  if (brands.length > 1) {
+  if (brands.length > 0) {
     lines.push('Chi tiết theo thương hiệu:');
     for (const b of brands) lines.push(renderBrandLine(b));
   }

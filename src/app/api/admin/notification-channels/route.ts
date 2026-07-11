@@ -57,9 +57,15 @@ async function buildTestReportText(
   // Seed đúng phòng/showroom của kênh → 0 lead vẫn ra báo cáo (không rỗng khi test).
   let body: string;
   if (ch.scope === 'sales' && ch.sales_team_ids.length > 0) {
-    const { data: teamRows } = await service.from('sales_teams').select('id, name').in('id', ch.sales_team_ids);
-    const teams = (teamRows ?? []).map((t) => ({ id: t.id, name: t.name }));
-    const cr = buildChannelReport(mapped, dateLabel, now, { headerName: ch.name ?? 'Showroom', teams });
+    const { data: teamRows } = await service.from('sales_teams').select('id, name, brand_ids').in('id', ch.sales_team_ids);
+    const teams = (teamRows ?? []).map((t) => ({ id: t.id, name: t.name, brand_ids: (t.brand_ids as string[] | null) ?? [] }));
+    // Danh mục hãng → chi tiết hãng "0 lead" luôn hiện (seed từ brand_ids).
+    const seedBrandIds = [...new Set(teams.flatMap((t) => t.brand_ids))];
+    const { data: brandRows } = seedBrandIds.length
+      ? await service.from('brands').select('id, name').in('id', seedBrandIds)
+      : { data: [] as { id: string; name: string }[] };
+    const brands = (brandRows ?? []).map((b) => ({ id: b.id, name: b.name }));
+    const cr = buildChannelReport(mapped, dateLabel, now, { headerName: ch.name ?? 'Showroom', teams, brands });
     body = renderChannelDaily(cr);
   } else if (ch.scope === 'management' && ch.showroom_id) {
     const seedSr = (await service.from('showrooms').select('id, name').eq('id', ch.showroom_id).maybeSingle()).data;
