@@ -43,77 +43,85 @@ export default function OverviewTab({
 
   const statusData = statusDist.map((s) => ({ name: s.label, value: s.count, code: s.code }));
   const brandData = byBrand.map((r) => ({ name: r.label, value: r.leads }));
-  const sourceData = bySource.slice(0, 8).map((r) => ({ name: r.label, lead: r.leads, won: r.won }));
+  const sourceData = bySource.slice(0, 6).map((r) => ({ name: shorten(r.label), lead: r.leads, won: r.won }));
   const childData = byChild.map((r) => ({ name: shorten(r.label), lead: r.leads, won: r.won, winRate: r.winRate }));
   const trendData = trend.map((d) => ({ date: d.date.slice(5), count: d.count }));
 
   const showBrandDonut = reportLevel === 'company' || reportLevel === 'showroom';
 
   return (
-    <div className="space-y-5">
-      {/* Phễu + Xu hướng */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <Panel title="Phễu chuyển đổi" desc="Số lead còn lại qua từng bậc — % bên phải là tỉ lệ chuyển đổi">
-          <FunnelDiagram funnel={funnel} />
-        </Panel>
-
-        <Panel title="Lead mới theo ngày" desc={`Tổng ${fmt(trend.reduce((s, d) => s + d.count, 0))} lead`}>
-          <div style={{ height: 260 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={trendData} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="gradLead" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={BRAND} stopOpacity={0.35} />
-                    <stop offset="100%" stopColor={BRAND} stopOpacity={0.02} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="date" tick={AXIS} tickLine={false} axisLine={false} minTickGap={20} />
-                <YAxis tick={AXIS} tickLine={false} axisLine={false} allowDecimals={false} width={32} />
-                <Tooltip content={<TipGeneric unit="lead" />} />
-                <Area type="monotone" dataKey="count" name="Lead" stroke={BRAND} strokeWidth={2} fill="url(#gradLead)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </Panel>
-      </div>
-
-      {/* Donut trạng thái + Pie thương hiệu (chỉ hiện ở cấp công ty / showroom) */}
-      <div className={`grid grid-cols-1 gap-5 ${showBrandDonut ? 'lg:grid-cols-2' : ''}`}>
-        <Panel title="Phân bổ theo trạng thái">
-          <DonutOrEmpty data={statusData} colorOf={(d) => STATUS_COLOR[d.code as keyof typeof STATUS_COLOR] ?? '#cbd5e1'} />
-        </Panel>
-        {showBrandDonut && (
-          <Panel title="Cơ cấu theo thương hiệu">
-            <DonutOrEmpty data={brandData} colorOf={(_d, i) => PALETTE[i % PALETTE.length]} />
+    <div className="space-y-4">
+      {/* Hàng 1: Xu hướng (rộng) + Phễu (hẹp) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        <div className="lg:col-span-7">
+          <Panel title="Lead mới theo ngày" desc={`Tổng ${fmt(trend.reduce((s, d) => s + d.count, 0))} lead`}>
+            <div style={{ height: 220 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={trendData} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="gradLead" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={BRAND} stopOpacity={0.35} />
+                      <stop offset="100%" stopColor={BRAND} stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="date" tick={AXIS} tickLine={false} axisLine={false} minTickGap={20} />
+                  <YAxis tick={AXIS} tickLine={false} axisLine={false} allowDecimals={false} width={32} />
+                  <Tooltip content={<TipGeneric unit="lead" />} />
+                  <Area type="monotone" dataKey="count" name="Lead" stroke={BRAND} strokeWidth={2} fill="url(#gradLead)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
           </Panel>
-        )}
+        </div>
+
+        <div className="lg:col-span-5">
+          <Panel title="Phễu chuyển đổi" desc="% bên phải là tỉ lệ chuyển đổi giữa các bậc">
+            <FunnelDiagram funnel={funnel} />
+          </Panel>
+        </div>
       </div>
 
-      {/* Bar nguồn */}
-      <Panel title="Lead & hợp đồng theo nguồn" desc="So sánh số lead và số ký HĐ từng kênh">
-        <div style={{ height: Math.max(220, sourceData.length * 42) }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={sourceData} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 4 }} barCategoryGap={14}>
-              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-              <XAxis type="number" tick={AXIS} tickLine={false} axisLine={false} allowDecimals={false} />
-              <YAxis type="category" dataKey="name" tick={AXIS} tickLine={false} axisLine={false} width={110} />
-              <Tooltip content={<TipGeneric unit="lead" />} cursor={{ fill: '#f8fafc' }} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="lead" name="Lead" fill={BRAND} radius={[0, 4, 4, 0]} />
-              <Bar dataKey="won" name="Ký HĐ" fill="#0d9488" radius={[0, 4, 4, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+      {/* Hàng 2: Donut trạng thái + Donut thương hiệu + Nguồn (bento gọn) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        <div className={showBrandDonut ? 'lg:col-span-4' : 'lg:col-span-5'}>
+          <Panel title="Phân bổ theo trạng thái">
+            <DonutOrEmpty data={statusData} colorOf={(d) => STATUS_COLOR[d.code as keyof typeof STATUS_COLOR] ?? '#cbd5e1'} />
+          </Panel>
         </div>
-      </Panel>
+        {showBrandDonut && (
+          <div className="lg:col-span-4">
+            <Panel title="Cơ cấu theo thương hiệu">
+              <DonutOrEmpty data={brandData} colorOf={(_d, i) => PALETTE[i % PALETTE.length]} />
+            </Panel>
+          </div>
+        )}
+        <div className={showBrandDonut ? 'lg:col-span-4' : 'lg:col-span-7'}>
+          <Panel title="Lead & hợp đồng theo nguồn" desc="Số lead và ký HĐ từng kênh">
+            <div style={{ height: Math.max(200, sourceData.length * 34) }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={sourceData} layout="vertical" margin={{ top: 4, right: 12, left: 4, bottom: 4 }} barCategoryGap={12}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                  <XAxis type="number" tick={AXIS} tickLine={false} axisLine={false} allowDecimals={false} />
+                  <YAxis type="category" dataKey="name" tick={AXIS} tickLine={false} axisLine={false} width={88} />
+                  <Tooltip content={<TipGeneric unit="lead" />} cursor={{ fill: '#f8fafc' }} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} iconSize={9} />
+                  <Bar dataKey="lead" name="Lead" fill={BRAND} radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="won" name="Ký HĐ" fill="#0d9488" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </Panel>
+        </div>
+      </div>
 
-      {/* So sánh cấp dưới (dynamic) hoặc danh sách gọi (personal) */}
+      {/* Hàng 3: So sánh cấp dưới (dynamic) */}
       {childDim !== null && childData.length > 0 && (
         <Panel
           title={`So sánh ${DIMENSION_LABEL[childDim]}`}
           desc="Cột: số lead & ký HĐ — tỉ lệ chốt (%)"
         >
-          <div style={{ height: 300 }}>
+          <div style={{ height: 260 }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={childData} margin={{ top: 8, right: 8, left: -18, bottom: 0 }} barGap={4}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -192,7 +200,7 @@ function FunnelDiagram({ funnel }: { funnel: { label: string; count: number; pct
   const n = funnel.length;
   const TOP_FRAC = 1;
   const NECK_FRAC = 0.32;
-  const BAND_H = 58;
+  const BAND_H = 48;
   const widthFrac = (k: number) => lerp(TOP_FRAC, NECK_FRAC, k / n);
 
   return (
@@ -228,10 +236,10 @@ function FunnelDiagram({ funnel }: { funnel: { label: string; count: number; pct
                 className="absolute inset-0 flex flex-col items-center justify-center"
                 style={{ background: band.fill, clipPath: clip, WebkitClipPath: clip }}
               >
-                <span className="font-extrabold leading-none" style={{ color: band.text, fontSize: 17 }}>
+                <span className="font-extrabold leading-none" style={{ color: band.text, fontSize: 15 }}>
                   {fmt(s.count)}
                 </span>
-                <span className="leading-none mt-0.5 opacity-90" style={{ color: band.text, fontSize: 11 }}>
+                <span className="leading-none mt-0.5 opacity-90" style={{ color: band.text, fontSize: 10 }}>
                   {s.pct}%
                 </span>
               </div>
@@ -261,14 +269,14 @@ function DonutOrEmpty({ data, colorOf }: {
   const total = data.reduce((s, d) => s + d.value, 0);
   if (total === 0) return <Empty />;
   return (
-    <div style={{ height: 260 }}>
+    <div style={{ height: 200 }}>
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
-          <Pie data={data} dataKey="value" nameKey="name" cx="42%" cy="50%" innerRadius={56} outerRadius={92} paddingAngle={2} stroke="none">
+          <Pie data={data} dataKey="value" nameKey="name" cx="40%" cy="50%" innerRadius={44} outerRadius={74} paddingAngle={2} stroke="none">
             {data.map((d, i) => <Cell key={i} fill={colorOf(d as never, i)} />)}
           </Pie>
           <Tooltip content={<TipPct total={total} />} />
-          <Legend layout="vertical" align="right" verticalAlign="middle" wrapperStyle={{ fontSize: 12, lineHeight: '20px' }} />
+          <Legend layout="vertical" align="right" verticalAlign="middle" wrapperStyle={{ fontSize: 11, lineHeight: '18px' }} />
         </PieChart>
       </ResponsiveContainer>
     </div>
