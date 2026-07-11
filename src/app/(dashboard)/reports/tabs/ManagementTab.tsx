@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
-import { Download, ChevronRight, ChevronDown } from 'lucide-react';
+import React, { useMemo, useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { Download, ChevronRight, ChevronDown, SlidersHorizontal, GripVertical } from 'lucide-react';
 import {
   groupByDimension,
   computeKpis,
@@ -13,9 +14,14 @@ import {
   type RankedRow,
   type Dimension,
 } from '@/lib/reports';
+import {
+  MGMT_COLUMNS, MGMT_COL_MAP, MGMT_DEFAULT_ORDER, MGMT_DEFAULT_HIDDEN,
+  MGMT_HIDDEN_KEY, MGMT_ORDER_KEY,
+  type MgmtColKey, type MgmtColumn,
+} from '../mgmt-columns';
 import { Panel, BRAND, fmt, DeltaArrow } from '../ui';
 import { exportXlsx } from '@/lib/xlsx-export';
-import { groupSheet } from '../report-export';
+import { tableSheet, type SheetCol } from '../report-export';
 
 // Per-level table config
 type TableConfig = { title: string; dim: Dimension };
@@ -52,37 +58,39 @@ function slugify(s: string): string {
   return s.toLowerCase().replace(/\s+/g, '-').replace(/\//g, '-');
 }
 
-/** 8 ô số + (2 ô B10 nếu bật) + 1 ô Δ, dùng chung cho mọi cấp dòng. */
-function MetricCells({ r, delta, showB10 }: { r: GroupRow; delta: number; showB10: boolean }) {
+/** Một ô số cho 1 cột theo cấu hình. */
+function MetricCell({ col, r }: { col: MgmtColumn; r: GroupRow }) {
+  const v = col.get(r);
+  const zero = v === 0 && !col.keepColor;
+  return (
+    <td
+      className={`py-2 px-3 text-right${col.bold ? ' font-semibold' : ''}`}
+      style={{ color: zero ? '#cbd5e1' : col.color }}
+    >
+      {col.pct ? `${v.toFixed(1)}%` : fmt(v)}
+    </td>
+  );
+}
+
+/** Các ô số (theo cột đang bật) + ô Δ, dùng chung cho mọi cấp dòng. */
+function MetricCells({ r, cols, delta }: { r: GroupRow; cols: MgmtColumn[]; delta: number }) {
   return (
     <>
-      <td className="py-2 px-3 text-right font-semibold text-slate-800">{fmt(r.leads)}</td>
-      <td className="py-2 px-3 text-right" style={{ color: r.contacted === 0 ? '#cbd5e1' : '#1d4ed8' }}>{fmt(r.contacted)}</td>
-      <td className="py-2 px-3 text-right" style={{ color: r.interested === 0 ? '#cbd5e1' : '#0891b2' }}>{fmt(r.interested)}</td>
-      <td className="py-2 px-3 text-right" style={{ color: r.following === 0 ? '#cbd5e1' : '#b45309' }}>{fmt(r.following)}</td>
-      <td className="py-2 px-3 text-right font-semibold" style={{ color: r.won === 0 ? '#cbd5e1' : '#047857' }}>{fmt(r.won)}</td>
-      <td className="py-2 px-3 text-right font-semibold" style={{ color: r.winRate === 0 ? '#cbd5e1' : '#047857' }}>{r.winRate.toFixed(1)}%</td>
-      <td className="py-2 px-3 text-right" style={{ color: r.overdue === 0 ? '#cbd5e1' : '#be123c' }}>{fmt(r.overdue)}</td>
-      {showB10 && (
-        <>
-          <td className="py-2 px-3 text-right font-semibold" style={{ color: r.b10On === 0 ? '#cbd5e1' : '#7c3aed' }}>{fmt(r.b10On)}</td>
-          <td className="py-2 px-3 text-right" style={{ color: r.b10On === 0 ? '#cbd5e1' : '#7c3aed' }}>{r.b10Rate.toFixed(1)}%</td>
-        </>
-      )}
+      {cols.map((c) => <MetricCell key={c.key} col={c} r={r} />)}
       <td className="py-2 px-3 text-right"><DeltaArrow delta={delta} pct /></td>
     </>
   );
 }
 
 /** Một dòng có thể mở rộng ra cấp con (đệ quy). */
-function DrillRow({ row, dim, leads, prevLeads, now, depth, showB10 }: {
+function DrillRow({ row, dim, leads, prevLeads, now, depth, cols }: {
   row: GroupRow;
   dim: Dimension;
   leads: ReportLead[];
   prevLeads: ReportLead[];
   now: number;
   depth: number;
-  showB10: boolean;
+  cols: MgmtColumn[];
 }) {
   const [open, setOpen] = useState(false);
   const childDim = EXPAND_CHILD[dim];
@@ -126,29 +134,29 @@ function DrillRow({ row, dim, leads, prevLeads, now, depth, showB10 }: {
             </span>
           </div>
         </td>
-        <MetricCells r={row} delta={delta} showB10={showB10} />
+        <MetricCells r={row} cols={cols} delta={delta} />
       </tr>
       {open && childDim && (
-        <DrillGroup dim={childDim} leads={subLeads} prevLeads={subPrev} now={now} depth={depth + 1} showB10={showB10} />
+        <DrillGroup dim={childDim} leads={subLeads} prevLeads={subPrev} now={now} depth={depth + 1} cols={cols} />
       )}
     </>
   );
 }
 
 /** Nhóm các dòng của một chiều (top-level hoặc cấp con khi mở rộng). */
-function DrillGroup({ dim, leads, prevLeads, now, depth, showB10 }: {
+function DrillGroup({ dim, leads, prevLeads, now, depth, cols }: {
   dim: Dimension;
   leads: ReportLead[];
   prevLeads: ReportLead[];
   now: number;
   depth: number;
-  showB10: boolean;
+  cols: MgmtColumn[];
 }) {
   const rows = useMemo(() => groupByDimension(leads, dim, now), [leads, dim, now]);
   if (rows.length === 0) {
     return (
       <tr>
-        <td colSpan={showB10 ? 11 : 9} className="py-2 text-slate-300 text-xs" style={{ paddingLeft: 4 + depth * 20 + 21 }}>
+        <td colSpan={cols.length + 2} className="py-2 text-slate-300 text-xs" style={{ paddingLeft: 4 + depth * 20 + 21 }}>
           Không có dữ liệu cấp dưới.
         </td>
       </tr>
@@ -157,8 +165,89 @@ function DrillGroup({ dim, leads, prevLeads, now, depth, showB10 }: {
   return (
     <>
       {rows.map((r) => (
-        <DrillRow key={r.key} row={r} dim={dim} leads={leads} prevLeads={prevLeads} now={now} depth={depth} showB10={showB10} />
+        <DrillRow key={r.key} row={r} dim={dim} leads={leads} prevLeads={prevLeads} now={now} depth={depth} cols={cols} />
       ))}
+    </>
+  );
+}
+
+/** Popup tùy chỉnh cột: checkbox ẩn/hiện + kéo-thả đổi thứ tự (giống trang Lead). */
+function ColumnMenu({ order, hidden, showB10, toggleCol, moveCol }: {
+  order: MgmtColKey[];
+  hidden: Set<MgmtColKey>;
+  showB10: boolean;
+  toggleCol: (k: MgmtColKey) => void;
+  moveCol: (from: MgmtColKey, to: MgmtColKey) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  const [dragKey, setDragKey] = useState<MgmtColKey | null>(null);
+  const [overKey, setOverKey] = useState<MgmtColKey | null>(null);
+  const btnRef = React.useRef<HTMLButtonElement>(null);
+
+  const toggle = () => {
+    if (open) { setOpen(false); return; }
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r) setPos({ left: Math.max(8, r.right - 240), top: r.bottom + 4 });
+    setOpen(true);
+  };
+  const allowB10 = (k: MgmtColKey) => showB10 || !MGMT_COL_MAP[k].b10;
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        onClick={toggle}
+        className="inline-flex items-center gap-1.5 text-sm text-slate-600 border border-slate-200 rounded-lg px-3 py-1.5 hover:bg-slate-50"
+      >
+        <SlidersHorizontal size={14} /> Cột hiển thị
+      </button>
+      {open && pos && createPortal(
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 9998 }} onClick={() => setOpen(false)} />
+          <div
+            style={{
+              position: 'fixed', top: pos.top, left: pos.left, width: 240, zIndex: 9999,
+              maxHeight: '70vh', overflowY: 'auto',
+              background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.12)', padding: 8,
+            }}
+          >
+            <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide px-2 py-1.5">Tùy chỉnh cột</div>
+            <div className="text-[10px] text-slate-400 px-2 pb-1">Tick để hiện · kéo để đổi thứ tự</div>
+            {order.filter(allowB10).map((k) => {
+              const c = MGMT_COL_MAP[k];
+              const isOver = overKey === k && dragKey !== k;
+              return (
+                <label
+                  key={k}
+                  draggable
+                  onDragStart={() => setDragKey(k)}
+                  onDragEnd={() => { setDragKey(null); setOverKey(null); }}
+                  onDragOver={(e) => { e.preventDefault(); if (overKey !== k) setOverKey(k); }}
+                  onDrop={(e) => { e.preventDefault(); if (dragKey) moveCol(dragKey, k); setDragKey(null); setOverKey(null); }}
+                  className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer text-sm text-slate-700 transition-colors"
+                  style={{
+                    background: isOver ? '#e6f0fa' : undefined,
+                    opacity: dragKey === k ? 0.4 : 1,
+                    borderTop: isOver ? '2px solid #004B9B' : '2px solid transparent',
+                  }}
+                >
+                  <GripVertical size={14} className="text-slate-300 shrink-0 cursor-grab active:cursor-grabbing" />
+                  <input
+                    type="checkbox"
+                    checked={!hidden.has(k)}
+                    onChange={() => toggleCol(k)}
+                    className="accent-[#004B9B]"
+                  />
+                  <span className="flex-1">{c.label}</span>
+                </label>
+              );
+            })}
+          </div>
+        </>,
+        document.body,
+      )}
     </>
   );
 }
@@ -170,10 +259,15 @@ interface FixedTableProps {
   prevLeads: ReportLead[];
   now: number;
   periodLabel: string;
+  cols: MgmtColumn[];
+  order: MgmtColKey[];
+  hidden: Set<MgmtColKey>;
   showB10: boolean;
+  toggleCol: (k: MgmtColKey) => void;
+  moveCol: (from: MgmtColKey, to: MgmtColKey) => void;
 }
 
-function FixedTable({ title, dim, leads, prevLeads, now, periodLabel, showB10 }: FixedTableProps) {
+function FixedTable({ title, dim, leads, prevLeads, now, periodLabel, cols, order, hidden, showB10, toggleCol, moveCol }: FixedTableProps) {
   const totals = computeKpis(leads, now);
   const dimLabel = DIMENSION_LABEL[dim];
   const expandable = !!EXPAND_CHILD[dim];
@@ -186,8 +280,15 @@ function FixedTable({ title, dim, leads, prevLeads, now, periodLabel, showB10 }:
       ...r,
       winRateDelta: Math.round((r.winRate - (prevByKey.get(r.key)?.winRate ?? 0)) * 10) / 10,
     }));
+    // Xuất đúng cột đang hiển thị trên UI (WYSIWYG).
+    const expCols: SheetCol<RankedRow>[] = [
+      { header: dimLabel, value: (r) => r.label },
+      ...cols.map((c): SheetCol<RankedRow> => ({ header: c.label, value: (r) => c.get(r) })),
+      { header: 'Δ so kỳ trước', value: (r) => r.winRateDelta },
+    ];
+    const totalRow: (string | number)[] = ['Tổng', ...cols.map((c) => c.total(totals)), ''];
     const slug = `bao-cao-${dim}-${slugify(periodLabel)}`;
-    exportXlsx(slug, [groupSheet(title, rowsWithDelta, totals, true, showB10)]);
+    exportXlsx(slug, [tableSheet(title, expCols, rowsWithDelta, totalRow)]);
   };
 
   return (
@@ -195,13 +296,16 @@ function FixedTable({ title, dim, leads, prevLeads, now, periodLabel, showB10 }:
       title={title}
       desc={expandable ? 'Bấm ▸ để xem chi tiết cấp dưới' : undefined}
       action={
-        <button
-          onClick={handleExport}
-          className="inline-flex items-center gap-1.5 text-sm font-semibold rounded-lg px-3 py-1.5 text-white shadow-sm"
-          style={{ background: BRAND }}
-        >
-          <Download size={15} /> Xuất Excel
-        </button>
+        <div className="flex items-center gap-2">
+          <ColumnMenu order={order} hidden={hidden} showB10={showB10} toggleCol={toggleCol} moveCol={moveCol} />
+          <button
+            onClick={handleExport}
+            className="inline-flex items-center gap-1.5 text-sm font-semibold rounded-lg px-3 py-1.5 text-white shadow-sm"
+            style={{ background: BRAND }}
+          >
+            <Download size={15} /> Xuất Excel
+          </button>
+        </div>
       }
     >
       {topRows.length === 0 ? (
@@ -214,41 +318,26 @@ function FixedTable({ title, dim, leads, prevLeads, now, periodLabel, showB10 }:
             <thead>
               <tr className="text-left text-[11px] uppercase tracking-wide text-slate-400 border-b border-slate-100">
                 <th className="py-2 pr-3 sticky left-0 bg-white">{dimLabel}</th>
-                <th className="py-2 px-3 text-right">Tổng lead</th>
-                <th className="py-2 px-3 text-right">Đã LH</th>
-                <th className="py-2 px-3 text-right" style={{ color: '#0891b2' }}>KHQT</th>
-                <th className="py-2 px-3 text-right" style={{ color: '#b45309' }}>GDTD</th>
-                <th className="py-2 px-3 text-right" style={{ color: '#047857' }}>KHĐ</th>
-                <th className="py-2 px-3 text-right" style={{ color: '#047857' }}>%chốt</th>
-                <th className="py-2 px-3 text-right" style={{ color: '#be123c' }}>Quá hạn</th>
-                {showB10 && (
-                  <>
-                    <th className="py-2 px-3 text-right" style={{ color: '#7c3aed' }}>Đã lên B10</th>
-                    <th className="py-2 px-3 text-right" style={{ color: '#7c3aed' }}>% B10</th>
-                  </>
-                )}
+                {cols.map((c) => (
+                  <th key={c.key} className="py-2 px-3 text-right" style={{ color: c.color }}>{c.label}</th>
+                ))}
                 <th className="py-2 px-3 text-right">Δ so kỳ trước</th>
               </tr>
             </thead>
             <tbody>
-              <DrillGroup dim={dim} leads={leads} prevLeads={prevLeads} now={now} depth={0} showB10={showB10} />
+              <DrillGroup dim={dim} leads={leads} prevLeads={prevLeads} now={now} depth={0} cols={cols} />
             </tbody>
             <tfoot>
               <tr className="border-t-2 border-slate-200 text-slate-800 font-semibold">
                 <td className="py-2 pr-3 sticky left-0 bg-white">Tổng</td>
-                <td className="py-2 px-3 text-right">{fmt(totals.total)}</td>
-                <td className="py-2 px-3 text-right" style={{ color: '#1d4ed8' }}>{fmt(totals.contacted)}</td>
-                <td className="py-2 px-3 text-right" style={{ color: '#0891b2' }}>{fmt(totals.interested)}</td>
-                <td className="py-2 px-3 text-right" style={{ color: '#b45309' }}>{fmt(totals.following)}</td>
-                <td className="py-2 px-3 text-right" style={{ color: '#047857' }}>{fmt(totals.won)}</td>
-                <td className="py-2 px-3 text-right" style={{ color: '#047857' }}>{totals.winRate.toFixed(1)}%</td>
-                <td className="py-2 px-3 text-right" style={{ color: '#be123c' }}>{fmt(totals.overdue)}</td>
-                {showB10 && (
-                  <>
-                    <td className="py-2 px-3 text-right" style={{ color: '#7c3aed' }}>{fmt(totals.b10On)}</td>
-                    <td className="py-2 px-3 text-right" style={{ color: '#7c3aed' }}>{totals.b10Rate.toFixed(1)}%</td>
-                  </>
-                )}
+                {cols.map((c) => {
+                  const v = c.total(totals);
+                  return (
+                    <td key={c.key} className="py-2 px-3 text-right" style={{ color: c.color }}>
+                      {c.pct ? `${v.toFixed(1)}%` : fmt(v)}
+                    </td>
+                  );
+                })}
                 <td className="py-2 px-3 text-right" />
               </tr>
             </tfoot>
@@ -275,6 +364,53 @@ export default function ManagementTab({
   const now = useMemo(() => Date.now(), []);
   const tables = LEVEL_TABLES[level];
 
+  // Cấu hình cột dùng CHUNG cho mọi bảng quản trị (cùng cấu trúc chỉ số), lưu localStorage.
+  const [hidden, setHidden] = useState<Set<MgmtColKey>>(() => new Set(MGMT_DEFAULT_HIDDEN));
+  const [order, setOrder] = useState<MgmtColKey[]>(MGMT_DEFAULT_ORDER);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(MGMT_HIDDEN_KEY);
+      if (raw) setHidden(new Set(JSON.parse(raw) as MgmtColKey[]));
+    } catch { /* ignore */ }
+    try {
+      const rawOrder = localStorage.getItem(MGMT_ORDER_KEY);
+      if (rawOrder) {
+        const saved = (JSON.parse(rawOrder) as MgmtColKey[]).filter((k) => MGMT_DEFAULT_ORDER.includes(k));
+        const missing = MGMT_DEFAULT_ORDER.filter((k) => !saved.includes(k));
+        setOrder([...saved, ...missing]);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  const toggleCol = (key: MgmtColKey) => {
+    setHidden((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      try { localStorage.setItem(MGMT_HIDDEN_KEY, JSON.stringify([...next])); } catch { /* ignore */ }
+      return next;
+    });
+  };
+
+  const moveCol = (from: MgmtColKey, to: MgmtColKey) => {
+    if (from === to) return;
+    setOrder((prev) => {
+      const arr = [...prev];
+      const fi = arr.indexOf(from);
+      const ti = arr.indexOf(to);
+      if (fi < 0 || ti < 0) return prev;
+      arr.splice(fi, 1);
+      arr.splice(ti, 0, from);
+      try { localStorage.setItem(MGMT_ORDER_KEY, JSON.stringify(arr)); } catch { /* ignore */ }
+      return arr;
+    });
+  };
+
+  // Cột đang hiển thị: theo thứ tự user, bỏ cột ẩn, ẩn cột B10 nếu công ty chưa bật.
+  const visibleCols: MgmtColumn[] = order
+    .map((k) => MGMT_COL_MAP[k])
+    .filter((c) => !hidden.has(c.key) && (showB10 || !c.b10));
+
   if (tables.length === 0) {
     return (
       <Panel title="Bảng quản trị">
@@ -296,7 +432,12 @@ export default function ManagementTab({
           prevLeads={prevLeads}
           now={now}
           periodLabel={periodLabel}
+          cols={visibleCols}
+          order={order}
+          hidden={hidden}
           showB10={showB10}
+          toggleCol={toggleCol}
+          moveCol={moveCol}
         />
       ))}
     </div>
