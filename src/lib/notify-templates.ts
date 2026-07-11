@@ -27,6 +27,8 @@ export function renderRosterMissing(showroom: string, ddmm: string): string {
 
 export interface NewLeadInput {
   showroom: string;
+  // Tên phòng (do user đặt) → tiêu đề tin. null/rỗng = chưa xác định phòng → fallback showroom.
+  team: string | null;
   fullName: string | null;
   phone: string;
   source: string | null;
@@ -52,8 +54,10 @@ export function renderNewLead(i: NewLeadInput): string {
   const assigned = !!i.assignee?.trim();
   // Chưa có TVBH → nhấn mạnh IN HOA để quản lý thấy ngay cần phân giao gấp.
   const tinhTrang = assigned ? `Đã giao cho ${i.assignee!.trim()}` : 'CHƯA ĐƯỢC PHÂN GIAO';
+  // Tiêu đề theo tên phòng (user đặt); chưa xác định phòng → fallback tên showroom.
+  const scope = i.team?.trim() || i.showroom;
   const lines = [
-    `<b>LEAD MỚI — ${i.showroom}</b>`,
+    `<b>LEAD MỚI — ${scope}</b>`,
     `KH: <b>${ten}</b> · ${maskPhone(i.phone)}`,
     `Nguồn: ${nguon}`,
     `Dòng xe quan tâm: ${xe}`,
@@ -76,6 +80,8 @@ export function renderNewLead(i: NewLeadInput): string {
 
 export interface LeadAssignedInput {
   showroom: string;
+  // Tên phòng (do user đặt) → tiêu đề tin. null/rỗng = fallback showroom.
+  team: string | null;
   fullName: string | null;
   phone: string;
   model: string | null;
@@ -87,7 +93,7 @@ export function renderLeadAssigned(i: LeadAssignedInput): string {
   const ten = i.fullName?.trim() || 'Khách lẻ';
   const xe = i.model?.trim() || 'chưa xác định';
   return [
-    `<b>PHÂN GIAO — ${i.showroom}</b>`,
+    `<b>PHÂN GIAO — ${i.team?.trim() || i.showroom}</b>`,
     `KH: <b>${ten}</b> · ${maskPhone(i.phone)}`,
     `Dòng xe quan tâm: ${xe}`,
     `Giao cho: <b>${i.assignee}</b>`,
@@ -214,4 +220,67 @@ export function renderDailyMgmt(dateLabel: string, rows: MgmtRow[], totals: Mgmt
     return `${r.showroom}: mới ${r.total} · LH ${r.contactRate}% · quá hạn ${r.overdue}${flag}`;
   });
   return [head, totalLine, '———', ...body].join('\n');
+}
+
+export interface BrandBreakView {
+  name: string;
+  stats: DailySrStats;
+}
+
+export interface ChannelPhongView {
+  name: string;
+  stats: DailySrStats;
+  brands: BrandBreakView[];
+  nonCompliant: NonCompliant[];
+}
+
+export interface ChannelReportView {
+  dateLabel: string;
+  headerName: string;
+  overview: { stats: DailySrStats; brands: BrandBreakView[] };
+  phongs: ChannelPhongView[];
+}
+
+// 1 dòng chi tiết 1 thương hiệu — đủ số như dòng tổng.
+function renderBrandLine(b: BrandBreakView): string {
+  const s = b.stats;
+  return `· ${b.name} — Tổng ${s.total} · Đã LH ${s.contacted} · Chưa LH ${s.pending} · Quá hạn ${s.overdue} · KHQT ${s.KHQT} · GDTD ${s.GDTD} · Ký HĐ ${s.KyHD} · Loại ${s.Fail}`;
+}
+
+// Khối 1 phạm vi (tổng quan / 1 phòng): dòng tổng + phân loại + (khi >1 hãng) chi tiết hãng.
+function renderScopedStats(s: DailySrStats, brands: BrandBreakView[]): string[] {
+  const lines = [
+    `Tổng lead: ${s.total} · Đã LH: ${s.contacted} (${pct(s.contacted, s.total)}%) · Chưa LH: ${s.pending} · Quá hạn: ${s.overdue}`,
+    `Phân loại: KHQT ${s.KHQT} · GDTD ${s.GDTD} · Ký HĐ ${s.KyHD} · Loại ${s.Fail}`,
+  ];
+  if (brands.length > 1) {
+    lines.push('Chi tiết theo thương hiệu:');
+    for (const b of brands) lines.push(renderBrandLine(b));
+  }
+  return lines;
+}
+
+// Báo cáo ngày của 1 kênh Zalo nhiều phòng. Kênh 1 phòng → bỏ TỔNG QUAN, hiện thẳng 1 khối.
+export function renderChannelDaily(r: ChannelReportView): string {
+  if (r.phongs.length === 1) {
+    const p = r.phongs[0];
+    return [
+      `BÁO CÁO ${r.dateLabel} — ${p.name}`,
+      ...renderScopedStats(p.stats, p.brands),
+      renderNonCompliant(p.nonCompliant),
+    ].join('\n');
+  }
+  const parts: string[] = [
+    `BÁO CÁO ${r.dateLabel} — ${r.headerName}`,
+    '',
+    '<b>TỔNG QUAN</b>',
+    ...renderScopedStats(r.overview.stats, r.overview.brands),
+  ];
+  for (const p of r.phongs) {
+    parts.push('───────────────');
+    parts.push(`<b>PHÒNG ${p.name}</b>`);
+    parts.push(...renderScopedStats(p.stats, p.brands));
+    parts.push(renderNonCompliant(p.nonCompliant));
+  }
+  return parts.join('\n');
 }

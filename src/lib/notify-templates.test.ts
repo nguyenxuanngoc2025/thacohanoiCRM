@@ -1,5 +1,62 @@
 import { describe, it, expect } from 'vitest';
-import { renderNewLead, renderLeadAssigned, renderLeadsAssignedSummary, renderRosterMissing, renderOverdue, renderDailySr, renderDailyMgmt, maskPhone } from './notify-templates';
+import { renderNewLead, renderLeadAssigned, renderLeadsAssignedSummary, renderRosterMissing, renderOverdue, renderDailySr, renderDailyMgmt, maskPhone, renderChannelDaily, type ChannelReportView } from './notify-templates';
+
+const stats = (o: Partial<{ total: number; contacted: number; pending: number; overdue: number; KHQT: number; GDTD: number; KyHD: number; Fail: number }> = {}) =>
+  ({ total: 0, contacted: 0, pending: 0, overdue: 0, KHQT: 0, GDTD: 0, KyHD: 0, Fail: 0, ...o });
+
+describe('renderChannelDaily', () => {
+  it('nhiều phòng: có TỔNG QUAN + từng PHÒNG + tách hãng khi >1 hãng', () => {
+    const view: ChannelReportView = {
+      dateLabel: 'NGÀY 11/07',
+      headerName: 'Showroom PVD',
+      overview: {
+        stats: stats({ total: 3, contacted: 2, pending: 1 }),
+        brands: [
+          { name: 'KIA', stats: stats({ total: 2, contacted: 1 }) },
+          { name: 'Mazda', stats: stats({ total: 1, contacted: 1 }) },
+        ],
+      },
+      phongs: [
+        { name: 'Phòng 1', stats: stats({ total: 2 }), brands: [
+          { name: 'KIA', stats: stats({ total: 1 }) },
+          { name: 'Mazda', stats: stats({ total: 1 }) },
+        ], nonCompliant: [] },
+        { name: 'Phòng 2', stats: stats({ total: 1 }), brands: [
+          { name: 'KIA', stats: stats({ total: 1 }) },
+        ], nonCompliant: [] },
+      ],
+    };
+    const t = renderChannelDaily(view);
+    expect(t).toContain('BÁO CÁO NGÀY 11/07 — Showroom PVD');
+    expect(t).toContain('<b>TỔNG QUAN</b>');
+    expect(t).toContain('Chi tiết theo thương hiệu:');
+    expect(t).toContain('· KIA — Tổng 2');
+    expect(t).toContain('<b>PHÒNG Phòng 1</b>');
+    expect(t).toContain('<b>PHÒNG Phòng 2</b>');
+  });
+
+  it('kênh 1 phòng: bỏ TỔNG QUAN, hiện thẳng 1 khối', () => {
+    const view: ChannelReportView = {
+      dateLabel: 'NGÀY 11/07', headerName: 'SR',
+      overview: { stats: stats({ total: 1 }), brands: [] },
+      phongs: [{ name: 'Phòng Duy Nhất', stats: stats({ total: 1, contacted: 1 }), brands: [], nonCompliant: [] }],
+    };
+    const t = renderChannelDaily(view);
+    expect(t).toContain('BÁO CÁO NGÀY 11/07 — Phòng Duy Nhất');
+    expect(t).not.toContain('TỔNG QUAN');
+  });
+});
+
+describe('renderNewLead tiêu đề', () => {
+  it('có tên phòng → tiêu đề theo phòng', () => {
+    const t = renderNewLead({ showroom: 'SR PVD', team: 'Phòng KD 1', fullName: 'A', phone: '0912345678', source: 'facebook', model: 'Seltos', assignee: null });
+    expect(t).toContain('LEAD MỚI — Phòng KD 1');
+  });
+  it('chưa có phòng → fallback showroom', () => {
+    const t = renderNewLead({ showroom: 'SR PVD', team: null, fullName: 'A', phone: '0912345678', source: 'facebook', model: null, assignee: 'B' });
+    expect(t).toContain('LEAD MỚI — SR PVD');
+  });
+});
 
 describe('notify-templates', () => {
   it('maskPhone: hiển thị 10 chữ số (0...) + che 3 số cuối', () => {
@@ -10,7 +67,7 @@ describe('notify-templates', () => {
 
   it('renderNewLead: gồm showroom, tên, sđt CHE 3 số cuối, nguồn, xe, tình trạng — không emoji', () => {
     const t = renderNewLead({
-      showroom: 'KIA Hà Nội', fullName: 'Nguyễn Văn A', phone: '+84901234567',
+      showroom: 'KIA Hà Nội', team: null, fullName: 'Nguyễn Văn A', phone: '+84901234567',
       source: 'facebook', model: 'Sonet', assignee: 'Trần B',
     });
     expect(t).toContain('LEAD MỚI');
@@ -25,7 +82,7 @@ describe('notify-templates', () => {
 
   it('renderNewLead: tên + tiêu đề + tình trạng được bọc đậm (<b>...</b>)', () => {
     const t = renderNewLead({
-      showroom: 'KIA', fullName: 'Nguyễn Văn A', phone: '+8490', source: 'facebook', model: 'Sonet', assignee: 'Trần B',
+      showroom: 'KIA', team: null, fullName: 'Nguyễn Văn A', phone: '+8490', source: 'facebook', model: 'Sonet', assignee: 'Trần B',
     });
     expect(t).toContain('<b>LEAD MỚI — KIA</b>');
     expect(t).toContain('<b>Nguyễn Văn A</b>');
@@ -36,7 +93,7 @@ describe('notify-templates', () => {
     // SĐT che dùng *** ở cuối; nếu marker đậm vẫn là **...** sẽ va vào *** → parser bot bôi nhầm.
     // Dùng tag <b>/<i> (không chứa dấu *) nên SĐT che an toàn.
     const t = renderNewLead({
-      showroom: 'KIA', fullName: 'Nguyễn Văn A', phone: '+84901234567', source: 'facebook', model: 'Sonet', assignee: 'B',
+      showroom: 'KIA', team: null, fullName: 'Nguyễn Văn A', phone: '+84901234567', source: 'facebook', model: 'Sonet', assignee: 'B',
     });
     expect(t).toContain('0901234***');     // SĐT che giữ nguyên 3 dấu *
     expect(t).not.toContain('**LEAD');     // không còn marker ** trên tiêu đề
@@ -44,41 +101,41 @@ describe('notify-templates', () => {
   });
 
   it('renderNewLead: thiếu tên → "Khách lẻ"; chưa giao → nhấn mạnh IN HOA + lời nhắc phân giao', () => {
-    const t = renderNewLead({ showroom: 'Mazda', fullName: null, phone: '+84909', source: null, model: null, assignee: null });
+    const t = renderNewLead({ showroom: 'Mazda', team: null, fullName: null, phone: '+84909', source: null, model: null, assignee: null });
     expect(t).toContain('Khách lẻ');
     expect(t).toContain('<b>CHƯA ĐƯỢC PHÂN GIAO</b>');
     expect(t).toContain('<i>Vào hệ thống phân giao cho TVBH.</i>');
   });
 
   it('renderNewLead: đã có TVBH → KHÔNG có dòng nhắc phân giao (tránh nhân đôi)', () => {
-    const t = renderNewLead({ showroom: 'KIA', fullName: 'A', phone: '+8490', source: 'facebook', model: 'Sonet', assignee: 'B' });
+    const t = renderNewLead({ showroom: 'KIA', team: null, fullName: 'A', phone: '+8490', source: 'facebook', model: 'Sonet', assignee: 'B' });
     expect(t).not.toContain('CHƯA ĐƯỢC PHÂN GIAO');
     expect(t).not.toContain('Vào hệ thống phân giao');
   });
 
   it('renderNewLead: luôn hiện dòng xe quan tâm; chưa dò ra → "chưa xác định"', () => {
-    const co = renderNewLead({ showroom: 'KIA', fullName: 'A', phone: '+8490', source: 'facebook', model: 'Sonet', assignee: 'B' });
+    const co = renderNewLead({ showroom: 'KIA', team: null, fullName: 'A', phone: '+8490', source: 'facebook', model: 'Sonet', assignee: 'B' });
     expect(co).toContain('Dòng xe quan tâm: Sonet');
-    const khong = renderNewLead({ showroom: 'KIA', fullName: 'A', phone: '+8490', source: 'facebook', model: null, assignee: 'B' });
+    const khong = renderNewLead({ showroom: 'KIA', team: null, fullName: 'A', phone: '+8490', source: 'facebook', model: null, assignee: 'B' });
     expect(khong).toContain('Dòng xe quan tâm: chưa xác định');
   });
 
   it('renderNewLead: nguồn hiện nền tảng + chi tiết kênh (Lead Ads / Tin nhắn / Bình luận)', () => {
     // Facebook tách 3 nhánh — tin báo phải ghi rõ lead đến từ Lead Ads / Tin nhắn / Bình luận.
-    const ads = renderNewLead({ showroom: 'KIA', fullName: 'A', phone: '+8490', source: 'facebook', model: 'Sonet', assignee: 'B' });
+    const ads = renderNewLead({ showroom: 'KIA', team: null, fullName: 'A', phone: '+8490', source: 'facebook', model: 'Sonet', assignee: 'B' });
     expect(ads).toContain('Nguồn: Facebook · Lead Ads');
-    const msg = renderNewLead({ showroom: 'KIA', fullName: 'A', phone: '+8490', source: 'fb_message', model: 'Sonet', assignee: 'B' });
+    const msg = renderNewLead({ showroom: 'KIA', team: null, fullName: 'A', phone: '+8490', source: 'fb_message', model: 'Sonet', assignee: 'B' });
     expect(msg).toContain('Nguồn: Facebook · Tin nhắn');
-    const cmt = renderNewLead({ showroom: 'KIA', fullName: 'A', phone: '+8490', source: 'fb_comment', model: 'Sonet', assignee: 'B' });
+    const cmt = renderNewLead({ showroom: 'KIA', team: null, fullName: 'A', phone: '+8490', source: 'fb_comment', model: 'Sonet', assignee: 'B' });
     expect(cmt).toContain('Nguồn: Facebook · Bình luận');
     // Nguồn không có nhánh chi tiết → chỉ hiện nền tảng, không có dấu "·" thừa.
-    const gg = renderNewLead({ showroom: 'KIA', fullName: 'A', phone: '+8490', source: 'google', model: 'Sonet', assignee: 'B' });
+    const gg = renderNewLead({ showroom: 'KIA', team: null, fullName: 'A', phone: '+8490', source: 'google', model: 'Sonet', assignee: 'B' });
     expect(gg).toContain('Nguồn: Google');
     expect(gg).not.toContain('Nguồn: Google ·');
   });
 
   it('renderLeadAssigned: tiêu đề PHÂN GIAO, SĐT che, TVBH + lời nhắc chăm sóc đậm, không emoji', () => {
-    const t = renderLeadAssigned({ showroom: 'KIA Hà Nội', fullName: 'Nguyễn Văn A', phone: '+84901234567', model: 'Sonet', assignee: 'Trần B' });
+    const t = renderLeadAssigned({ showroom: 'KIA Hà Nội', team: null, fullName: 'Nguyễn Văn A', phone: '+84901234567', model: 'Sonet', assignee: 'Trần B' });
     expect(t).toContain('<b>PHÂN GIAO — KIA Hà Nội</b>');
     expect(t).toContain('<b>Nguyễn Văn A</b>');
     expect(t).toContain('0901234***');
@@ -90,7 +147,7 @@ describe('notify-templates', () => {
   });
 
   it('renderLeadAssigned: thiếu tên → Khách lẻ; chưa dò xe → chưa xác định', () => {
-    const t = renderLeadAssigned({ showroom: 'Mazda', fullName: null, phone: '+8490', model: null, assignee: 'C' });
+    const t = renderLeadAssigned({ showroom: 'Mazda', team: null, fullName: null, phone: '+8490', model: null, assignee: 'C' });
     expect(t).toContain('Khách lẻ');
     expect(t).toContain('Dòng xe quan tâm: chưa xác định');
   });
