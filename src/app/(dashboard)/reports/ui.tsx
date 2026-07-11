@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, ArrowUp, ArrowDown } from 'lucide-react';
 
 export const BRAND = '#004B9B';
 /** Bảng màu chủ đạo cho biểu đồ (đồng bộ tông xanh thương hiệu + bổ trợ). */
@@ -97,4 +97,37 @@ export function uniqOpts<T>(items: T[], pick: (l: T) => [string | null, string |
     if (!map.has(v)) map.set(v, lbl ?? v);
   }
   return [...map.entries()].map(([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label, 'vi'));
+}
+
+export function DeltaArrow({ delta, positiveIsGood = true, pct = false }: { delta: number; positiveIsGood?: boolean; pct?: boolean }) {
+  if (Math.abs(delta) < (pct ? 0.05 : 0.5)) {
+    return <span className="text-[11px] text-slate-300">—</span>;
+  }
+  const up = delta > 0;
+  const good = up === positiveIsGood;
+  const color = good ? '#047857' : '#be123c';
+  const val = pct ? `${Math.abs(delta).toFixed(1)}%` : fmt(Math.abs(delta));
+  return (
+    <span className="inline-flex items-center gap-0.5 text-[11px] font-semibold" style={{ color }}>
+      {up ? <ArrowUp size={11} /> : <ArrowDown size={11} />}{val}
+    </span>
+  );
+}
+
+export function OverdueCallout({ count, detail, actionLabel, onJump }: { count: number; detail?: string; actionLabel?: string; onJump?: () => void }) {
+  if (count <= 0) return null;
+  return (
+    <div className="rounded-xl border p-3 sm:p-4 flex items-center justify-between gap-3" style={{ background: '#fef2f2', borderColor: '#fecaca' }}>
+      <div className="text-sm">
+        <span className="font-bold" style={{ color: '#be123c' }}>{fmt(count)}</span>{' '}
+        <span className="text-slate-700">lead quá hạn chăm sóc</span>
+        {detail && <span className="text-slate-500"> — {detail}</span>}
+      </div>
+      {actionLabel && onJump && (
+        <button onClick={onJump} className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white shrink-0" style={{ background: '#be123c' }}>
+          {actionLabel}
+        </button>
+      )}
+    </div>
+  );
 }
