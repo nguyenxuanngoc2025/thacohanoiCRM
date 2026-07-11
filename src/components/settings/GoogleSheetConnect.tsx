@@ -3,6 +3,7 @@ import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { Plus, Edit2, Trash2, X, BarChart3, Eye, RefreshCw } from 'lucide-react';
 import type { ShowroomRow, BrandRow, ChannelRow, ModelRow } from './types';
 import { STATUS_LABEL } from '@/lib/lead-status';
+import { useDialogs } from '@/components/ui/dialogs';
 
 // Cửa sổ chọn Google Sheet (Picker) chạy ở apex trung tâm — origin đã khai Google 1 lần.
 // Mở popup tới đây, nhận id file qua postMessage. Thêm công ty mới không cần đụng Google Console.
@@ -53,6 +54,7 @@ export default function GoogleSheetConnect({
   connected: boolean;
   showrooms: ShowroomRow[]; brands: BrandRow[]; models: ModelRow[]; sheets: ChannelRow[];
 }) {
+  const { confirm, dialog } = useDialogs();
   const [picking, setPicking] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null); // null = thêm mới; có id = đang sửa
   const [picked, setPicked] = useState<{ id: string; name: string } | null>(null);
@@ -162,7 +164,11 @@ export default function GoogleSheetConnect({
   };
 
   const del = async (sheet: ChannelRow) => {
-    if (!window.confirm(`Xoá kết nối sheet "${sheet.page_name ?? sheet.page_id}"? Lead cũ vẫn giữ, lead mới từ sheet này sẽ ngừng vào.`)) return;
+    if (!(await confirm({
+      title: 'Xoá kết nối sheet',
+      message: `Xoá kết nối sheet "${sheet.page_name ?? sheet.page_id}"? Lead cũ vẫn giữ, lead mới từ sheet này sẽ ngừng vào.`,
+      danger: true, confirmText: 'Xoá',
+    }))) return;
     setBusy(true);
     try {
       const res = await fetch('/api/admin/google-sheets', {
@@ -322,6 +328,7 @@ export default function GoogleSheetConnect({
 
   return (
     <div className="space-y-3">
+      {dialog}
       <div className="flex items-center gap-2">
         <button onClick={openPicker} disabled={picking || busy}
           className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold text-white disabled:opacity-50" style={{ background: '#0F9D58' }}>

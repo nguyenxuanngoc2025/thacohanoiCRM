@@ -11,6 +11,7 @@ import { PLATFORMS, type ConnectorState } from '@/lib/platforms';
 import {
   PrimaryBtn, GhostBtn, Field, TextInput, Select, Toggle, StatusPill, FlashBar, postAdmin,
 } from './ui';
+import { useDialogs } from '@/components/ui/dialogs';
 import ZaloGuideModal from './ZaloGuideModal';
 import FacebookGuideModal from './FacebookGuideModal';
 import GoogleSheetConnect from './GoogleSheetConnect';
@@ -37,6 +38,7 @@ export default function IntegrationsCatalog({
   fbBusinessId?: string; googleConnected?: boolean;
 }) {
   const router = useRouter();
+  const { confirm, alert, dialog } = useDialogs();
   const [expanded, setExpanded] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
   const [modal, setModal] = useState<{ platform: string; row: ChannelRow | 'new' } | null>(null);
@@ -75,14 +77,19 @@ export default function IntegrationsCatalog({
   }, [channels]);
 
   const del = async (c: ChannelRow) => {
-    if (!window.confirm(`Xoá đăng ký "${c.page_name ?? c.page_id}"? Lead cũ vẫn giữ, lead mới từ nguồn này sẽ không vào được.`)) return;
+    if (!(await confirm({
+      title: 'Xoá đăng ký kênh',
+      message: `Xoá đăng ký "${c.page_name ?? c.page_id}"? Lead cũ vẫn giữ, lead mới từ nguồn này sẽ không vào được.`,
+      danger: true, confirmText: 'Xoá',
+    }))) return;
     const r = await postAdmin('/api/admin/channels', { op: 'delete', id: c.id });
-    if (!r.ok) { window.alert(r.error); return; }
+    if (!r.ok) { await alert({ title: 'Không xoá được', message: r.error }); return; }
     flashMsg('Đã xoá đăng ký kênh.'); router.refresh();
   };
 
   return (
     <div className="space-y-4">
+      {dialog}
       <div>
         <h2 className="text-sm font-bold text-slate-900">Tích hợp &amp; Nguồn lead</h2>
         <p className="text-xs text-slate-400 mt-0.5">

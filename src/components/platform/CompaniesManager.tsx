@@ -6,6 +6,7 @@ import { EMAIL_DOMAIN } from '@/lib/account-email';
 import { STATUS_LABEL, type LeadStatus } from '@/lib/lead-status';
 import { formatPhoneDisplay } from '@/lib/phone';
 import type { PlatformCompany, PlatformBrand, CompanyViewData } from './types';
+import { useDialogs } from '@/components/ui/dialogs';
 
 async function patchCompany(body: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
   const res = await fetch('/api/platform/companies', {
@@ -68,6 +69,7 @@ export default function CompaniesManager({
   companies, brands,
 }: { companies: PlatformCompany[]; brands: PlatformBrand[] }) {
   const router = useRouter();
+  const { confirm, alert, dialog } = useDialogs();
   const [edit, setEdit] = useState<PlatformCompany | null>(null);
   const [viewing, setViewing] = useState<PlatformCompany | null>(null);
   const [adding, setAdding] = useState(false);
@@ -77,14 +79,15 @@ export default function CompaniesManager({
   const toggleSuspend = async (c: PlatformCompany) => {
     const next = c.plan_status === 'suspended' ? 'active' : 'suspended';
     const verb = next === 'suspended' ? 'Tạm khóa' : 'Mở khóa';
-    if (!window.confirm(`${verb} công ty "${c.name}"?`)) return;
+    if (!(await confirm({ title: `${verb} công ty`, message: `${verb} công ty "${c.name}"?`, danger: next === 'suspended', confirmText: verb }))) return;
     const r = await patchCompany({ id: c.id, plan_status: next });
-    if (!r.ok) { window.alert(r.error ?? 'Lỗi'); return; }
+    if (!r.ok) { await alert({ title: 'Lỗi', message: r.error ?? 'Lỗi' }); return; }
     flashMsg(`Đã ${verb.toLowerCase()} "${c.name}".`); router.refresh();
   };
 
   return (
     <div className="space-y-4">
+      {dialog}
       <div className="flex items-center justify-between">
         <p className="text-sm text-slate-500">{companies.length} công ty</p>
         <button onClick={() => setAdding(true)}
@@ -428,6 +431,7 @@ function AddCompanyModal({
 function QuotaModal({
   company, brands, onClose, onDone,
 }: { company: PlatformCompany; brands: PlatformBrand[]; onClose: () => void; onDone: (m: string) => void }) {
+  const { confirm, dialog } = useDialogs();
   const [maxSr, setMaxSr] = useState(String(company.max_showrooms));
   const [brandIds, setBrandIds] = useState<string[]>(company.brand_ids);
   const [b10Enabled, setB10Enabled] = useState(company.b10_enabled);
@@ -455,7 +459,7 @@ function QuotaModal({
   };
 
   const onDeleteSr = async (s: SrItem) => {
-    if (!window.confirm(`Xoá vĩnh viễn showroom "${s.name}"? Không thể hoàn tác.`)) return;
+    if (!(await confirm({ title: 'Xoá showroom', message: `Xoá vĩnh viễn showroom "${s.name}"? Không thể hoàn tác.`, danger: true, confirmText: 'Xoá' }))) return;
     setSrBusy(s.id);
     const r = await deleteShowroom(company.id, s.id);
     setSrBusy(null);
@@ -489,6 +493,7 @@ function QuotaModal({
 
   return (
     <>
+    {dialog}
     <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="px-5 py-3.5 border-b border-slate-100 sticky top-0 bg-white z-10">

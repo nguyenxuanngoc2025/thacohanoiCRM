@@ -7,11 +7,13 @@ import type { BrandRow, ModelRow } from '@/components/settings/types';
 import {
   PanelHeader, PrimaryBtn, GhostBtn, Field, TextInput, Select, FlashBar, Panel, postAdmin,
 } from '@/components/settings/ui';
+import { useDialogs } from '@/components/ui/dialogs';
 
 // Quản lý danh mục THƯƠNG HIỆU & DÒNG XE — danh mục dùng chung mọi công ty,
 // chỉ Chủ nền tảng (platform_owner) được sửa. Đặt tại trang /admin (nền tảng).
 export default function CatalogManager({ brands, models }: { brands: BrandRow[]; models: ModelRow[] }) {
   const router = useRouter();
+  const { confirm, alert, dialog } = useDialogs();
   const [flash, setFlash] = useState<string | null>(null);
   const flashMsg = (m: string) => { setFlash(m); setTimeout(() => setFlash(null), 3000); };
 
@@ -28,20 +30,21 @@ export default function CatalogManager({ brands, models }: { brands: BrandRow[];
   });
 
   const delModel = async (m: ModelRow) => {
-    if (!window.confirm(`Xoá dòng xe "${m.name}"?`)) return;
+    if (!(await confirm({ title: 'Xoá dòng xe', message: `Xoá dòng xe "${m.name}"?`, danger: true, confirmText: 'Xoá' }))) return;
     const r = await postAdmin('/api/admin/models', { op: 'delete', id: m.id });
-    if (!r.ok) { window.alert(r.error); return; }
+    if (!r.ok) { await alert({ title: 'Không xoá được', message: r.error }); return; }
     flashMsg(`Đã xoá dòng xe "${m.name}".`); router.refresh();
   };
   const delBrand = async (b: BrandRow) => {
-    if (!window.confirm(`Xoá thương hiệu "${b.name}"?`)) return;
+    if (!(await confirm({ title: 'Xoá thương hiệu', message: `Xoá thương hiệu "${b.name}"?`, danger: true, confirmText: 'Xoá' }))) return;
     const r = await postAdmin('/api/admin/brands', { op: 'delete', id: b.id });
-    if (!r.ok) { window.alert(r.error); return; }
+    if (!r.ok) { await alert({ title: 'Không xoá được', message: r.error }); return; }
     flashMsg(`Đã xoá thương hiệu "${b.name}".`); router.refresh();
   };
 
   return (
     <div className="space-y-5">
+      {dialog}
       <FlashBar msg={flash} />
 
       <Panel>

@@ -9,6 +9,7 @@ import {
 } from './ui';
 import GroupPicker from './GroupPicker';
 import ZaloBotConnect from './ZaloBotConnect';
+import { useDialogs } from '@/components/ui/dialogs';
 
 const EVENT_LABELS: Record<string, string> = {
   new_lead: 'Data mới',
@@ -30,6 +31,7 @@ export default function NotificationsManager(
   },
 ) {
   const router = useRouter();
+  const { alert, dialog } = useDialogs();
   const [flash, setFlash] = useState<string | null>(null);
   const flashMsg = (m: string) => { setFlash(m); setTimeout(() => setFlash(null), 3000); };
   const [edit, setEdit] = useState<NotifChannelRow | 'new' | null>(null);
@@ -98,7 +100,7 @@ export default function NotificationsManager(
 
   const sendTest = async (c: NotifChannelRow) => {
     const r = await postAdmin('/api/admin/notification-channels', { op: 'test', id: c.id });
-    if (!r.ok) { window.alert(r.error); return; }
+    if (!r.ok) { await alert({ title: 'Gửi thử thất bại', message: r.error }); return; }
     flashMsg(`Đã xếp hàng tin thử vào "${c.name}". Kiểm tra nhóm Zalo sau ít giây.`);
   };
 
@@ -157,6 +159,7 @@ export default function NotificationsManager(
 
   return (
     <div className="space-y-4">
+      {dialog}
       <FlashBar msg={flash} />
       <Panel>
         <PanelHeader

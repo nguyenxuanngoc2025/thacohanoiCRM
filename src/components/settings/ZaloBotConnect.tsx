@@ -4,22 +4,25 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { QrCode, X, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { PrimaryBtn, GhostBtn } from './ui';
+import { useDialogs } from '@/components/ui/dialogs';
 
 type Session = { status: 'connected' | 'disconnected'; displayName: string | null; lastError: string | null };
 
 export default function ZaloBotConnect({ session }: { session: Session }) {
   const router = useRouter();
+  const { confirm, dialog } = useDialogs();
   const [open, setOpen] = useState(false);
   const connected = session.status === 'connected';
 
   const logout = async () => {
-    if (!window.confirm('Ngắt kết nối con bot Zalo? Các thông báo sẽ ngừng gửi cho đến khi đăng nhập lại.')) return;
+    if (!(await confirm({ title: 'Ngắt kết nối bot Zalo', message: 'Ngắt kết nối con bot Zalo? Các thông báo sẽ ngừng gửi cho đến khi đăng nhập lại.', danger: true, confirmText: 'Ngắt kết nối' }))) return;
     await fetch('/api/integrations/zalo-bot/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
     router.refresh();
   };
 
   return (
     <div className="rounded-lg border bg-white px-4 py-3" style={{ borderColor: connected ? '#10b98133' : '#e2e8f0' }}>
+      {dialog}
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="text-sm font-bold text-slate-800 flex items-center gap-2">

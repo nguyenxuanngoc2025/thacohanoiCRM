@@ -9,6 +9,7 @@ import { vnDateStr } from '@/lib/roster';
 import {
   PanelHeader, PrimaryBtn, GhostBtn, Field, TextInput, Select, Toggle, StatusPill, FlashBar, Panel, postAdmin,
 } from './ui';
+import { useDialogs } from '@/components/ui/dialogs';
 
 // Nhãn các kiểu chia dùng chung mọi cấp.
 const STRATEGY_LABELS: Record<AssignStrategy, string> = {
@@ -31,6 +32,7 @@ export default function AssignmentManager({
   roster: RosterRow[];
 }) {
   const router = useRouter();
+  const { confirm, alert, dialog } = useDialogs();
   const [flash, setFlash] = useState<string | null>(null);
   const flashMsg = (m: string) => { setFlash(m); setTimeout(() => setFlash(null), 3000); };
   const [edit, setEdit] = useState<AssignmentRuleRow | 'new' | null>(null);
@@ -42,14 +44,15 @@ export default function AssignmentManager({
   const userName = (id: string | null) => id ? (staff.find((s) => s.id === id)?.full_name ?? '—') : '—';
 
   const delRule = async (r: AssignmentRuleRow) => {
-    if (!window.confirm('Xoá luật phân giao này?')) return;
+    if (!(await confirm({ title: 'Xoá luật phân giao', message: 'Xoá luật phân giao này?', danger: true, confirmText: 'Xoá' }))) return;
     const res = await postAdmin('/api/admin/assignment-rules', { op: 'delete', id: r.id });
-    if (!res.ok) { window.alert(res.error); return; }
+    if (!res.ok) { await alert({ title: 'Không xoá được', message: res.error }); return; }
     flashMsg('Đã xoá luật phân giao.'); router.refresh();
   };
 
   return (
     <div className="space-y-4">
+      {dialog}
       <FlashBar msg={flash} />
 
       {/* Cây phân giao 3 cấp — làm trọn 1 chỗ */}
@@ -185,6 +188,7 @@ export function AssignmentTree({
   roster: RosterRow[];
   onDone: (m: string) => void;
 }) {
+  const { alert, dialog } = useDialogs();
   const tvbh = staff.filter((s) => s.role === 'tvbh');
 
   const [srStrat, setSrStrat] = useState<Record<string, AssignStrategy>>(
@@ -214,7 +218,7 @@ export function AssignmentTree({
       op: 'update', id: s.id, name: s.name, code: s.code, brand_ids: s.brand_ids, team_assign_strategy: next,
     });
     setBusy(null);
-    if (!r.ok) { window.alert(r.error); setSrStrat((v) => ({ ...v, [s.id]: prev })); return; }
+    if (!r.ok) { await alert({ title: 'Không lưu được', message: r.error }); setSrStrat((v) => ({ ...v, [s.id]: prev })); return; }
     onDone(`Đã đổi kiểu chia của showroom ${s.name}.`);
   };
 
@@ -223,7 +227,7 @@ export function AssignmentTree({
     setTmStrat((v) => ({ ...v, [t.id]: next })); setBusy(`tm-${t.id}`);
     const r = await postAdmin('/api/admin/sales-teams', { op: 'set-strategy', sales_team_id: t.id, tvbh_assign_strategy: next });
     setBusy(null);
-    if (!r.ok) { window.alert(r.error); setTmStrat((v) => ({ ...v, [t.id]: prev })); return; }
+    if (!r.ok) { await alert({ title: 'Không lưu được', message: r.error }); setTmStrat((v) => ({ ...v, [t.id]: prev })); return; }
     onDone(`Đã đổi kiểu chia của phòng ${t.name}.`);
   };
 
@@ -231,7 +235,7 @@ export function AssignmentTree({
     setBusy(`tmpct-${t.id}`);
     const r = await postAdmin('/api/admin/sales-teams', { op: 'set-strategy', sales_team_id: t.id, assign_share_pct: Number(tmPct[t.id]) || 0 });
     setBusy(null);
-    if (!r.ok) { window.alert(r.error); return; }
+    if (!r.ok) { await alert({ title: 'Không lưu được', message: r.error }); return; }
     onDone(`Đã lưu tỷ lệ phòng ${t.name}.`);
   };
 
@@ -239,12 +243,13 @@ export function AssignmentTree({
     setBusy(`tvbh-${u.id}`);
     const r = await postAdmin('/api/admin/tvbh-share', { user_id: u.id, assign_share_pct: Number(tvbhPct[u.id]) || 0 });
     setBusy(null);
-    if (!r.ok) { window.alert(r.error); return; }
+    if (!r.ok) { await alert({ title: 'Không lưu được', message: r.error }); return; }
     onDone(`Đã lưu tỷ lệ TVBH ${u.full_name ?? ''}.`);
   };
 
   return (
     <div className="space-y-3">
+      {dialog}
       {/* Cấp 2 + 3: từng showroom → phòng → TVBH */}
       {showrooms.length === 0 && (
         <div className="text-sm text-slate-400 px-1">Chưa có showroom. Thêm ở tab "Showroom · Thương hiệu".</div>
@@ -361,6 +366,7 @@ function DayRosterEditor({
   roster: RosterRow[];
   onDone: (m: string) => void;
 }) {
+  const { alert, dialog } = useDialogs();
   // Lịch hiện tại của showroom này → tra nhanh theo ngày.
   const initMap: Record<string, string> = {};
   for (const r of roster) {
@@ -386,12 +392,13 @@ function DayRosterEditor({
       op: 'set', showroom_id: showroom.id, roster_date: iso, sales_team_id: teamId || null,
     });
     setBusy(null);
-    if (!r.ok) { window.alert(r.error); setPick((v) => ({ ...v, [iso]: prev ?? '' })); return; }
+    if (!r.ok) { await alert({ title: 'Không lưu được', message: r.error }); setPick((v) => ({ ...v, [iso]: prev ?? '' })); return; }
     onDone('Đã lưu lịch phòng trực.');
   };
 
   return (
     <div className="mt-2 rounded-lg border border-slate-200 bg-white p-3">
+      {dialog}
       <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 mb-2">
         <CalendarDays size={14} style={{ color: '#004B9B' }} /> Lịch phòng trực nhận lead (14 ngày tới)
       </div>
@@ -428,6 +435,7 @@ function DayRosterEditor({
 function ContactDeadlinePanel({
   sla, companyId, onDone,
 }: { sla: SlaRow[]; companyId: string; onDone: (m: string) => void }) {
+  const { alert, dialog } = useDialogs();
   const row = sla.find((s) => s.round === 1);
   const [frh, setFrh] = useState(String(row?.first_response_hours ?? 2));
   const [fuh, setFuh] = useState(String(row?.follow_up_hours ?? 2));
@@ -439,7 +447,7 @@ function ContactDeadlinePanel({
       round: 1, first_response_hours: Number(frh), follow_up_hours: Number(fuh), is_active: true, company_id: companyId,
     });
     setBusy(false);
-    if (!r.ok) { window.alert(r.error); return; }
+    if (!r.ok) { await alert({ title: 'Không lưu được', message: r.error }); return; }
     onDone('Đã lưu thời hạn liên hệ.');
   };
 
@@ -448,6 +456,7 @@ function ContactDeadlinePanel({
 
   return (
     <div className="space-y-4">
+      {dialog}
       <div className="rounded-lg bg-slate-50 border border-slate-100 p-4 space-y-3 text-sm text-slate-600">
         <div className="flex items-center gap-2 text-sm font-bold text-slate-800">
           <Bell size={15} style={{ color: '#004B9B' }} /> TVBH có trách nhiệm gì khi nhận lead?

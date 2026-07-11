@@ -9,6 +9,7 @@ import {
 } from '@/lib/nav';
 import { type UserRole } from '@/types/database';
 import { EMAIL_DOMAIN, usernameToEmail } from '@/lib/account-email';
+import { useDialogs } from '@/components/ui/dialogs';
 
 export interface StaffRow {
   id: string;
@@ -51,6 +52,7 @@ export default function AccountsManager({
   staff: StaffRow[]; showrooms: ShowroomOption[]; brands: BrandOption[]; salesTeams: SalesTeamOption[]; companyId: string; currentUserId: string;
 }) {
   const router = useRouter();
+  const { alert, prompt, dialog } = useDialogs();
   const [search, setSearch] = useState('');
   const [filterRole, setFilterRole] = useState('');
 
@@ -91,8 +93,28 @@ export default function AccountsManager({
 
   const flash = (msg: string) => { setSuccess(msg); setTimeout(() => setSuccess(null), 3500); };
 
+  const handleResetPassword = async (u: StaffRow) => {
+    const pw = await prompt({
+      title: 'Đổi mật khẩu',
+      message: `Nhập mật khẩu mới cho ${u.full_name ?? u.email}:`,
+      inputType: 'password',
+      placeholder: 'Mật khẩu mới (tối thiểu 6 ký tự)',
+      confirmText: 'Đổi mật khẩu',
+    });
+    if (!pw) return;
+    if (pw.length < 6) { await alert({ title: 'Mật khẩu quá ngắn', message: 'Mật khẩu tối thiểu 6 ký tự.' }); return; }
+    const res = await fetch('/api/admin/reset-password', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: u.id, newPassword: pw }),
+    });
+    const data = await res.json();
+    if (!res.ok) { await alert({ title: 'Đổi mật khẩu thất bại', message: data.error ?? 'Đổi mật khẩu thất bại.' }); return; }
+    flash(`Đã đổi mật khẩu cho ${u.full_name ?? u.email}.`);
+  };
+
   return (
     <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      {dialog}
       {/* Header */}
       <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -197,7 +219,7 @@ export default function AccountsManager({
                     </td>
                     <td className="px-4 py-2.5">
                       <div className="flex items-center justify-center gap-1.5">
-                        <IconBtn title="Đổi mật khẩu" onClick={() => resetPassword(u, flash)}>
+                        <IconBtn title="Đổi mật khẩu" onClick={() => handleResetPassword(u)}>
                           <KeyRound size={14} className="text-emerald-600" />
                         </IconBtn>
                         <IconBtn title="Chỉnh sửa" onClick={() => setEditTarget(u)}>
@@ -240,21 +262,6 @@ export default function AccountsManager({
       )}
     </section>
   );
-}
-
-// ─── Reset password (prompt nhanh, giống Budget) ───────────────────────────────
-
-async function resetPassword(u: StaffRow, flash: (m: string) => void) {
-  const pw = window.prompt(`Nhập mật khẩu mới cho ${u.full_name ?? u.email}:`);
-  if (!pw) return;
-  if (pw.length < 6) { window.alert('Mật khẩu tối thiểu 6 ký tự.'); return; }
-  const res = await fetch('/api/admin/reset-password', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ userId: u.id, newPassword: pw }),
-  });
-  const data = await res.json();
-  if (!res.ok) { window.alert(data.error ?? 'Đổi mật khẩu thất bại.'); return; }
-  flash(`Đã đổi mật khẩu cho ${u.full_name ?? u.email}.`);
 }
 
 // ─── Icon button ───────────────────────────────────────────────────────────────
