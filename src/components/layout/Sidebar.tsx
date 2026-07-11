@@ -78,7 +78,7 @@ function NavLink({
 }
 
 export default function Sidebar({
-  userRole, userName, userCode = '',
+  userRole, userName,
   companyName = 'Thaco Auto Hà Nội', collapsed, onToggleCollapse, b10Enabled,
 }: SidebarProps) {
   const pathname = usePathname();
@@ -241,14 +241,14 @@ export default function Sidebar({
         </button>
 
         {/* User panel (avatar + Cài đặt) */}
-        <UserPanel userName={userName} userCode={userCode} userRole={userRole} isOpen={isOpen} />
+        <UserPanel userName={userName} userRole={userRole} isOpen={isOpen} />
       </div>
     </aside>
   );
 }
 
-function UserPanel({ userName, userCode, userRole, isOpen }: {
-  userName: string; userCode: string; userRole: UserRole; isOpen: boolean;
+function UserPanel({ userName, userRole, isOpen }: {
+  userName: string; userRole: UserRole; isOpen: boolean;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const initials = userName.split(' ').map(w => w[0]).join('').slice(-2).toUpperCase();
@@ -284,7 +284,6 @@ function UserPanel({ userName, userCode, userRole, isOpen }: {
         }}>
           <div className="dropdown-header" style={{ padding: '10px 14px' }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)' }}>{userName}</div>
-            <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 1 }}>{userCode}</div>
           </div>
           <MenuButton icon={<User size={13} />} label="Hồ sơ cá nhân" onClick={() => navigate('/settings/profile')} />
           <MenuButton icon={<Key size={13} />} label="Đổi mật khẩu" onClick={() => navigate('/settings/profile#password')} />
@@ -322,7 +321,6 @@ function UserPanel({ userName, userCode, userRole, isOpen }: {
           transition: 'opacity 0.18s ease, max-width 0.22s ease',
         }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{userName}</div>
-          <div style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.6)', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{userCode}</div>
         </div>
       </button>
     </div>

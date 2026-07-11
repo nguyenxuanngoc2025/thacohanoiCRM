@@ -30,7 +30,7 @@ export interface MobileNavProps {
  * (in-flow trong cột flex chiều cao cố định → không bao giờ trôi khi cuộn).
  * Tab active có viên nền nổi bật giống mục active của sidebar.
  */
-export default function MobileNav({ userRole, userName, userCode = '', b10Enabled }: MobileNavProps) {
+export default function MobileNav({ userRole, userName, b10Enabled }: MobileNavProps) {
   const pathname = usePathname();
   const router = useRouter();
   const items = NAV_ITEMS.filter((item) =>
@@ -79,7 +79,6 @@ export default function MobileNav({ userRole, userName, userCode = '', b10Enable
               </div>
               <div className="min-w-0">
                 <div className="font-semibold text-slate-800 truncate">{userName}</div>
-                {userCode && <div className="text-xs text-slate-400 truncate">{userCode}</div>}
               </div>
             </div>
             <SheetItem icon={<User size={18} />} label="Hồ sơ cá nhân" onClick={() => navigate('/settings/profile')} />
