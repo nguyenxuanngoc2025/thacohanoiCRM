@@ -26,7 +26,9 @@ export interface TeamOption { id: string; name: string; showroom_id: string; bra
 const THRESHOLD = 140; // px cuộn trong bảng để thu hết card
 
 export default function LeadsView({
-  leads, models, brands, showrooms, assignees, teams, canCreate, canAssign, canDelete, b10Enabled, isTvbh,
+  leads, models, brands, showrooms, assignees, teams,
+  formBrands, formShowrooms, formTeams, fixedTeamId,
+  canCreate, canAssign, canDelete, b10Enabled, isTvbh,
 }: {
   leads: LeadRow[];
   models: ModelOption[];
@@ -34,6 +36,11 @@ export default function LeadsView({
   showrooms: ShowroomOption[];
   assignees: AssigneeOption[];
   teams: TeamOption[];
+  // Danh sách GIỚI HẠN theo phạm vi người tạo cho form Thêm lead (khác danh sách lọc bảng).
+  formBrands: BrandOption[];
+  formShowrooms: ShowroomOption[];
+  formTeams: TeamOption[];
+  fixedTeamId: string | null;
   canCreate: boolean;
   canAssign: boolean;
   canDelete: boolean;
@@ -151,6 +158,10 @@ export default function LeadsView({
           showrooms={showrooms}
           assignees={assignees}
           teams={teams}
+          formBrands={formBrands}
+          formShowrooms={formShowrooms}
+          formTeams={formTeams}
+          fixedTeamId={fixedTeamId}
           canCreate={canCreate}
           canAssign={canAssign}
           canDelete={canDelete}

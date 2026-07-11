@@ -9,25 +9,33 @@ import { SOURCE_VARIANTS } from '@/lib/source';
 import type { ModelOption, BrandOption, ShowroomOption, AssigneeOption, TeamOption } from './LeadsView';
 
 export default function NewLeadModal({
-  brands, showrooms, models, assignees, teams, onClose,
+  brands, showrooms, models, assignees, teams, fixedTeamId, onClose,
 }: {
   brands: BrandOption[];
   showrooms: ShowroomOption[];
   models: ModelOption[];
   assignees: AssigneeOption[];
   teams: TeamOption[];
+  // Phòng cố định theo cấp (tp_phong tạo lead cho chính phòng mình) — khoá + ẩn ô Phòng.
+  fixedTeamId: string | null;
   onClose: () => void;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
+  // Form co giãn theo phạm vi người tạo: 1 lựa chọn → tự chọn + ẩn ô (đỡ rối cho cấp thấp).
+  const lockShowroom = showrooms.length === 1;
+  const lockBrand = brands.length === 1;
+  const lockTeam = !!fixedTeamId;
+  const fixedTeam = fixedTeamId ? teams.find((t) => t.id === fixedTeamId) ?? null : null;
+
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
-  const [brandId, setBrandId] = useState('');
-  const [showroomId, setShowroomId] = useState('');
+  const [brandId, setBrandId] = useState(lockBrand ? brands[0].id : '');
+  const [showroomId, setShowroomId] = useState(lockShowroom ? showrooms[0].id : '');
   // Phòng (sales_team): để trống = tự động theo cấu hình; chọn cụ thể khi khách muốn về 1 phòng.
-  const [salesTeamId, setSalesTeamId] = useState('');
+  const [salesTeamId, setSalesTeamId] = useState(lockTeam ? (fixedTeamId as string) : '');
   const [modelId, setModelId] = useState('');
   // Nguồn = kênh (platform key); nếu kênh có phân nhánh thì chọn thêm chi tiết kênh
   const [sourceKey, setSourceKey] = useState<string>(DEFAULT_PLATFORM_KEY);
@@ -59,15 +67,22 @@ export default function NewLeadModal({
     let alive = true;
     recommendAssignment(null).then((r) => {
       if (!alive) return;
-      setRecShowroom(r.showroomName);
-      setRecAssignee(r.assigneeName);
-      setShowroomId((cur) => cur || r.showroomId || '');
-      setAssignedTo((cur) => cur || r.assigneeId || '');
-      const team = r.assigneeId ? assignees.find((a) => a.id === r.assigneeId)?.sales_team_id : null;
-      if (team) setSalesTeamId((cur) => cur || team);
+      // Chỉ nhận gợi ý showroom khi ô showroom mở VÀ showroom gợi ý nằm trong phạm vi.
+      const inScope = !!r.showroomId && showrooms.some((s) => s.id === r.showroomId);
+      if (!lockShowroom && inScope) {
+        setRecShowroom(r.showroomName);
+        setShowroomId((cur) => cur || r.showroomId || '');
+      }
+      // Phòng bị khoá (tp_phong) → không để gợi ý ghi đè.
+      if (!lockTeam && inScope) {
+        setRecAssignee(r.assigneeName);
+        setAssignedTo((cur) => cur || r.assigneeId || '');
+        const team = r.assigneeId ? assignees.find((a) => a.id === r.assigneeId)?.sales_team_id : null;
+        if (team) setSalesTeamId((cur) => cur || team);
+      }
     });
     return () => { alive = false; };
-  }, [assignees]);
+  }, [assignees, showrooms, lockShowroom, lockTeam]);
 
   // Đổi showroom thủ công → reset phòng (phòng gắn showroom) + tính lại TVBH gợi ý.
   const onShowroomChange = (id: string) => {
@@ -149,35 +164,56 @@ export default function NewLeadModal({
             <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="0912 345 678" inputMode="tel" className={inputCls} />
           </div>
 
-          <div>
-            <label className={lblCls}>Showroom</label>
-            <select value={showroomId} onChange={(e) => onShowroomChange(e.target.value)} className={inputCls}>
-              <option value="">— Chưa rõ —</option>
-              {showrooms.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-            {recShowroom && (
-              <p className="mt-1 inline-flex items-center gap-1 text-xs text-[#004B9B]">
-                <Sparkles size={12} /> Gợi ý xoay vòng: {recShowroom}
-              </p>
-            )}
-          </div>
+          {lockShowroom ? (
+            <div>
+              <label className={lblCls}>Showroom</label>
+              <p className="text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">{showrooms[0].name}</p>
+            </div>
+          ) : (
+            <div>
+              <label className={lblCls}>Showroom</label>
+              <select value={showroomId} onChange={(e) => onShowroomChange(e.target.value)} className={inputCls}>
+                <option value="">— Chưa rõ —</option>
+                {showrooms.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+              {recShowroom && (
+                <p className="mt-1 inline-flex items-center gap-1 text-xs text-[#004B9B]">
+                  <Sparkles size={12} /> Gợi ý xoay vòng: {recShowroom}
+                </p>
+              )}
+            </div>
+          )}
 
-          <div>
-            <label className={lblCls}>Thương hiệu <span className="text-rose-500">*</span></label>
-            <select value={brandId} onChange={(e) => { setBrandId(e.target.value); setModelId(''); setSalesTeamId(''); }} className={inputCls}>
-              <option value="">— Chọn thương hiệu —</option>
-              {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-            </select>
-          </div>
+          {lockBrand ? (
+            <div>
+              <label className={lblCls}>Thương hiệu</label>
+              <p className="text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">{brands[0].name}</p>
+            </div>
+          ) : (
+            <div>
+              <label className={lblCls}>Thương hiệu <span className="text-rose-500">*</span></label>
+              <select value={brandId} onChange={(e) => { setBrandId(e.target.value); setModelId(''); setSalesTeamId(''); }} className={inputCls}>
+                <option value="">— Chọn thương hiệu —</option>
+                {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            </div>
+          )}
 
-          <div>
-            <label className={lblCls}>Phòng bán hàng</label>
-            <select value={salesTeamId} onChange={(e) => onTeamChange(e.target.value)} className={inputCls}>
-              <option value="">— Tự động —</option>
-              {availableTeams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </select>
-            <p className="mt-1 text-xs text-slate-400">Để trống = hệ thống tự chia phòng. Chọn cụ thể khi khách muốn về một phòng.</p>
-          </div>
+          {lockTeam ? (
+            <div>
+              <label className={lblCls}>Phòng bán hàng</label>
+              <p className="text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">{fixedTeam?.name ?? 'Phòng của bạn'}</p>
+            </div>
+          ) : (
+            <div>
+              <label className={lblCls}>Phòng bán hàng</label>
+              <select value={salesTeamId} onChange={(e) => onTeamChange(e.target.value)} className={inputCls}>
+                <option value="">— Tự động —</option>
+                {availableTeams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+              <p className="mt-1 text-xs text-slate-400">Để trống = hệ thống tự chia phòng. Chọn cụ thể khi khách muốn về một phòng.</p>
+            </div>
+          )}
 
           <div>
             <label className={lblCls}>Dòng xe quan tâm</label>

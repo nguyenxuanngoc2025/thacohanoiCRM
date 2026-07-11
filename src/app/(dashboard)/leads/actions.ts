@@ -6,7 +6,8 @@ import { STATUS_OPTIONS, type LeadStatus } from '@/lib/lead-status';
 import { normalizePhone } from '@/lib/phone';
 import { pickNextAssignee, type AssigneeLoad } from '@/lib/assign';
 import { CAN_CREATE_LEAD, CAN_ASSIGN, CAN_MANAGE_STAFF } from '@/lib/nav';
-import { notifyLeadAssigned, notifyLeadsAssignedBulk } from '@/lib/notify-assign';
+import { notifyNewLead, notifyLeadAssigned, notifyLeadsAssignedBulk } from '@/lib/notify-assign';
+import { resolveCreatorScope, assertLeadInScope } from '@/lib/lead-scope';
 import { type UserRole } from '@/types/database';
 
 const VALID = new Set<LeadStatus>(STATUS_OPTIONS.map((s) => s.code));
@@ -441,12 +442,23 @@ export async function createLead(input: NewLeadInput) {
   if (!me?.company_id) return { ok: false as const, error: 'Tài khoản chưa gắn công ty.' };
   if (!CAN_CREATE_LEAD.has(me.role as UserRole)) return { ok: false as const, error: 'Bạn không có quyền thêm lead.' };
 
+  // Cô lập theo cấp: showroom/hãng/phòng gửi lên phải nằm trong phạm vi người tạo (không tin client).
+  const scope = await resolveCreatorScope(db, user.id);
+  if (!scope) return { ok: false as const, error: 'Không xác định được phạm vi tài khoản.' };
+  const scopeErr = assertLeadInScope(scope, {
+    showroomId: input.showroomId, brandId: input.brandId, salesTeamId: input.salesTeamId,
+  });
+  if (scopeErr) return { ok: false as const, error: scopeErr };
+
   // Phòng: ưu tiên phòng chỉ định; nếu trống nhưng có TVBH thì suy ra phòng của TVBH (giữ liên kết).
-  let salesTeamId = input.salesTeamId;
+  // Cấp trưởng phòng (scope.teamId cố định) bỏ trống → dùng luôn phòng của họ.
+  let salesTeamId = input.salesTeamId ?? scope.teamId;
   if (!salesTeamId && input.assignedTo) {
     const { data: tvbh } = await db.from('users').select('sales_team_id').eq('id', input.assignedTo).maybeSingle();
     salesTeamId = tvbh?.sales_team_id ?? null;
   }
+  // Showroom: cấp trưởng phòng bỏ trống → suy từ showroom phòng (scope.showroomIds[0]).
+  const showroomId = input.showroomId ?? (scope.teamId && scope.showroomIds?.length ? scope.showroomIds[0] : null);
 
   const note = input.note.trim();
   const { data: inserted, error } = await db
@@ -454,7 +466,7 @@ export async function createLead(input: NewLeadInput) {
     .insert({
       company_id: me.company_id,
       brand_id: input.brandId,
-      showroom_id: input.showroomId,
+      showroom_id: showroomId,
       sales_team_id: salesTeamId,
       model_id: input.modelId,
       assigned_to: input.assignedTo,
@@ -481,8 +493,9 @@ export async function createLead(input: NewLeadInput) {
     content: 'Tạo lead thủ công.',
   });
 
-  // Báo Zalo nhóm phòng khi tạo lead đã có TVBH (nhắc vào chăm sóc). Không TVBH thì không báo.
-  if (input.assignedTo) await notifyLeadAssigned(inserted.id, input.assignedTo);
+  // Báo Zalo "LEAD MỚI" cho MỌI lead lên app (không chỉ khi có TVBH) — định tuyến theo phòng.
+  // Chưa thuộc phòng nào (admin bỏ trống) → notifyNewLead tự bỏ qua (không có nhóm để báo).
+  await notifyNewLead(inserted.id);
 
   revalidatePath('/leads');
   return { ok: true as const, id: inserted.id };

@@ -3,8 +3,9 @@
 // Best-effort: mọi lỗi nuốt gọn để KHÔNG làm hỏng thao tác phân giao (đã ghi DB thành công trước đó).
 
 import { createServiceClient } from '@/lib/supabase/server';
-import { renderLeadAssigned, renderLeadsAssignedSummary, type AssignedCount } from '@/lib/notify-templates';
+import { renderLeadAssigned, renderLeadsAssignedSummary, renderNewLead, type AssignedCount } from '@/lib/notify-templates';
 import { getMutedTeamIds } from '@/lib/company-brands';
+import { looksLikePersonName } from '@/lib/person-name';
 
 type Db = ReturnType<typeof createServiceClient>;
 
@@ -29,6 +30,70 @@ async function salesTargets(db: Db, companyId: string, teamId: string): Promise<
       channel: (c as { channel: string }).channel,
       target: (c as { target: string | null }).target,
     }));
+}
+
+/**
+ * Tin "LEAD MỚI" cho lead tạo TAY — nhân bản đúng khối thông báo của ingest.ts (webhook),
+ * để mọi lead lên app đều báo Zalo (không chỉ webhook). Định tuyến theo PHÒNG của lead.
+ * Best-effort: nuốt lỗi để KHÔNG làm hỏng thao tác tạo lead (đã ghi DB thành công).
+ */
+export async function notifyNewLead(leadId: string): Promise<void> {
+  try {
+    const db = createServiceClient();
+
+    const { data: lead } = await db
+      .from('leads')
+      .select('company_id, showroom_id, sales_team_id, phone, full_name, model_id, source, assigned_to, b10_status, b10_care_note')
+      .eq('id', leadId)
+      .maybeSingle();
+    if (!lead?.sales_team_id) return; // chưa thuộc phòng nào → không có nhóm để báo (giống ingest)
+
+    // Gate mute: phòng thuộc hãng ĐÓNG hoặc showroom TẮT → "tắt = không báo Zalo".
+    const muted = new Set(await getMutedTeamIds(db, lead.company_id));
+    if (muted.has(lead.sales_team_id)) return;
+
+    const targets = await salesTargets(db, lead.company_id, lead.sales_team_id);
+    if (targets.length === 0) return;
+
+    const showroomName = lead.showroom_id
+      ? (await db.from('showrooms').select('name').eq('id', lead.showroom_id).maybeSingle()).data?.name ?? 'Showroom'
+      : 'Showroom';
+    const teamName = (await db.from('sales_teams').select('name').eq('id', lead.sales_team_id).maybeSingle()).data?.name ?? null;
+    const modelName = lead.model_id
+      ? (await db.from('models').select('name').eq('id', lead.model_id).maybeSingle()).data?.name ?? null
+      : null;
+    const assigneeName = lead.assigned_to
+      ? (await db.from('users').select('full_name').eq('id', lead.assigned_to).maybeSingle()).data?.full_name ?? null
+      : null;
+
+    const text = renderNewLead({
+      showroom: showroomName,
+      team: teamName,
+      fullName: lead.full_name,
+      phone: lead.phone,
+      source: lead.source ?? null,
+      model: modelName,
+      assignee: assigneeName,
+      b10Prior: lead.b10_status ? { status: lead.b10_status, note: lead.b10_care_note } : null,
+    });
+
+    // Tên rác → kèm enrich để bot tra Zalo bù tên trước khi gửi.
+    const enrich = !looksLikePersonName(lead.full_name)
+      ? { leadId, phone: lead.phone, badName: (lead.full_name?.trim() || 'Khách lẻ') }
+      : null;
+
+    await db.from('notifications').insert(
+      targets.map((c) => ({
+        lead_id: leadId,
+        channel: c.channel,
+        channel_id: c.id,
+        status: 'pending',
+        payload: { event: 'new_lead', leadId, target: c.target, text, ...(enrich ? { enrich } : {}) },
+      }))
+    );
+  } catch {
+    /* best-effort: không làm hỏng thao tác tạo lead */
+  }
 }
 
 /** Đơn lẻ: 1 lead vừa được giao cho 1 TVBH → tin vào nhóm phòng của TVBH đó. */

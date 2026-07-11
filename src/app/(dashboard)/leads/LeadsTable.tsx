@@ -536,7 +536,9 @@ function StatusPicker({ lead, variant, pending, start }: {
 }
 
 export default function LeadsTable({
-  leads, allLeads, filters, setFilters, models, brands, showrooms, assignees, teams, canCreate, canAssign, canDelete, b10Enabled, isTvbh,
+  leads, allLeads, filters, setFilters, models, brands, showrooms, assignees, teams,
+  formBrands, formShowrooms, formTeams, fixedTeamId,
+  canCreate, canAssign, canDelete, b10Enabled, isTvbh,
 }: {
   leads: LeadRow[];
   allLeads: LeadRow[];
@@ -547,6 +549,10 @@ export default function LeadsTable({
   showrooms: ShowroomOption[];
   assignees: AssigneeOption[];
   teams: TeamOption[];
+  formBrands: BrandOption[];
+  formShowrooms: ShowroomOption[];
+  formTeams: TeamOption[];
+  fixedTeamId: string | null;
   canCreate: boolean;
   canAssign: boolean;
   canDelete: boolean;
@@ -1235,11 +1241,12 @@ export default function LeadsTable({
 
       {showNew && (
         <NewLeadModal
-          brands={brands}
-          showrooms={showrooms}
+          brands={formBrands}
+          showrooms={formShowrooms}
           models={models}
           assignees={assignees}
-          teams={teams}
+          teams={formTeams}
+          fixedTeamId={fixedTeamId}
           onClose={() => setShowNew(false)}
         />
       )}

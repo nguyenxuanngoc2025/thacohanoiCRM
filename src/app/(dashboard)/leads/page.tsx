@@ -3,6 +3,7 @@ import { type LeadRow } from './LeadsTable';
 import LeadsView, { type ModelOption, type BrandOption, type ShowroomOption, type AssigneeOption, type TeamOption } from './LeadsView';
 import { CAN_CREATE_LEAD, CAN_ASSIGN, CAN_MANAGE_STAFF } from '@/lib/nav';
 import { getOpenBrandIds, isBrandClosed, getInactiveShowroomIds } from '@/lib/company-brands';
+import { resolveCreatorScope } from '@/lib/lead-scope';
 import { getTenant } from '@/lib/tenant';
 import { type UserRole } from '@/types/database';
 
@@ -46,6 +47,9 @@ export default async function LeadsPage() {
   const canAssign = me?.role ? CAN_ASSIGN.has(me.role as UserRole) : false;
   const canDelete = me?.role ? CAN_MANAGE_STAFF.has(me.role as UserRole) : false;
   const isTvbh = me?.role === 'tvbh';
+
+  // Phạm vi tạo lead theo cấp: giới hạn showroom/hãng/phòng hiện trong form thêm lead.
+  const creatorScope = user && canCreate ? await resolveCreatorScope(supabase, user.id) : null;
 
   const tenant = await getTenant();
   const b10Enabled = tenant?.b10_enabled ?? false;
@@ -123,8 +127,31 @@ export default async function LeadsPage() {
   const showrooms: ShowroomOption[] = ((rawShowrooms ?? []) as (ShowroomOption & { is_active?: boolean })[])
     .filter((s) => s.is_active !== false);
   const assignees: AssigneeOption[] = ((rawAssignees ?? []) as AssigneeOption[]);
-  const teams: TeamOption[] = ((rawTeams ?? []) as TeamOption[])
+  const allTeams: TeamOption[] = ((rawTeams ?? []) as TeamOption[])
     .filter((t) => (t.brand_ids.length === 0 || t.brand_ids.some((b) => !brandClosed(b))) && !inactiveSrIds.has(String(t.showroom_id ?? '')));
+
+  // ── Giới hạn danh sách form THÊM LEAD theo phạm vi người tạo (form ẩn/khoá ô khi 1 lựa chọn).
+  // Không ảnh hưởng bộ lọc bảng lead (dùng brands/showrooms/teams gốc). Chỉ dựng bản đã giới hạn.
+  const brandAllow = creatorScope?.brandIds ?? null;
+  // Showroom cho phép: theo scope showroom, hoặc (scope hãng) các SR có phòng bán ≥1 hãng trong scope.
+  let showroomAllow = creatorScope?.showroomIds ?? null;
+  if (showroomAllow === null && brandAllow !== null) {
+    const brandSet = new Set(brandAllow);
+    showroomAllow = [...new Set(
+      allTeams.filter((t) => t.brand_ids.some((b) => brandSet.has(b))).map((t) => t.showroom_id),
+    )];
+  }
+  const inScopeBrand = (id: string) => brandAllow === null || brandAllow.includes(id);
+  const inScopeSr = (id: string) => showroomAllow === null || showroomAllow.includes(id);
+
+  const formBrands = brands.filter((b) => inScopeBrand(b.id));
+  const formShowrooms = showrooms.filter((s) => inScopeSr(s.id));
+  const fixedTeamId = creatorScope?.teamId ?? null;
+  const formTeams = allTeams.filter((t) =>
+    inScopeSr(t.showroom_id)
+    && (brandAllow === null || t.brand_ids.some((b) => brandAllow.includes(b)))
+    && (!fixedTeamId || t.id === fixedTeamId),
+  );
 
   return (
     <LeadsView
@@ -133,7 +160,11 @@ export default async function LeadsPage() {
       brands={brands}
       showrooms={showrooms}
       assignees={assignees}
-      teams={teams}
+      teams={allTeams}
+      formBrands={formBrands}
+      formShowrooms={formShowrooms}
+      formTeams={formTeams}
+      fixedTeamId={fixedTeamId}
       canCreate={canCreate}
       canAssign={canAssign}
       canDelete={canDelete}
