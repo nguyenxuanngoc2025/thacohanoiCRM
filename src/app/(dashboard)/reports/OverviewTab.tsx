@@ -53,8 +53,8 @@ export default function OverviewTab({
     <div className="space-y-5">
       {/* Phễu + Xu hướng */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <Panel title="Phễu chuyển đổi" desc="Số lead còn lại qua từng bậc">
-          <FunnelBars funnel={funnel} />
+        <Panel title="Phễu chuyển đổi" desc="Số lead còn lại qua từng bậc — % bên phải là tỉ lệ chuyển đổi">
+          <FunnelDiagram funnel={funnel} />
         </Panel>
 
         <Panel title="Lead mới theo ngày" desc={`Tổng ${fmt(trend.reduce((s, d) => s + d.count, 0))} lead`}>
@@ -170,41 +170,78 @@ export default function OverviewTab({
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-/** Bảng màu phễu: xanh đậm → xanh ngọc, thu dần theo bậc. */
-const FUNNEL_COLORS = ['#003a78', '#004B9B', '#1d6fc9', '#0891b2', '#0d9488'];
+/** Bảng màu phễu infographic: đỏ → cam → vàng → xanh ngọc → xanh dương. */
+const FUNNEL_BANDS = [
+  { fill: '#E24A33', text: '#fff' },
+  { fill: '#F0803C', text: '#fff' },
+  { fill: '#F4B942', text: '#7c4a03' },
+  { fill: '#17A398', text: '#fff' },
+  { fill: '#1C6DB4', text: '#fff' },
+];
+
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
 /**
- * Phễu chuyển đổi kiểu dashboard: thanh ngang căn giữa thu hẹp dần theo số lead,
- * số nằm trong thanh, cột phải là % so tổng, giữa các bậc là tỉ lệ chuyển đổi.
+ * Phễu chuyển đổi kiểu infographic: các dải hình thang xếp liền thu dần thành phễu,
+ * badge số + nhãn bậc bên trái, số lead & % nằm trong dải, tỉ lệ chuyển đổi bên phải.
  */
-function FunnelBars({ funnel }: { funnel: { label: string; count: number; pct: number }[] }) {
+function FunnelDiagram({ funnel }: { funnel: { label: string; count: number; pct: number }[] }) {
   const total = funnel[0]?.count ?? 0;
   if (total === 0) return <Empty />;
+
+  const n = funnel.length;
+  const TOP_FRAC = 1;
+  const NECK_FRAC = 0.32;
+  const BAND_H = 58;
+  const widthFrac = (k: number) => lerp(TOP_FRAC, NECK_FRAC, k / n);
+
   return (
-    <div className="py-2">
+    <div className="py-3">
       {funnel.map((s, i) => {
-        const widthPct = Math.max((s.count / total) * 100, 6);
+        const band = FUNNEL_BANDS[i] ?? FUNNEL_BANDS[FUNNEL_BANDS.length - 1];
+        const topF = widthFrac(i);
+        const botF = widthFrac(i + 1);
+        const lTop = ((1 - topF) / 2) * 100;
+        const rTop = ((1 + topF) / 2) * 100;
+        const lBot = ((1 - botF) / 2) * 100;
+        const rBot = ((1 + botF) / 2) * 100;
+        const clip = `polygon(${lTop}% 0, ${rTop}% 0, ${rBot}% 100%, ${lBot}% 100%)`;
         const prev = funnel[i - 1];
         const conv = i > 0 && prev && prev.count > 0 ? Math.round((s.count / prev.count) * 1000) / 10 : null;
-        const color = FUNNEL_COLORS[i] ?? FUNNEL_COLORS[FUNNEL_COLORS.length - 1];
+
         return (
-          <div key={i}>
-            {conv !== null && (
-              <div className="flex items-center justify-center py-1">
-                <span className="text-[11px] text-slate-400">↓ {conv}%</span>
-              </div>
-            )}
-            <div className="flex items-center gap-3">
-              <div className="w-28 shrink-0 text-right text-[13px] text-slate-600 leading-tight">{s.label}</div>
-              <div className="flex-1">
-                <div
-                  className="h-10 rounded-lg flex items-center justify-center text-white text-sm font-bold mx-auto shadow-sm transition-all"
-                  style={{ width: `${widthPct}%`, minWidth: 46, background: color }}
-                >
+          <div key={i} className="flex items-stretch" style={{ height: BAND_H }}>
+            {/* Nhãn + badge số bên trái */}
+            <div className="w-[128px] shrink-0 flex items-center justify-end gap-2 pr-2.5">
+              <span className="text-[12px] text-slate-600 text-right leading-tight">{s.label}</span>
+              <span
+                className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[12px] font-bold text-white shadow-sm"
+                style={{ background: band.fill }}
+              >
+                {i + 1}
+              </span>
+            </div>
+
+            {/* Dải phễu hình thang */}
+            <div className="flex-1 relative">
+              <div
+                className="absolute inset-0 flex flex-col items-center justify-center"
+                style={{ background: band.fill, clipPath: clip, WebkitClipPath: clip }}
+              >
+                <span className="font-extrabold leading-none" style={{ color: band.text, fontSize: 17 }}>
                   {fmt(s.count)}
-                </div>
+                </span>
+                <span className="leading-none mt-0.5 opacity-90" style={{ color: band.text, fontSize: 11 }}>
+                  {s.pct}%
+                </span>
               </div>
-              <div className="w-12 shrink-0 text-right text-[13px] font-semibold text-slate-500">{s.pct}%</div>
+            </div>
+
+            {/* Tỉ lệ chuyển đổi so bậc trên */}
+            <div className="w-[52px] shrink-0 flex items-center justify-start pl-2">
+              {conv !== null && (
+                <span className="text-[11px] font-semibold text-slate-400">{conv}%</span>
+              )}
             </div>
           </div>
         );
