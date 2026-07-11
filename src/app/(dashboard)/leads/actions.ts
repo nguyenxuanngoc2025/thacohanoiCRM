@@ -733,7 +733,7 @@ export async function assignLeadToTeamAuto(
   const scope = await resolveCreatorScope(db, user.id);
   const { data: team } = await db
     .from('sales_teams')
-    .select('id, showroom_id, brand_ids, team_assign_strategy')
+    .select('id, showroom_id, brand_ids, tvbh_assign_strategy')
     .eq('id', teamId)
     .maybeSingle();
   if (!team) return { ok: false, error: 'Không tìm thấy phòng.' };
@@ -760,7 +760,7 @@ export async function assignLeadToTeamAuto(
     const ms = new Date(r.created_at).getTime();
     if (!(r.assigned_to in lastAt) || ms > lastAt[r.assigned_to]) lastAt[r.assigned_to] = ms;
   }
-  const strat = ((team.team_assign_strategy as AssignStrategy | null) ?? 'least_loaded');
+  const strat = ((team.tvbh_assign_strategy as AssignStrategy | null) ?? 'least_loaded');
   const pool: StrategyCandidate[] = (tvbhs as { id: string; assign_share_pct: number | null }[]).map((t) => ({
     id: t.id, activeLeadCount: load[t.id] ?? 0, sharePct: t.assign_share_pct ?? 0, lastAssignedAt: lastAt[t.id] ?? null,
   }));

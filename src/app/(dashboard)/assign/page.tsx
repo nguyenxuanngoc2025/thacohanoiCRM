@@ -76,7 +76,7 @@ export default async function AssignPage() {
     openLeadsQuery,
     supabase
       .from('sales_teams')
-      .select('id, name, showroom_id, brand_ids, team_assign_strategy, showroom:showrooms!showroom_id(name)')
+      .select('id, name, showroom_id, brand_ids, tvbh_assign_strategy, showroom:showrooms!showroom_id(name)')
       .order('name'),
   ]);
 
@@ -91,7 +91,7 @@ export default async function AssignPage() {
   // + nằm trong phạm vi người xem (tp_phong chỉ thấy phòng mình).
   const teams: AssignTeam[] = ((rawTeams ?? []) as unknown as {
     id: string; name: string; showroom_id: string | null; brand_ids: string[] | null;
-    team_assign_strategy: string | null; showroom: { name: string } | null;
+    tvbh_assign_strategy: string | null; showroom: { name: string } | null;
   }[])
     .filter((t) => srActive(t.showroom_id))
     .filter((t) => {
@@ -108,7 +108,7 @@ export default async function AssignPage() {
       showroom_id: t.showroom_id,
       showroom_name: t.showroom?.name ?? null,
       brand_ids: t.brand_ids ?? [],
-      team_assign_strategy: (t.team_assign_strategy as AssignStrategy | null) ?? 'least_loaded',
+      team_assign_strategy: (t.tvbh_assign_strategy as AssignStrategy | null) ?? 'least_loaded',
     }));
 
   // TVBH chỉ hiện nếu thuộc phòng trong phạm vi (mirror lọc phòng ở trên).
