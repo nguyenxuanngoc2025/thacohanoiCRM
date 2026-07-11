@@ -1136,7 +1136,7 @@ export default function LeadsTable({
                           <History size={13} className="text-amber-500 shrink-0" aria-label="Khách cũ đã có trên B10" />
                         )}
                       </div>
-                      <div className="text-sm text-slate-500 tabular-nums">{formatPhoneDisplay(l.phone)}</div>
+                      <div className="text-sm font-semibold text-slate-700 tabular-nums">{formatPhoneDisplay(l.phone)}</div>
                     </div>
                     <div onClick={(e) => e.stopPropagation()} className="shrink-0">
                       <StatusPicker lead={l} variant={contacted ? 'class' : 'contacted'} pending={pending} start={start} />
@@ -1149,8 +1149,9 @@ export default function LeadsTable({
                     <span className="text-slate-300">·</span>
                     <span className="truncate">{l.brand_name}</span>
                   </div>
-                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-                    <span className="text-slate-500">Phòng: <span className="text-slate-700">{l.team_name ?? 'Chưa phân'}</span> · Phụ trách: <span className="text-slate-700">{l.assignee_name ?? 'Chưa giao'}</span></span>
+                  <div className="mt-1 text-xs text-slate-500 space-y-0.5">
+                    <div>Phòng: <span className="text-slate-700">{l.team_name ?? 'Chưa phân'}</span></div>
+                    <div>Phụ trách: <span className="text-slate-700">{l.assignee_name ?? 'Chưa giao'}</span></div>
                   </div>
                 </div>
               </div>
