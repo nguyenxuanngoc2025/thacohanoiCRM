@@ -86,7 +86,14 @@ export async function POST(request: NextRequest) {
     const op = body.op as 'create' | 'update' | 'delete' | 'test';
 
     if (op === 'delete') {
-      const { error } = await service.from('notification_channels').delete().eq('id', body.id).eq('company_id', companyId);
+      // FK notifications.channel_id (NO ACTION) chặn xoá khi còn tin tham chiếu.
+      // Xoá tin của kênh trước (hàng đợi/lịch sử), rồi xoá kênh — như migration 0029.
+      // Chỉ xoá tin của kênh THUỘC công ty admin (cô lập tenant): xác thực kênh trước.
+      const { data: ch } = await service.from('notification_channels')
+        .select('id').eq('id', body.id).eq('company_id', companyId).maybeSingle();
+      if (!ch) return NextResponse.json({ error: 'Không tìm thấy kênh' }, { status: 404 });
+      await service.from('notifications').delete().eq('channel_id', ch.id);
+      const { error } = await service.from('notification_channels').delete().eq('id', ch.id).eq('company_id', companyId);
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
       return NextResponse.json({ success: true });
     }
