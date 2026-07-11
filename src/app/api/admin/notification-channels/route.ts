@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { requireAdmin } from '@/lib/admin-guard';
 import { createServiceClient } from '@/lib/supabase/server';
-import { buildPeriodReport, type ReportLead } from '@/lib/daily-report';
+import { buildPeriodReport, buildChannelReport, type ReportLead } from '@/lib/daily-report';
+import { renderChannelDaily } from '@/lib/notify-templates';
 import { getOpenBrandIds, isBrandClosed, getInactiveShowroomIds, isShowroomInactive } from '@/lib/company-brands';
 
 const VALID_EVENTS = ['new_lead', 'overdue', 'daily_report', 'weekly_report', 'monthly_report'];
@@ -58,8 +59,6 @@ async function buildTestReportText(
   if (ch.scope === 'sales' && ch.sales_team_ids.length > 0) {
     const { data: teamRows } = await service.from('sales_teams').select('id, name').in('id', ch.sales_team_ids);
     const teams = (teamRows ?? []).map((t) => ({ id: t.id, name: t.name }));
-    const { buildChannelReport } = await import('@/lib/daily-report');
-    const { renderChannelDaily } = await import('@/lib/notify-templates');
     const cr = buildChannelReport(mapped, dateLabel, now, { headerName: ch.name ?? 'Showroom', teams });
     body = renderChannelDaily(cr);
   } else if (ch.scope === 'management' && ch.showroom_id) {
