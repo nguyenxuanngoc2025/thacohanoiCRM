@@ -14,16 +14,16 @@ interface SalesTarget { id: string; channel: string; target: string | null }
 async function salesTargets(db: Db, companyId: string, teamId: string): Promise<SalesTarget[]> {
   const { data } = await db
     .from('notification_channels')
-    .select('id, channel, target, events, sales_team_id, scope, is_active')
+    .select('id, channel, target, events, sales_team_id, sales_team_ids, scope, is_active')
     .eq('company_id', companyId)
     .eq('is_active', true);
   return (data ?? [])
-    .filter(
-      (c) =>
-        ((c as { events: string[] | null }).events ?? []).includes('new_lead') &&
-        (c as { scope: string }).scope === 'sales' &&
-        (c as { sales_team_id: string | null }).sales_team_id === teamId
-    )
+    .filter((c) => {
+      const ids = ((c as { sales_team_ids: string[] | null }).sales_team_ids) ?? (((c as { sales_team_id: string | null }).sales_team_id) ? [(c as { sales_team_id: string }).sales_team_id] : []);
+      return ((c as { events: string[] | null }).events ?? []).includes('new_lead')
+        && (c as { scope: string }).scope === 'sales'
+        && ids.includes(teamId);
+    })
     .map((c) => ({
       id: (c as { id: string }).id,
       channel: (c as { channel: string }).channel,
@@ -60,12 +60,14 @@ export async function notifyLeadAssigned(leadId: string, assigneeId: string): Pr
     const showroomName = lead.showroom_id
       ? (await db.from('showrooms').select('name').eq('id', lead.showroom_id).maybeSingle()).data?.name ?? 'Showroom'
       : 'Showroom';
+    const teamName = (await db.from('sales_teams').select('name').eq('id', user.sales_team_id).maybeSingle()).data?.name ?? null;
     const modelName = lead.model_id
       ? (await db.from('models').select('name').eq('id', lead.model_id).maybeSingle()).data?.name ?? null
       : null;
 
     const text = renderLeadAssigned({
       showroom: showroomName,
+      team: teamName,
       fullName: lead.full_name,
       phone: lead.phone,
       model: modelName,

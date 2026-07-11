@@ -424,22 +424,23 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
   const { data: notifChannels } = chosenTeamId && !payload.suppress_notify && !brandClosed && !showroomClosed
     ? await db
         .from('notification_channels')
-        .select('id, channel, target, events, sales_team_id, scope')
+        .select('id, channel, target, events, sales_team_id, sales_team_ids, scope')
         .eq('company_id', showroom.company_id)
         .eq('is_active', true)
     : { data: [] };
 
-  const targets = (notifChannels ?? []).filter(
-    (c) =>
-      (c.events ?? []).includes('new_lead') &&
-      c.scope === 'sales' &&
-      c.sales_team_id === chosenTeamId
-  );
+  const targets = (notifChannels ?? []).filter((c) => {
+    const ids = (c.sales_team_ids as string[] | null) ?? (c.sales_team_id ? [c.sales_team_id as string] : []);
+    return (c.events ?? []).includes('new_lead') && c.scope === 'sales' && !!chosenTeamId && ids.includes(chosenTeamId);
+  });
 
   if (targets.length > 0) {
     // Tên showroom + dòng xe + TVBH để render text (1 truy vấn mỗi loại)
     const { data: srRow } = await db
       .from('showrooms').select('name').eq('id', chosenShowroomId).maybeSingle();
+    const teamName = chosenTeamId
+      ? (await db.from('sales_teams').select('name').eq('id', chosenTeamId).maybeSingle()).data?.name ?? null
+      : null;
     const assigneeName = assignedTo
       ? (await db.from('users').select('full_name').eq('id', assignedTo).maybeSingle()).data?.full_name ?? null
       : null;
@@ -448,6 +449,7 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
     const { renderNewLead } = await import('@/lib/notify-templates');
     const text = renderNewLead({
       showroom: srRow?.name ?? 'Showroom',
+      team: teamName,
       fullName,
       phone,
       source: payload.source ?? 'facebook',
