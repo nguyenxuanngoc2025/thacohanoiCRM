@@ -268,7 +268,7 @@ export default function AssignView({
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col min-h-0">
           <div className="shrink-0 p-5 pb-3 border-b border-slate-100">
             <h2 className="text-sm font-bold text-slate-900">Số lead đang phụ trách</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Mỗi tư vấn bán hàng đang chăm sóc bao nhiêu lead (chưa chốt).</p>
+            <p className="text-xs text-slate-400 mt-0.5">Mỗi tư vấn bán hàng đang chăm sóc bao nhiêu khách hàng.</p>
           </div>
           {tvbh.length === 0 ? (
             <p className="text-sm text-slate-400 p-5">Chưa có tư vấn bán hàng nào.</p>
