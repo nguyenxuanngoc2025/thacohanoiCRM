@@ -24,10 +24,10 @@ export const CAN_ASSIGN = new Set<UserRole>([
   'admin', 'gd_cty', 'gd_brand', 'tp_brand', 'gd_showroom', 'tp_phong',
 ]);
 export const CAN_CREATE_LEAD = CAN_ASSIGN;
-// Báo cáo: mọi vai trò trừ TVBH.
+// Báo cáo: mọi vai trò (TVBH xem báo cáo cá nhân — chỉ lead của mình, RLS gác).
 export const CAN_VIEW_REPORTS = new Set<UserRole>([
   'admin', 'gd_cty', 'mkt_cty', 'digital_mkt', 'gd_brand', 'mkt_brand', 'tp_brand',
-  'gd_showroom', 'mkt_showroom', 'tp_phong',
+  'gd_showroom', 'mkt_showroom', 'tp_phong', 'tvbh',
 ]);
 // Quản trị tài khoản / kênh / cấu hình hệ thống.
 export const CAN_MANAGE_STAFF = new Set<UserRole>(['admin']);
