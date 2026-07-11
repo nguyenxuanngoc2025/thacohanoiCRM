@@ -56,6 +56,8 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Phân giao', href: '/assign', icon: 'UserCheck', roles: ASSIGN },
   { label: 'Báo cáo', href: '/reports', icon: 'BarChart3', roles: REPORTS },
   { label: 'Đối soát', href: '/doi-soat', icon: 'FileCheck2', roles: B10_IMPORT, requiresB10: true },
+  // Giám đốc Showroom tự cấu hình cây phân giao showroom mình (admin dùng /settings).
+  { label: 'Cấu hình phân giao', href: '/phan-giao', icon: 'GitBranch', roles: ['gd_showroom'] },
   { label: 'Cài đặt', href: '/settings', icon: 'Settings', roles: ['admin', 'platform_owner'] },
 ];
 

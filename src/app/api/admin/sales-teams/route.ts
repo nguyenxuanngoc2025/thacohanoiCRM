@@ -1,24 +1,33 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { requireAdmin, type AdminContext } from '@/lib/admin-guard';
+import { requireAssignManager, showroomInScope, type AssignManagerContext } from '@/lib/assign-guard';
 import { resetEffectiveFromForShowroom } from '@/lib/assign-effective';
 
 // CRUD phòng bán hàng (sales_teams) + chiến lược chia TVBH + % share phòng.
 // op: create | update | delete | set-allocation (cũ) | set-strategy
+// Chỉ 'set-strategy' mở cho gd_showroom (theo phạm vi); các op còn lại chỉ admin.
 export async function POST(request: NextRequest) {
-  const guard = await requireAdmin();
+  const guard = await requireAssignManager();
   if (guard.error) return guard.error;
   const { service, companyId } = guard.ctx;
-  if (!companyId) return NextResponse.json({ error: 'Tài khoản admin chưa gắn công ty.' }, { status: 400 });
 
   try {
     const body = await request.json();
     const op = body.op as 'create' | 'update' | 'delete' | 'set-allocation' | 'set-strategy';
 
-    // Cô lập đa công ty: phòng sửa/xoá/đặt tỷ trọng phải thuộc CÙNG công ty với admin.
+    // gd_showroom (showroomIds !== null) chỉ được đổi kiểu chia phòng→TVBH + % (set-strategy).
+    if (guard.ctx.showroomIds !== null && op !== 'set-strategy') {
+      return NextResponse.json({ error: 'Chỉ quản trị công ty được thao tác này.' }, { status: 403 });
+    }
+
+    // Cô lập đa công ty: phòng sửa/xoá/đặt tỷ trọng phải thuộc CÙNG công ty với caller.
     if (op === 'update' || op === 'delete' || op === 'set-allocation' || op === 'set-strategy') {
       const { data: own } = await service.from('sales_teams')
         .select('id, is_default, showroom_id').eq('id', body.id ?? body.sales_team_id).eq('company_id', companyId).maybeSingle();
       if (!own) return NextResponse.json({ error: 'Phòng bán hàng không thuộc công ty của bạn.' }, { status: 404 });
+      // Phạm vi: gd_showroom chỉ được đụng phòng thuộc showroom mình phụ trách.
+      if (!showroomInScope(guard.ctx, own.showroom_id)) {
+        return NextResponse.json({ error: 'Phòng không thuộc showroom bạn phụ trách.' }, { status: 403 });
+      }
 
       if (op === 'delete') {
         if (own.is_default) {
@@ -131,7 +140,7 @@ export async function POST(request: NextRequest) {
 
 // Chuẩn hoá + kiểm tra tập hãng: bỏ trùng, mỗi hãng phải là hãng showroom kinh doanh.
 async function validateBrandIds(
-  service: AdminContext['service'],
+  service: AssignManagerContext['service'],
   showroomId: string | undefined | null,
   raw: unknown,
 ): Promise<{ ids: string[]; error?: never } | { ids?: never; error: NextResponse }> {

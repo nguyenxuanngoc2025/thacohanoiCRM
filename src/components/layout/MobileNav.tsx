@@ -5,14 +5,14 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, Users, UserCheck, HeartHandshake, BarChart3,
-  Settings, LogOut, Key, User, MoreHorizontal, FileCheck2,
+  Settings, LogOut, Key, User, MoreHorizontal, FileCheck2, GitBranch,
 } from 'lucide-react';
 import { NAV_ITEMS } from '@/lib/nav';
 import { logout } from '@/app/login/actions';
 import { type UserRole } from '@/types/database';
 
 const ICON_MAP: Record<string, React.ElementType> = {
-  LayoutDashboard, Users, UserCheck, HeartHandshake, BarChart3, Settings, FileCheck2,
+  LayoutDashboard, Users, UserCheck, HeartHandshake, BarChart3, Settings, FileCheck2, GitBranch,
 };
 
 const BRAND = '#004B9B';

@@ -175,7 +175,8 @@ function TotalBadge({ total }: { total: number }) {
 }
 
 // Cây phân giao: 1 màn hình đặt kiểu chia cả 3 cấp.
-function AssignmentTree({
+// Export để trang cấu hình phân giao của GĐSR (phạm vi showroom) dùng lại.
+export function AssignmentTree({
   showrooms, salesTeams, staff, roster, onDone,
 }: {
   showrooms: ShowroomRow[];
@@ -236,7 +237,7 @@ function AssignmentTree({
 
   const saveTvbhPct = async (u: StaffRow) => {
     setBusy(`tvbh-${u.id}`);
-    const r = await postAdmin('/api/admin/update-user', { userId: u.id, assign_share_pct: Number(tvbhPct[u.id]) || 0 });
+    const r = await postAdmin('/api/admin/tvbh-share', { user_id: u.id, assign_share_pct: Number(tvbhPct[u.id]) || 0 });
     setBusy(null);
     if (!r.ok) { window.alert(r.error); return; }
     onDone(`Đã lưu tỷ lệ TVBH ${u.full_name ?? ''}.`);

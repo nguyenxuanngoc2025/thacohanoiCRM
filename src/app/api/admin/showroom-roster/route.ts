@@ -1,14 +1,14 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { requireAdmin } from '@/lib/admin-guard';
+import { requireAssignManager, showroomInScope } from '@/lib/assign-guard';
 
 // Đặt/gỡ lịch phòng trực nhận lead theo ngày dương lịch (chiến lược day_roster).
 // op='set': body { showroom_id, roster_date 'YYYY-MM-DD', sales_team_id | null }.
 // sales_team_id null = gỡ phòng khỏi ngày đó (xoá dòng lịch).
+// Cho admin (toàn công ty) + gd_showroom (chỉ showroom mình phụ trách).
 export async function POST(request: NextRequest) {
-  const guard = await requireAdmin();
+  const guard = await requireAssignManager();
   if (guard.error) return guard.error;
   const { service, companyId } = guard.ctx;
-  if (!companyId) return NextResponse.json({ error: 'Tài khoản chưa gắn công ty.' }, { status: 400 });
 
   try {
     const body = await request.json();
@@ -22,10 +22,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Thiếu showroom hoặc ngày không hợp lệ.' }, { status: 400 });
     }
 
-    // Cô lập đa công ty: showroom phải thuộc CÙNG công ty với admin.
+    // Cô lập đa công ty: showroom phải thuộc CÙNG công ty với caller.
     const { data: own } = await service
       .from('showrooms').select('id').eq('id', showroomId).eq('company_id', companyId).maybeSingle();
     if (!own) return NextResponse.json({ error: 'Showroom không thuộc công ty của bạn.' }, { status: 404 });
+    // Phạm vi: gd_showroom chỉ được đặt lịch showroom mình phụ trách.
+    if (!showroomInScope(guard.ctx, showroomId)) {
+      return NextResponse.json({ error: 'Showroom không thuộc phạm vi bạn phụ trách.' }, { status: 403 });
+    }
 
     // Nếu có phòng: phòng phải thuộc đúng showroom (chống gán phòng showroom khác).
     if (teamId) {
