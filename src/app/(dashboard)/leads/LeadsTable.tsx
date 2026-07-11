@@ -54,10 +54,11 @@ export interface Filters {
   assignee: string; // '' = tất cả, '__none__' = chưa giao, còn lại = id
   status: string;   // '' = tất cả, '__none__' = chưa phân loại, còn lại = code
   month: string;    // '' = tất cả, 'YYYY-MM'
+  team: string;     // '' = tất cả, còn lại = tên phòng bán hàng
 }
 
 export const EMPTY_FILTERS: Filters = {
-  q: '', showroom: '', brand: '', model: '', source: '', assignee: '', status: '', month: '',
+  q: '', showroom: '', brand: '', model: '', source: '', assignee: '', status: '', month: '', team: '',
 };
 
 /** Lead quá hạn chăm sóc: có hẹn gọi lại đã qua VÀ chưa chốt/loại. */
@@ -74,6 +75,7 @@ export function applyScope(leads: LeadRow[], f: Filters): LeadRow[] {
   return leads.filter((l) => {
     if (!matchesQuery(l.full_name, formatPhoneDisplay(l.phone), f.q)) return false;
     if (f.showroom && l.showroom_name !== f.showroom) return false;
+    if (f.team && l.team_name !== f.team) return false;
     if (f.brand && l.brand_name !== f.brand) return false;
     if (f.model && l.model_name !== f.model) return false;
     if (f.source && sourcePlatform(l.source) !== f.source) return false;
@@ -647,7 +649,7 @@ export default function LeadsTable({
     setFilters((prev) => ({ ...prev, [k]: v, ...(k === 'brand' ? { model: '' } : {}) }));
 
   // Số bộ lọc đang bật (không tính ô tìm kiếm — nó có ô riêng).
-  const activeFilters = [filters.month, filters.showroom, filters.brand, filters.model, filters.source, filters.assignee, filters.status].filter(Boolean).length;
+  const activeFilters = [filters.month, filters.showroom, filters.team, filters.brand, filters.model, filters.source, filters.assignee, filters.status].filter(Boolean).length;
   const clearFilters = () => setFilters((prev) => ({ ...EMPTY_FILTERS, q: prev.q }));
 
   // Cột sticky luôn ghim đầu theo thứ tự cố định; cột còn lại theo thứ tự người dùng kéo-thả.
@@ -691,6 +693,12 @@ export default function LeadsTable({
   );
   const brandOpts = useMemo<Opt[]>(
     () => uniqSorted(allLeads.map((l) => l.brand_name)).map((s) => ({ value: s, label: s })),
+    [allLeads],
+  );
+  // Chỉ cấp xem được nhiều phòng (showroom trở lên) mới cần lọc theo phòng — TVBH/tp_phong đã ở trong 1 phòng rồi.
+  const showTeamFilter = !fixedTeamId && !isTvbh;
+  const teamOpts = useMemo<Opt[]>(
+    () => uniqSorted(allLeads.map((l) => l.team_name)).map((s) => ({ value: s, label: s })),
     [allLeads],
   );
   const modelOpts = useMemo<Opt[]>(
@@ -917,6 +925,9 @@ export default function LeadsTable({
                   {[
                     { label: 'Tháng', value: filters.month, key: 'month' as const, ph: 'Tất cả tháng', opts: monthOpts },
                     { label: 'Showroom', value: filters.showroom, key: 'showroom' as const, ph: 'Tất cả showroom', opts: showroomOpts },
+                    ...(showTeamFilter
+                      ? [{ label: 'Phòng bán hàng', value: filters.team, key: 'team' as const, ph: 'Tất cả phòng', opts: teamOpts }]
+                      : []),
                     { label: 'Thương hiệu', value: filters.brand, key: 'brand' as const, ph: 'Tất cả thương hiệu', opts: brandOpts },
                     { label: 'Dòng xe', value: filters.model, key: 'model' as const, ph: 'Tất cả dòng xe', opts: modelOpts },
                     { label: 'Nguồn', value: filters.source, key: 'source' as const, ph: 'Tất cả nguồn', opts: sourceOpts },
