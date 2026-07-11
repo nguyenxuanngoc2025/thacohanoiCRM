@@ -33,9 +33,6 @@ export const PLATFORMS: Platform[] = [
   { key: 'tiktok',   name: 'TikTok Lead',        desc: 'TikTok Lead Generation',               icon: Music2,         color: '#010101', state: 'soon',   unit: 'form',     digital: true },
 ];
 
-/** Tên các kênh digital — dùng làm danh mục "Nguồn" cho form thêm lead thủ công. */
-export const DIGITAL_SOURCES = PLATFORMS.filter((p) => p.digital).map((p) => p.name);
-
 /** Kênh digital dạng {key, name} — form thêm lead chọn theo key để map sang phân nhánh. */
 export const DIGITAL_PLATFORMS = PLATFORMS.filter((p) => p.digital).map((p) => ({ key: p.key, name: p.name }));
 
