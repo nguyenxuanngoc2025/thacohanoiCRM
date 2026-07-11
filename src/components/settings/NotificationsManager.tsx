@@ -33,6 +33,10 @@ export default function NotificationsManager(
   const [flash, setFlash] = useState<string | null>(null);
   const flashMsg = (m: string) => { setFlash(m); setTimeout(() => setFlash(null), 3000); };
   const [edit, setEdit] = useState<NotifChannelRow | 'new' | null>(null);
+  // Xoá kênh: dùng modal xác nhận trong app thay vì window.confirm native (khớp giao diện).
+  const [confirmDel, setConfirmDel] = useState<NotifChannelRow | null>(null);
+  const [delBusy, setDelBusy] = useState(false);
+  const [delError, setDelError] = useState<string | null>(null);
 
   const srName = (id: string | null) => showrooms.find((s) => s.id === id)?.name ?? null;
   // Nhãn phòng: "<showroom> · <tên phòng>" để phân biệt phòng cùng tên ở showroom khác.
@@ -82,10 +86,13 @@ export default function NotificationsManager(
   const isEmpty =
     grouped.byShowroom.length === 0 && grouped.companyMgmt.length === 0 && grouped.orphanSales.length === 0;
 
-  const del = async (c: NotifChannelRow) => {
-    if (!window.confirm(`Xoá kênh thông báo "${c.name}"?`)) return;
-    const r = await postAdmin('/api/admin/notification-channels', { op: 'delete', id: c.id });
-    if (!r.ok) { window.alert(r.error); return; }
+  const doDelete = async () => {
+    if (!confirmDel) return;
+    setDelBusy(true); setDelError(null);
+    const r = await postAdmin('/api/admin/notification-channels', { op: 'delete', id: confirmDel.id });
+    setDelBusy(false);
+    if (!r.ok) { setDelError(r.error ?? 'Xoá kênh thất bại.'); return; }
+    setConfirmDel(null);
     flashMsg('Đã xoá kênh thông báo.'); router.refresh();
   };
 
@@ -125,7 +132,7 @@ export default function NotificationsManager(
         <StatusPill active={c.is_active} />
         <IconBtn title="Gửi thử" onClick={() => sendTest(c)}><Send size={14} style={{ color: '#0068FF' }} /></IconBtn>
         <IconBtn title="Sửa" onClick={() => setEdit(c)}><Edit2 size={14} style={{ color: '#004B9B' }} /></IconBtn>
-        <IconBtn title="Xoá" onClick={() => del(c)}><Trash2 size={14} className="text-rose-600" /></IconBtn>
+        <IconBtn title="Xoá" onClick={() => { setDelError(null); setConfirmDel(c); }}><Trash2 size={14} className="text-rose-600" /></IconBtn>
       </div>
     </div>
   );
@@ -198,6 +205,31 @@ export default function NotificationsManager(
           srName={srName} teamLabel={teamLabel}
           onClose={() => setEdit(null)}
           onDone={(m) => { setEdit(null); flashMsg(m); router.refresh(); }} />
+      )}
+
+      {confirmDel && (
+        <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/40 p-4"
+          onClick={() => { if (!delBusy) setConfirmDel(null); }}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+            <div className="px-5 py-4 border-b border-slate-100">
+              <h3 className="font-bold text-slate-900">Xoá kênh thông báo</h3>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <p className="text-sm text-slate-600">
+                Bạn có chắc muốn xoá kênh <span className="font-semibold text-slate-900">{confirmDel.name}</span>?
+                Group Zalo/Telegram này sẽ ngừng nhận thông báo.
+              </p>
+              {delError && <div className="text-sm bg-rose-50 text-rose-600 border border-rose-100 rounded-lg px-3 py-2">{delError}</div>}
+            </div>
+            <div className="flex justify-end gap-2 px-5 py-3.5 border-t border-slate-100">
+              <GhostBtn onClick={() => setConfirmDel(null)} disabled={delBusy}>Hủy</GhostBtn>
+              <button onClick={doDelete} disabled={delBusy}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 disabled:opacity-60 text-white text-sm font-medium px-4 py-2 transition-colors">
+                <Trash2 size={14} /> {delBusy ? 'Đang xoá...' : 'Xoá kênh'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
