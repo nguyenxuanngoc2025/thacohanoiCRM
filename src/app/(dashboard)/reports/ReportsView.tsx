@@ -10,7 +10,6 @@ import { Dropdown, uniqOpts, BRAND, fmt, DeltaArrow, OverdueCallout, type Opt } 
 import { tabsForLevel, defaultTab, dimensionsForLevel, type ReportTab } from './report-level';
 import OverviewTab from './OverviewTab';
 import TablesTab from './TablesTab';
-// RankingTab, ManagementTab, SourceTab — created in later tasks; imports may cause tsc errors (expected)
 import RankingTab from './tabs/RankingTab';
 import ManagementTab from './tabs/ManagementTab';
 import SourceTab from './tabs/SourceTab';

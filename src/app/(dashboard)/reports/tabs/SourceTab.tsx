@@ -12,7 +12,7 @@ import {
 } from '@/lib/reports';
 import { exportXlsx } from '@/lib/xlsx-export';
 import { Panel, PALETTE, BRAND, fmt, DeltaArrow } from '../ui';
-import { groupSheet } from '../report-export';
+import { tableSheet, type SheetCol } from '../report-export';
 
 const AXIS = { fontSize: 11, fill: '#94a3b8' };
 
@@ -47,7 +47,7 @@ function TipWithWinRate({ active, payload, label }: { active?: boolean; payload?
       {payload.map((p, i) => (
         <div key={i} className="text-slate-600">{p.name}: <b className="text-slate-800">{fmt(p.value)}</b></div>
       ))}
-      {winRate != null && <div className="text-slate-500 mt-1">Ty le chot: <b className="text-emerald-700">{winRate.toFixed(1)}%</b></div>}
+      {winRate != null && <div className="text-slate-500 mt-1">Tỉ lệ chốt: <b className="text-emerald-700">{winRate.toFixed(1)}%</b></div>}
     </>,
   );
 }
@@ -75,38 +75,47 @@ export default function SourceTab({
   const trendData = trend.map((d) => ({ date: d.date.slice(5), count: d.count }));
 
   const handleExport = () => {
-    exportXlsx('nguon-kenh', [groupSheet('Chat luong nguon', quality, totals, true)]);
+    type QualityRow = (typeof quality)[number];
+    const cols: SheetCol<QualityRow>[] = [
+      { header: 'Nguồn', value: (r) => r.label },
+      { header: 'Tổng lead', value: (r) => r.leads },
+      { header: '%chốt', value: (r) => r.winRate },
+      { header: 'KHĐ', value: (r) => r.won },
+      { header: 'Quá hạn', value: (r) => r.overdue },
+      { header: 'Δ%chốt', value: (r) => r.winRateDelta },
+    ];
+    exportXlsx('nguon-kenh', [tableSheet('Chất lượng nguồn', cols, quality)]);
   };
 
   return (
     <div className="space-y-5">
-      {/* Chat luong nguon — bang chinh */}
+      {/* Chất lượng nguồn — bảng chính */}
       <Panel
-        title="Chat luong nguon"
-        desc="Xep hang theo ty le chot — nguon chat luong = ty le cao hon"
+        title="Chất lượng nguồn"
+        desc="Xếp hạng theo tỉ lệ chốt — nguồn chất lượng = tỉ lệ cao hơn"
         action={
           <button
             onClick={handleExport}
             className="inline-flex items-center gap-1.5 text-sm font-semibold rounded-lg px-3 py-1.5 text-white shadow-sm"
             style={{ background: BRAND }}
           >
-            <Download size={15} /> Xuat Excel
+            <Download size={15} /> Xuất Excel
           </button>
         }
       >
         {quality.length === 0 ? (
-          <div className="py-12 text-center text-slate-400 text-sm">Khong co du lieu trong ky / bo loc.</div>
+          <div className="py-12 text-center text-slate-400 text-sm">Không có dữ liệu trong kỳ / bộ lọc.</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm whitespace-nowrap">
               <thead>
                 <tr className="text-left text-[11px] uppercase tracking-wide text-slate-400 border-b border-slate-100">
-                  <th className="py-2 pr-3 sticky left-0 bg-white">Nguon</th>
-                  <th className="py-2 px-3 text-right">Tong lead</th>
-                  <th className="py-2 px-3 text-right" style={{ color: '#047857' }}>%chot</th>
-                  <th className="py-2 px-3 text-right" style={{ color: '#047857' }}>KHD</th>
-                  <th className="py-2 px-3 text-right" style={{ color: '#be123c' }}>Qua han</th>
-                  <th className="py-2 px-3 text-right">Delta%chot</th>
+                  <th className="py-2 pr-3 sticky left-0 bg-white">Nguồn</th>
+                  <th className="py-2 px-3 text-right">Tổng lead</th>
+                  <th className="py-2 px-3 text-right" style={{ color: '#047857' }}>%chốt</th>
+                  <th className="py-2 px-3 text-right" style={{ color: '#047857' }}>KHĐ</th>
+                  <th className="py-2 px-3 text-right" style={{ color: '#be123c' }}>Quá hạn</th>
+                  <th className="py-2 px-3 text-right">Δ%chốt</th>
                 </tr>
               </thead>
               <tbody>
@@ -133,7 +142,7 @@ export default function SourceTab({
               </tbody>
               <tfoot>
                 <tr className="border-t-2 border-slate-200 text-slate-800 font-semibold">
-                  <td className="py-2 pr-3 sticky left-0 bg-white">Tong</td>
+                  <td className="py-2 pr-3 sticky left-0 bg-white">Tổng</td>
                   <td className="py-2 px-3 text-right">{fmt(totals.total)}</td>
                   <td className="py-2 px-3 text-right" style={{ color: '#047857' }}>{totals.winRate}%</td>
                   <td className="py-2 px-3 text-right" style={{ color: '#047857' }}>{fmt(totals.won)}</td>
@@ -146,8 +155,8 @@ export default function SourceTab({
         )}
       </Panel>
 
-      {/* Lead & hop dong theo nguon — bar chart */}
-      <Panel title="Lead & hop dong theo nguon" desc="So sanh so lead va so ky HD tung kenh">
+      {/* Lead & hợp đồng theo nguồn — bar chart */}
+      <Panel title="Lead & hợp đồng theo nguồn" desc="So sánh số lead và số ký HĐ từng kênh">
         <div style={{ height: Math.max(220, sourceBarData.length * 42) }}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={sourceBarData} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 4 }} barCategoryGap={14}>
@@ -156,16 +165,16 @@ export default function SourceTab({
               <YAxis type="category" dataKey="name" tick={AXIS} tickLine={false} axisLine={false} width={110} />
               <Tooltip content={<TipGeneric />} cursor={{ fill: '#f8fafc' }} />
               <Bar dataKey="lead" name="Lead" fill={BRAND} radius={[0, 4, 4, 0]} />
-              <Bar dataKey="chot" name="Ky HD" fill="#0d9488" radius={[0, 4, 4, 0]} />
+              <Bar dataKey="chot" name="Đã chốt" fill="#0d9488" radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
       </Panel>
 
-      {/* Xu huong lead theo ngay — area chart */}
+      {/* Xu hướng lead theo ngày — area chart */}
       <Panel
-        title="Xu huong lead theo ngay"
-        desc={`Tong ${fmt(trend.reduce((s, d) => s + d.count, 0))} lead — phan tach theo nguon la cai tien sau`}
+        title="Xu hướng lead theo ngày"
+        desc={`Tổng ${fmt(trend.reduce((s, d) => s + d.count, 0))} lead — phân tách theo nguồn là cải tiến sau`}
       >
         <div style={{ height: 240 }}>
           <ResponsiveContainer width="100%" height="100%">
@@ -186,9 +195,9 @@ export default function SourceTab({
         </div>
       </Panel>
 
-      {/* Dong xe hut khach */}
+      {/* Dòng xe hút khách */}
       {modelBarData.length > 0 && (
-        <Panel title="Dong xe hut khach" desc="Top dong xe theo so lead (tooltip: ty le chot)">
+        <Panel title="Dòng xe hút khách" desc="Top dòng xe theo số lead (tooltip: tỉ lệ chốt)">
           <div style={{ height: Math.max(220, modelBarData.length * 42) }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={modelBarData} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 4 }} barCategoryGap={14}>
@@ -197,7 +206,7 @@ export default function SourceTab({
                 <YAxis type="category" dataKey="name" tick={AXIS} tickLine={false} axisLine={false} width={150} />
                 <Tooltip content={<TipWithWinRate />} cursor={{ fill: '#f8fafc' }} />
                 <Bar dataKey="lead" name="Lead" fill={PALETTE[0]} radius={[0, 4, 4, 0]} />
-                <Bar dataKey="chot" name="Ky HD" fill={PALETTE[3]} radius={[0, 4, 4, 0]} />
+                <Bar dataKey="chot" name="Đã chốt" fill={PALETTE[3]} radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>

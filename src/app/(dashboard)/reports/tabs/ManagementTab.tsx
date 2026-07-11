@@ -34,14 +34,11 @@ const LEVEL_TABLES: Record<ReportLevel, TableConfig[]> = {
     { title: 'Dòng xe', dim: 'model' },
   ],
   team: [
-    { title: 'Tu van ban hang', dim: 'assignee' },
+    { title: 'Tư vấn bán hàng', dim: 'assignee' },
     { title: 'Dòng xe', dim: 'model' },
   ],
   personal: [],
 };
-
-// Fix team label (uses Vietnamese characters properly)
-LEVEL_TABLES.team[0].title = 'Tư vấn bán hàng';
 
 function slugify(s: string): string {
   return s.toLowerCase().replace(/\s+/g, '-').replace(/\//g, '-');
