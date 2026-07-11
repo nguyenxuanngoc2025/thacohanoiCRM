@@ -80,6 +80,8 @@ export async function POST(request: NextRequest) {
       showroom_name: j.showrooms?.name ?? 'Showroom',
       sales_team_id: (l.sales_team_id as string | null) ?? null,
       team_name: j.sales_teams?.name ?? null,
+      brand_id: (l.brand_id as string | null) ?? null,
+      brand_name: null,
       last_contact_at: l.last_contact_at ?? null,
       next_contact_at: l.next_contact_at ?? null,
       status: l.status ?? null,

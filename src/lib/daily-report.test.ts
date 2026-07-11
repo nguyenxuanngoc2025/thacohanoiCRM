@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { buildPeriodReport, type ReportLead } from './daily-report';
+import { buildPeriodReport, buildChannelReport, type ReportLead } from './daily-report';
 
 const L = (over: Partial<ReportLead>): ReportLead => ({
   showroom_id: 'sr1', showroom_name: 'KIA HN',
   sales_team_id: null, team_name: null,
+  brand_id: null, brand_name: null,
   last_contact_at: null, next_contact_at: null, status: null, assignee_name: null, ...over,
 });
 
@@ -111,5 +112,46 @@ describe('daily-report', () => {
     expect(t.text).toContain('BÁO CÁO NGÀY 24/06 — Phòng KIA 1');
     // showroom vẫn tính đủ 3 lead
     expect(r.perShowroom[0].stats.total).toBe(3);
+  });
+
+  it('buildChannelReport: TỔNG QUAN = cộng dồn các phòng + tách thương hiệu', () => {
+    const now = new Date('2026-06-24T18:00:00Z');
+    const leads: ReportLead[] = [
+      L({ sales_team_id: 't1', team_name: 'Phòng 1', brand_id: 'kia', brand_name: 'KIA', last_contact_at: '2026-06-24T09:00:00Z', status: 'KHQT' }),
+      L({ sales_team_id: 't1', team_name: 'Phòng 1', brand_id: 'maz', brand_name: 'Mazda', next_contact_at: '2026-06-24T08:00:00Z' }),
+      L({ sales_team_id: 't2', team_name: 'Phòng 2', brand_id: 'kia', brand_name: 'KIA', last_contact_at: '2026-06-24T09:00:00Z', status: 'KHĐ' }),
+    ];
+    const r = buildChannelReport(leads, 'NGÀY 24/06', now, {
+      headerName: 'Showroom PVD',
+      teams: [{ id: 't1', name: 'Phòng 1' }, { id: 't2', name: 'Phòng 2' }],
+    });
+    expect(r.headerName).toBe('Showroom PVD');
+    expect(r.overview.stats.total).toBe(3);
+    expect(r.overview.stats.contacted).toBe(2);
+    const ov = r.overview.brands.map((b) => b.name).sort();
+    expect(ov).toEqual(['KIA', 'Mazda']);
+    const kia = r.overview.brands.find((b) => b.name === 'KIA')!;
+    expect(kia.stats.total).toBe(2);
+    expect(r.phongs).toHaveLength(2);
+    const p1 = r.phongs.find((p) => p.name === 'Phòng 1')!;
+    expect(p1.stats.total).toBe(2);
+    expect(p1.brands.map((b) => b.name).sort()).toEqual(['KIA', 'Mazda']);
+    const p2 = r.phongs.find((p) => p.name === 'Phòng 2')!;
+    expect(p2.stats.total).toBe(1);
+  });
+
+  it('buildChannelReport: phòng seed 0 lead vẫn xuất hiện; chỉ gom lead trong tập phòng', () => {
+    const now = new Date('2026-06-24T18:00:00Z');
+    const leads: ReportLead[] = [
+      L({ sales_team_id: 't1', team_name: 'Phòng 1', brand_id: 'kia', brand_name: 'KIA', last_contact_at: '2026-06-24T09:00:00Z' }),
+      L({ sales_team_id: 'tX', team_name: 'Ngoài kênh', brand_id: 'kia', brand_name: 'KIA' }),
+    ];
+    const r = buildChannelReport(leads, 'NGÀY 24/06', now, {
+      headerName: 'SR',
+      teams: [{ id: 't1', name: 'Phòng 1' }, { id: 't2', name: 'Phòng 2' }],
+    });
+    expect(r.overview.stats.total).toBe(1);
+    expect(r.phongs).toHaveLength(2);
+    expect(r.phongs.find((p) => p.name === 'Phòng 2')!.stats.total).toBe(0);
   });
 });

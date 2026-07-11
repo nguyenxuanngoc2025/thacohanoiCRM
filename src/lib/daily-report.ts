@@ -6,6 +6,9 @@ export interface ReportLead {
   // Phòng bán hàng phụ trách lead (null = chưa thuộc phòng nào → không vào báo cáo nhóm bán hàng).
   sales_team_id: string | null;
   team_name: string | null;
+  // Thương hiệu của lead (từ kênh) — để tách chi tiết theo hãng trong báo cáo.
+  brand_id: string | null;
+  brand_name: string | null;
   last_contact_at: string | null;
   next_contact_at: string | null;
   status: string | null;
@@ -36,6 +39,30 @@ export interface ReportSeed {
   showrooms?: { id: string; name: string }[];
 }
 
+export interface BrandBreak {
+  name: string;
+  stats: DailySrStats;
+}
+
+export interface ChannelPhong {
+  name: string;
+  stats: DailySrStats;
+  brands: BrandBreak[];
+  nonCompliant: NonCompliant[];
+}
+
+export interface ChannelReport {
+  dateLabel: string;
+  headerName: string;
+  overview: { stats: DailySrStats; brands: BrandBreak[] };
+  phongs: ChannelPhong[];
+}
+
+export interface ChannelReportSeed {
+  headerName: string;
+  teams: { id: string; name: string }[];
+}
+
 function emptyStats(): DailySrStats {
   return { total: 0, contacted: 0, pending: 0, overdue: 0, KHQT: 0, GDTD: 0, KyHD: 0, Fail: 0 };
 }
@@ -44,29 +71,41 @@ interface Bucket {
   name: string;
   stats: DailySrStats;
   overdueByAssignee: Map<string, number>;
+  byBrand: Map<string, { name: string; stats: DailySrStats }>;
 }
 
 function newBucket(name: string): Bucket {
-  return { name, stats: emptyStats(), overdueByAssignee: new Map<string, number>() };
+  return { name, stats: emptyStats(), overdueByAssignee: new Map<string, number>(), byBrand: new Map() };
 }
 
-// Cộng dồn 1 lead vào bucket (showroom hoặc team). now để xác định quá hạn.
-function accumulate(g: Bucket, l: ReportLead, now: Date): void {
-  g.stats.total += 1;
+// Cộng số liệu thuần (không đụng overdueByAssignee) — dùng cho cả bucket chính lẫn sub-bucket hãng.
+function addStats(s: DailySrStats, l: ReportLead, now: Date): void {
+  s.total += 1;
   const contacted = l.last_contact_at != null;
-  if (contacted) g.stats.contacted += 1;
+  if (contacted) s.contacted += 1;
   else {
-    g.stats.pending += 1;
-    if (l.next_contact_at && new Date(l.next_contact_at).getTime() <= now.getTime()) {
-      g.stats.overdue += 1;
-      const who = l.assignee_name?.trim() || 'Chưa phân';
-      g.overdueByAssignee.set(who, (g.overdueByAssignee.get(who) ?? 0) + 1);
-    }
+    s.pending += 1;
+    if (l.next_contact_at && new Date(l.next_contact_at).getTime() <= now.getTime()) s.overdue += 1;
   }
-  if (l.status === 'KHQT') g.stats.KHQT += 1;
-  else if (l.status === 'GDTD') g.stats.GDTD += 1;
-  else if (l.status === 'KHĐ') g.stats.KyHD += 1;
-  else if (l.status === 'Fail') g.stats.Fail += 1;
+  if (l.status === 'KHQT') s.KHQT += 1;
+  else if (l.status === 'GDTD') s.GDTD += 1;
+  else if (l.status === 'KHĐ') s.KyHD += 1;
+  else if (l.status === 'Fail') s.Fail += 1;
+}
+
+// Cộng dồn 1 lead vào bucket (showroom hoặc team) + sub-bucket theo hãng. now để xác định quá hạn.
+function accumulate(g: Bucket, l: ReportLead, now: Date): void {
+  addStats(g.stats, l, now);
+  const contacted = l.last_contact_at != null;
+  if (!contacted && l.next_contact_at && new Date(l.next_contact_at).getTime() <= now.getTime()) {
+    const who = l.assignee_name?.trim() || 'Chưa phân';
+    g.overdueByAssignee.set(who, (g.overdueByAssignee.get(who) ?? 0) + 1);
+  }
+  if (l.brand_id) {
+    const bb = g.byBrand.get(l.brand_id) ?? { name: l.brand_name?.trim() || 'Khác', stats: emptyStats() };
+    addStats(bb.stats, l, now);
+    g.byBrand.set(l.brand_id, bb);
+  }
 }
 
 function nonCompliantOf(g: Bucket): NonCompliant[] {
@@ -128,5 +167,43 @@ export function buildPeriodReport(leads: ReportLead[], dateLabel: string, now: D
     perTeam,
     perShowroom,
     management: renderDailyMgmt(dateLabel, mgmtRows, { total: tTotal, contacted: tContacted, overdue: tOverdue }),
+  };
+}
+
+// Danh sách chi tiết hãng của 1 bucket, sắp theo tên hãng cho ổn định.
+function brandBreaks(g: Bucket): BrandBreak[] {
+  return [...g.byBrand.values()]
+    .map((b) => ({ name: b.name, stats: b.stats }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+}
+
+/**
+ * Báo cáo cấp KÊNH (1 kênh Zalo gắn nhiều phòng): TỔNG QUAN (cộng dồn các phòng, kèm
+ * tách hãng) + từng PHÒNG (kèm tách hãng). Chỉ gom lead có sales_team_id thuộc seed.teams.
+ * Phòng trong seed nhưng 0 lead vẫn xuất hiện (báo cáo số 0).
+ */
+export function buildChannelReport(
+  leads: ReportLead[], dateLabel: string, now: Date, seed: ChannelReportSeed,
+): ChannelReport {
+  const teamIds = new Set(seed.teams.map((t) => t.id));
+  const overview = newBucket(seed.headerName);
+  const teamBuckets = new Map<string, Bucket>();
+  for (const t of seed.teams) teamBuckets.set(t.id, newBucket(t.name));
+
+  for (const l of leads) {
+    if (!l.sales_team_id || !teamIds.has(l.sales_team_id)) continue;
+    accumulate(overview, l, now);
+    const tb = teamBuckets.get(l.sales_team_id) ?? newBucket(l.team_name?.trim() || l.showroom_name);
+    accumulate(tb, l, now);
+    teamBuckets.set(l.sales_team_id, tb);
+  }
+
+  return {
+    dateLabel,
+    headerName: seed.headerName,
+    overview: { stats: overview.stats, brands: brandBreaks(overview) },
+    phongs: [...teamBuckets.values()].map((b) => ({
+      name: b.name, stats: b.stats, brands: brandBreaks(b), nonCompliant: nonCompliantOf(b),
+    })),
   };
 }
