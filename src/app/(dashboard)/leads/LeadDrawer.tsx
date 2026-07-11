@@ -193,9 +193,9 @@ export default function LeadDrawer({
           </button>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
-          {/* Cột trái: thông tin + B10 (chỉ đọc) */}
-          <div className="space-y-5">
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 flex flex-col gap-5 md:grid md:grid-cols-2 md:gap-x-6 md:gap-y-5">
+          {/* Cột trái: thông tin + B10 (chỉ đọc). Mobile: contents → các section thành flex-item để đổi thứ tự. */}
+          <div className="contents md:block md:space-y-5">
           {/* Thông tin (chỉ đọc) */}
           <section className="bg-slate-50 rounded-xl p-3">
             <InfoRow label="Showroom" value={lead.showroom_name ?? '—'} />
@@ -240,9 +240,9 @@ export default function LeadDrawer({
             {lead.status === 'Fail' && lead.fail_reason && <InfoRow label="Lý do loại" value={lead.fail_reason} />}
           </section>
 
-          {/* Đối soát B10 (chỉ xem) — luôn hiện khi công ty bật B10, kể cả chưa đối soát */}
+          {/* Đối soát B10 (chỉ xem) — luôn hiện khi công ty bật B10, kể cả chưa đối soát. Mobile: đẩy xuống cuối. */}
           {b10Enabled && (
-            <section className="rounded-xl border border-slate-200 p-3">
+            <section className="order-last md:order-none rounded-xl border border-slate-200 p-3">
               <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">Đối soát B10 (DDMS)</div>
               <div className="flex justify-between items-center gap-3 py-1.5 text-sm">
                 <span className="text-slate-400">Đã lên B10</span>
@@ -263,8 +263,8 @@ export default function LeadDrawer({
           )}
           </div>
 
-          {/* Cột phải: cập nhật liên hệ + lịch sử */}
-          <div className="space-y-5">
+          {/* Cột phải: cập nhật liên hệ + lịch sử. Mobile: contents → gộp vào cùng cột dọc. */}
+          <div className="contents md:block md:space-y-5">
           {/* Form cập nhật */}
           <section className="space-y-3">
             <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Cập nhật liên hệ</div>
