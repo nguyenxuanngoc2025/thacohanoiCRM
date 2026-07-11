@@ -345,7 +345,8 @@ function AssignPicker({
           <div style={{
             position: 'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex: 9999,
             background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8,
-            boxShadow: '0 8px 24px rgba(0,0,0,0.12)', padding: 6, maxHeight: 320, overflowY: 'auto',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.12)', padding: 6, maxHeight: 320,
+            overflowY: 'auto', overflowX: 'hidden',
           }}>
             {isTeamScope ? (
               flatTvbh.length === 0
@@ -364,12 +365,12 @@ function AssignPicker({
                 const isOpen = expanded.has(tm.id);
                 return (
                   <div key={tm.id} className="mb-0.5">
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 min-w-0">
                       <button onClick={() => toggleTeam(tm.id)}
-                        className="flex-1 flex items-center gap-1.5 text-left text-sm rounded-md px-2 py-1.5 hover:bg-slate-50 font-medium text-slate-700">
-                        {isOpen ? <ChevronDown size={13} className="opacity-60" /> : <ChevronRight size={13} className="opacity-60" />}
+                        className="flex-1 min-w-0 flex items-center gap-1.5 text-left text-sm rounded-md px-2 py-1.5 hover:bg-slate-50 font-medium text-slate-700">
+                        {isOpen ? <ChevronDown size={13} className="opacity-60 shrink-0" /> : <ChevronRight size={13} className="opacity-60 shrink-0" />}
                         <span className="truncate">{tm.name}{showSrLayer && tm.showroom_name ? ` · ${tm.showroom_name}` : ''}</span>
-                        <span className="text-slate-400 text-xs">({members.length})</span>
+                        <span className="text-slate-400 text-xs shrink-0">({members.length})</span>
                       </button>
                       <button onClick={() => pickTeam(tm.id)} title="Giao cả phòng (tự chọn 1 TVBH)"
                         className="shrink-0 text-[11px] font-semibold rounded-md px-2 py-1 text-white hover:opacity-90" style={{ background: NAVY }}>
