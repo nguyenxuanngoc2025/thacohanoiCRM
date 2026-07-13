@@ -3,7 +3,7 @@ import { requirePlatformOwner } from '@/lib/platform-guard';
 import { writeAudit } from '@/lib/platform-audit';
 import {
   parseUnitFiles, parseUnitShow, parseTimersCalendar,
-  classifyTimer, buildOverrideContent, unitStatusLight,
+  classifyTimer, buildOverrideContent, unitStatusLight, explainCron,
 } from '@/lib/cron-admin';
 import {
   listTimers, showTimer, showService, enableTimer, disableTimer,
@@ -26,6 +26,7 @@ interface TimerView {
   group: 'crm' | 'infra' | 'os';
   dangerous: boolean;
   description: string;
+  explain: string;
   enabled: boolean;
   unitFileState: string;
   light: 'green' | 'gray' | 'red';
@@ -47,6 +48,7 @@ async function buildTimerView(unit: string, state: string): Promise<TimerView> {
     group,
     dangerous,
     description: t.Description ?? '',
+    explain: explainCron(unit, t.Description ?? ''),
     enabled: state === 'enabled',
     unitFileState: t.UnitFileState ?? state,
     light: unitStatusLight({

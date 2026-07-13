@@ -7,6 +7,7 @@ import {
   presetToCalendar,
   buildOverrideContent,
   unitStatusLight,
+  explainCron,
 } from './cron-admin';
 
 const UNIT_FILES = `apt-daily.timer              enabled  enabled
@@ -109,6 +110,21 @@ describe('buildOverrideContent', () => {
     expect(c).toBe(
       '[Timer]\nOnCalendar=\nOnCalendar=*-*-* 06:00:00 Asia/Ho_Chi_Minh\nOnCalendar=*-*-* 20:00:00 Asia/Ho_Chi_Minh\n',
     );
+  });
+});
+
+describe('explainCron', () => {
+  it('timer đã biết → câu giải thích riêng (bỏ .timer)', () => {
+    expect(explainCron('cron-health-digest.timer')).toContain('6h sáng và 20h tối');
+    expect(explainCron('certbot.timer')).toContain('HTTPS');
+  });
+
+  it('timer lạ → rơi về mô tả systemd nếu có', () => {
+    expect(explainCron('unknown-x.timer', 'Mô tả gốc')).toBe('Mô tả gốc');
+  });
+
+  it('timer lạ, không mô tả → câu chung', () => {
+    expect(explainCron('unknown-x.timer')).toBe('Tác vụ tự động chạy định kỳ trên máy chủ.');
   });
 });
 

@@ -25,11 +25,11 @@ export default async function PlatformAdminLayout({ children }: { children: Reac
   return (
     <div className="min-h-screen flex bg-slate-50">
       <aside
-        className="w-60 shrink-0 flex flex-col text-white"
+        className="w-60 shrink-0 flex flex-col text-white sticky top-0 h-screen"
         style={{ background: 'var(--sidebar-bg)', borderRight: '1px solid rgba(0,0,0,0.18)' }}
       >
         <div
-          className="px-5 py-4 flex flex-col items-center text-center gap-2"
+          className="px-5 py-4 flex flex-col items-center text-center gap-2 shrink-0"
           style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -37,7 +37,7 @@ export default async function PlatformAdminLayout({ children }: { children: Reac
           <p className="text-[13px] font-semibold uppercase tracking-wide text-white">Bảng điều khiển nền tảng</p>
           <p className="text-[11px]" style={{ color: 'rgba(255,255,255,0.55)' }}>Quản trị toàn bộ công ty</p>
         </div>
-        <nav className="flex-1 p-2 space-y-1">
+        <nav className="flex-1 min-h-0 overflow-y-auto p-2 space-y-1">
           {TABS.map((t) => {
             const Icon = t.icon;
             return (

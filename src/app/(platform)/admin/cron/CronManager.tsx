@@ -10,6 +10,7 @@ interface TimerView {
   group: 'crm' | 'infra' | 'os';
   dangerous: boolean;
   description: string;
+  explain: string;
   enabled: boolean;
   unitFileState: string;
   light: 'green' | 'gray' | 'red';
@@ -21,6 +22,11 @@ interface TimerView {
 
 const GROUP_LABEL: Record<TimerView['group'], string> = {
   crm: 'CRM', infra: 'Hạ tầng', os: 'Hệ điều hành',
+};
+const GROUP_DESC: Record<TimerView['group'], string> = {
+  crm: 'Tác vụ của hệ thống CRM — thu lead, báo cáo, cảnh báo. An toàn để bật/tắt/đổi lịch.',
+  infra: 'Tác vụ nền tảng giữ website chạy (bảo mật, sao lưu). Thay đổi cần thận trọng.',
+  os: 'Tác vụ bảo trì của máy chủ. KHÔNG nên tắt trừ khi bạn hiểu rõ hậu quả.',
 };
 const LIGHT_COLOR: Record<TimerView['light'], string> = {
   green: '#16a34a', gray: '#94a3b8', red: '#dc2626',
@@ -72,6 +78,9 @@ export default function CronManager() {
           {error}
         </div>
       )}
+
+      <Legend />
+
       <button onClick={load} className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-800">
         <RefreshCw size={13} /> Làm mới
       </button>
@@ -81,7 +90,8 @@ export default function CronManager() {
         if (rows.length === 0) return null;
         return (
           <div key={g}>
-            <h2 className="text-sm font-semibold text-slate-700 mb-2">{GROUP_LABEL[g]}</h2>
+            <h2 className="text-sm font-semibold text-slate-700">{GROUP_LABEL[g]}</h2>
+            <p className="text-xs text-slate-400 mb-2">{GROUP_DESC[g]}</p>
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
               <table className="w-full text-sm">
                 <thead>
@@ -102,9 +112,14 @@ export default function CronManager() {
                           <div className="min-w-0">
                             <div className="font-medium text-slate-800 flex items-center gap-1.5">
                               {t.description || t.unit}
-                              {t.dangerous && <AlertTriangle size={13} className="text-amber-500 shrink-0" />}
+                              {t.dangerous && (
+                                <span title="Tác vụ hệ thống — đổi lịch/tắt cần thận trọng">
+                                  <AlertTriangle size={13} className="text-amber-500 shrink-0" />
+                                </span>
+                              )}
                             </div>
-                            <div className="text-xs text-slate-400 font-mono">{t.unit}{!t.enabled && ' · đã tắt'}</div>
+                            <div className="text-xs text-slate-500 mt-0.5 max-w-md">{t.explain}</div>
+                            <div className="text-[11px] text-slate-400 font-mono mt-0.5">{t.unit}{!t.enabled && ' · đã tắt'}</div>
                           </div>
                         </div>
                       </td>
@@ -169,6 +184,42 @@ export default function CronManager() {
           }}
         />
       )}
+    </div>
+  );
+}
+
+function Legend() {
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
+      <div>
+        <h2 className="text-sm font-semibold text-slate-800">Cách đọc bảng này</h2>
+        <p className="text-xs text-slate-400 mt-0.5">
+          Mỗi dòng là một tác vụ chạy tự động theo lịch. Đèn tròn cho biết tình trạng, dấu tam giác cam là tác vụ cần thận trọng.
+        </p>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2 text-xs text-slate-600">
+        <div className="flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#16a34a' }} />
+          <span><b>Xanh</b> — đang bật và lần chạy gần nhất tốt.</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#94a3b8' }} />
+          <span><b>Xám</b> — đã tắt, hiện không chạy.</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#dc2626' }} />
+          <span><b>Đỏ</b> — đang bật nhưng lần chạy cuối bị lỗi, cần kiểm tra.</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <AlertTriangle size={13} className="text-amber-500 shrink-0" />
+          <span><b>Dấu cảnh báo</b> — tác vụ hạ tầng/hệ điều hành, đổi lịch hay tắt sẽ hỏi xác nhận.</span>
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-500 pt-1 border-t border-slate-100">
+        <span><Play size={12} className="inline -mt-0.5 mr-1" />Chạy ngay một lần</span>
+        <span><CalendarClock size={12} className="inline -mt-0.5 mr-1" />Đổi lịch chạy</span>
+        <span><Power size={12} className="inline -mt-0.5 mr-1" />Bật hoặc tắt</span>
+      </div>
     </div>
   );
 }
