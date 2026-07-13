@@ -14,6 +14,7 @@ import {
   type RankedRow,
   type Dimension,
 } from '@/lib/reports';
+import type { SourceCatalog } from '@/lib/source';
 import {
   MGMT_COLUMNS, MGMT_COL_MAP, MGMT_DEFAULT_ORDER, MGMT_DEFAULT_HIDDEN,
   MGMT_HIDDEN_KEY, MGMT_ORDER_KEY,
@@ -30,28 +31,33 @@ const LEVEL_TABLES: Record<ReportLevel, TableConfig[]> = {
   company: [
     { title: 'Danh sách Showroom', dim: 'showroom' },
     { title: 'Danh sách Thương hiệu', dim: 'brand' },
+    { title: 'Nguồn Marketing', dim: 'source' },
   ],
   brand: [
     { title: 'Showroom', dim: 'showroom' },
     { title: 'Dòng xe', dim: 'model' },
+    { title: 'Nguồn Marketing', dim: 'source' },
   ],
   showroom: [
     { title: 'Phòng bán hàng', dim: 'team' },
     { title: 'Thương hiệu', dim: 'brand' },
     { title: 'Dòng xe', dim: 'model' },
+    { title: 'Nguồn Marketing', dim: 'source' },
   ],
   team: [
     { title: 'Tư vấn bán hàng', dim: 'assignee' },
     { title: 'Dòng xe', dim: 'model' },
+    { title: 'Nguồn Marketing', dim: 'source' },
   ],
   personal: [],
 };
 
-/** Chiều con để mở rộng 1 dòng: showroom→phòng→TVBH; thương hiệu→dòng xe. */
+/** Chiều con để mở rộng 1 dòng: showroom→phòng→TVBH; thương hiệu→dòng xe; nguồn→chi tiết kênh. */
 const EXPAND_CHILD: Partial<Record<Dimension, Dimension>> = {
   showroom: 'team',
   team: 'assignee',
   brand: 'model',
+  source: 'channel',
 };
 
 function slugify(s: string): string {
@@ -83,7 +89,7 @@ function MetricCells({ r, cols, delta }: { r: GroupRow; cols: MgmtColumn[]; delt
 }
 
 /** Một dòng có thể mở rộng ra cấp con (đệ quy). */
-function DrillRow({ row, dim, leads, prevLeads, now, depth, cols }: {
+function DrillRow({ row, dim, leads, prevLeads, now, depth, cols, catalog }: {
   row: GroupRow;
   dim: Dimension;
   leads: ReportLead[];
@@ -91,24 +97,25 @@ function DrillRow({ row, dim, leads, prevLeads, now, depth, cols }: {
   now: number;
   depth: number;
   cols: MgmtColumn[];
+  catalog: SourceCatalog;
 }) {
   const [open, setOpen] = useState(false);
   const childDim = EXPAND_CHILD[dim];
   const canExpand = !!childDim && row.key !== '__none__';
 
   const prevByKey = useMemo(
-    () => new Map(groupByDimension(prevLeads, dim, now).map((r) => [r.key, r])),
-    [prevLeads, dim, now],
+    () => new Map(groupByDimension(prevLeads, dim, now, catalog).map((r) => [r.key, r])),
+    [prevLeads, dim, now, catalog],
   );
   const delta = Math.round((row.winRate - (prevByKey.get(row.key)?.winRate ?? 0)) * 10) / 10;
 
   const subLeads = useMemo(
-    () => (open && childDim ? leads.filter((l) => keyOfDim(l, dim) === row.key) : []),
-    [open, childDim, leads, dim, row.key],
+    () => (open && childDim ? leads.filter((l) => keyOfDim(l, dim, catalog) === row.key) : []),
+    [open, childDim, leads, dim, row.key, catalog],
   );
   const subPrev = useMemo(
-    () => (open && childDim ? prevLeads.filter((l) => keyOfDim(l, dim) === row.key) : []),
-    [open, childDim, prevLeads, dim, row.key],
+    () => (open && childDim ? prevLeads.filter((l) => keyOfDim(l, dim, catalog) === row.key) : []),
+    [open, childDim, prevLeads, dim, row.key, catalog],
   );
 
   return (
@@ -137,22 +144,23 @@ function DrillRow({ row, dim, leads, prevLeads, now, depth, cols }: {
         <MetricCells r={row} cols={cols} delta={delta} />
       </tr>
       {open && childDim && (
-        <DrillGroup dim={childDim} leads={subLeads} prevLeads={subPrev} now={now} depth={depth + 1} cols={cols} />
+        <DrillGroup dim={childDim} leads={subLeads} prevLeads={subPrev} now={now} depth={depth + 1} cols={cols} catalog={catalog} />
       )}
     </>
   );
 }
 
 /** Nhóm các dòng của một chiều (top-level hoặc cấp con khi mở rộng). */
-function DrillGroup({ dim, leads, prevLeads, now, depth, cols }: {
+function DrillGroup({ dim, leads, prevLeads, now, depth, cols, catalog }: {
   dim: Dimension;
   leads: ReportLead[];
   prevLeads: ReportLead[];
   now: number;
   depth: number;
   cols: MgmtColumn[];
+  catalog: SourceCatalog;
 }) {
-  const rows = useMemo(() => groupByDimension(leads, dim, now), [leads, dim, now]);
+  const rows = useMemo(() => groupByDimension(leads, dim, now, catalog), [leads, dim, now, catalog]);
   if (rows.length === 0) {
     return (
       <tr>
@@ -165,7 +173,7 @@ function DrillGroup({ dim, leads, prevLeads, now, depth, cols }: {
   return (
     <>
       {rows.map((r) => (
-        <DrillRow key={r.key} row={r} dim={dim} leads={leads} prevLeads={prevLeads} now={now} depth={depth} cols={cols} />
+        <DrillRow key={r.key} row={r} dim={dim} leads={leads} prevLeads={prevLeads} now={now} depth={depth} cols={cols} catalog={catalog} />
       ))}
     </>
   );
@@ -261,21 +269,22 @@ interface FixedTableProps {
   periodLabel: string;
   cols: MgmtColumn[];
   colMenu?: React.ReactNode; // nút Cột hiển thị — chỉ truyền cho bảng đầu tiên (dùng chung cấu hình)
+  catalog: SourceCatalog;
 }
 
-function FixedTable({ title, dim, leads, prevLeads, now, periodLabel, cols, colMenu }: FixedTableProps) {
+function FixedTable({ title, dim, leads, prevLeads, now, periodLabel, cols, colMenu, catalog }: FixedTableProps) {
   const totals = computeKpis(leads, now);
   const dimLabel = DIMENSION_LABEL[dim];
   const expandable = !!EXPAND_CHILD[dim];
 
-  const topRows = useMemo(() => groupByDimension(leads, dim, now), [leads, dim, now]);
+  const topRows = useMemo(() => groupByDimension(leads, dim, now, catalog), [leads, dim, now, catalog]);
   const prevDeltaByKey = useMemo(() => {
-    const m = new Map(groupByDimension(prevLeads, dim, now).map((r) => [r.key, r]));
+    const m = new Map(groupByDimension(prevLeads, dim, now, catalog).map((r) => [r.key, r]));
     return (r: { key: string; winRate: number }) => Math.round((r.winRate - (m.get(r.key)?.winRate ?? 0)) * 10) / 10;
-  }, [prevLeads, dim, now]);
+  }, [prevLeads, dim, now, catalog]);
 
   const handleExport = () => {
-    const prevByKey = new Map(groupByDimension(prevLeads, dim, now).map((r) => [r.key, r]));
+    const prevByKey = new Map(groupByDimension(prevLeads, dim, now, catalog).map((r) => [r.key, r]));
     const rowsWithDelta: RankedRow[] = topRows.map((r) => ({
       ...r,
       winRateDelta: Math.round((r.winRate - (prevByKey.get(r.key)?.winRate ?? 0)) * 10) / 10,
@@ -325,7 +334,7 @@ function FixedTable({ title, dim, leads, prevLeads, now, periodLabel, cols, colM
               </tr>
             </thead>
             <tbody>
-              <DrillGroup dim={dim} leads={leads} prevLeads={prevLeads} now={now} depth={0} cols={cols} />
+              <DrillGroup dim={dim} leads={leads} prevLeads={prevLeads} now={now} depth={0} cols={cols} catalog={catalog} />
             </tbody>
             <tfoot>
               <tr className="border-t-2 border-slate-200 text-slate-800 font-semibold">
@@ -395,12 +404,14 @@ export default function ManagementTab({
   level,
   showB10,
   periodLabel,
+  sourceCatalog,
 }: {
   leads: ReportLead[];
   prevLeads: ReportLead[];
   level: ReportLevel;
   showB10: boolean;
   periodLabel: string;
+  sourceCatalog: SourceCatalog;
 }) {
   const now = useMemo(() => Date.now(), []);
   const tables = LEVEL_TABLES[level];
@@ -480,6 +491,7 @@ export default function ManagementTab({
           periodLabel={periodLabel}
           cols={visibleCols}
           colMenu={i === 0 ? colMenu : undefined}
+          catalog={sourceCatalog}
         />
       ))}
     </div>

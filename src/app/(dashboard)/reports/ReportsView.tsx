@@ -283,7 +283,7 @@ export default function ReportsView({
         <RankingTab leads={filtered} prevLeads={filteredPrev} level={reportLevel} showB10={showB10} />
       )}
       {tab === 'management' && (
-        <ManagementTab leads={filtered} prevLeads={filteredPrev} level={reportLevel} showB10={showB10} periodLabel={periodLabel} />
+        <ManagementTab leads={filtered} prevLeads={filteredPrev} level={reportLevel} showB10={showB10} periodLabel={periodLabel} sourceCatalog={sourceCatalog} />
       )}
       {tab === 'source' && (
         <SourceTab leads={filtered} prevLeads={filteredPrev} fromMs={fromMs} toMs={toMs} showB10={showB10} sourceCatalog={sourceCatalog} />
