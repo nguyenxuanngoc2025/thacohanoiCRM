@@ -112,6 +112,7 @@ export async function unmarkContacted(leadId: string) {
 export interface LeadUpdateInput {
   leadId: string;
   status: LeadStatus | null;
+  failReason?: string | null;
   modelId: string | null;
   note: string;
   nextContactAt: string | null;
@@ -159,10 +160,14 @@ export async function updateLead(input: LeadUpdateInput) {
 
   const { data: prev } = await db.from('leads').select('status').eq('id', input.leadId).maybeSingle();
 
+  // Fail → kèm lý do (mặc định 'Khác' nếu bỏ trống); phân loại khác → xoá lý do.
+  const failReason = input.status === 'Fail' ? (input.failReason?.trim() || 'Khác') : null;
+
   const { data: updated, error } = await db
     .from('leads')
     .update({
       status: input.status,
+      fail_reason: failReason,
       model_id: input.modelId,
       last_note: note || null,
       last_contact_at: now,
@@ -185,13 +190,14 @@ export async function updateLead(input: LeadUpdateInput) {
 
   // Log đổi phân loại nếu khác
   if (prev?.status && prev.status !== input.status) {
+    const suffix = input.status === 'Fail' && failReason ? ` (lý do: ${failReason})` : '';
     await db.from('lead_logs').insert({
       lead_id: input.leadId,
       user_id: user.id,
       type: 'status_change',
       old_status: prev.status,
       new_status: input.status,
-      content: `Đổi phân loại sang ${input.status}.`,
+      content: `Đổi phân loại sang ${input.status}${suffix}.`,
     });
   }
 

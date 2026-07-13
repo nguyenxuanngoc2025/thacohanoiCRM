@@ -4,7 +4,7 @@ import React, { useState, useEffect, useTransition } from 'react';
 import { X, PhoneCall, RefreshCw, Clock, Save, Pencil, Check, History } from 'lucide-react';
 import { formatPhoneDisplay } from '@/lib/phone';
 import { sourceLabel, sourcePlatform } from '@/lib/source';
-import { STATUS_OPTIONS, type LeadStatus } from '@/lib/lead-status';
+import { STATUS_OPTIONS, FAIL_REASONS, type LeadStatus } from '@/lib/lead-status';
 import { updateLead, reassignLead, reassignTeam, renameLead, getLeadLogs, type LeadLogItem } from './actions';
 import type { LeadRow } from './LeadsTable';
 import type { ModelOption, AssigneeOption, TeamOption } from './LeadsView';
@@ -43,6 +43,11 @@ export default function LeadDrawer({
   onClose: () => void;
 }) {
   const [status, setStatus] = useState<LeadStatus | ''>(lead.status ?? '');
+  // Lý do loại: nếu lead đang Fail, tách sẵn ra ô chọn (preset) hoặc ô nhập tay (khi lý do cũ không thuộc preset).
+  const initReason = lead.status === 'Fail' ? (lead.fail_reason ?? '') : '';
+  const initIsPreset = (FAIL_REASONS as readonly string[]).includes(initReason);
+  const [reasonSel, setReasonSel] = useState<string>(initReason ? (initIsPreset ? initReason : 'Khác') : '');
+  const [customReason, setCustomReason] = useState<string>(initReason && !initIsPreset ? initReason : '');
   const [fullName, setFullName] = useState(lead.full_name ?? '');
   const [editingName, setEditingName] = useState(false);
   const [modelId, setModelId] = useState<string>(lead.model_id ?? '');
@@ -131,6 +136,7 @@ export default function LeadDrawer({
       const res = await updateLead({
         leadId: lead.id,
         status: status || null,
+        failReason: reasonSel === 'Khác' ? customReason : reasonSel,
         modelId: modelId || null,
         note,
         nextContactAt: nextDate ? new Date(nextDate + 'T00:00:00').toISOString() : null,
@@ -282,6 +288,30 @@ export default function LeadDrawer({
                 ))}
               </select>
             </div>
+
+            {status === 'Fail' && (
+              <div>
+                <label className="text-sm text-slate-600 block mb-1">Lý do loại</label>
+                <select
+                  value={reasonSel}
+                  onChange={(e) => setReasonSel(e.target.value)}
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:border-brand outline-none"
+                >
+                  <option value="">— Chọn lý do —</option>
+                  {FAIL_REASONS.map((r) => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                </select>
+                {reasonSel === 'Khác' && (
+                  <input
+                    value={customReason}
+                    onChange={(e) => setCustomReason(e.target.value)}
+                    placeholder="Nhập lý do khác…"
+                    className="mt-2 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:border-brand outline-none"
+                  />
+                )}
+              </div>
+            )}
 
             <div>
               <label className="text-sm text-slate-600 block mb-1">Dòng xe quan tâm</label>
