@@ -5,6 +5,7 @@ const company: CreatorScope = { kind: 'company', showroomIds: null, brandIds: nu
 const brand: CreatorScope = { kind: 'brand', showroomIds: null, brandIds: ['b1', 'b2'], teamId: null };
 const showroom: CreatorScope = { kind: 'showroom', showroomIds: ['sr1'], brandIds: null, teamId: null };
 const team: CreatorScope = { kind: 'team', showroomIds: ['sr1'], brandIds: ['b1'], teamId: 't1' };
+const tvbh: CreatorScope = { kind: 'assigned', showroomIds: ['sr1'], brandIds: ['b1'], teamId: 't1' };
 
 describe('assertLeadInScope', () => {
   it('company không giới hạn — mọi lựa chọn hợp lệ', () => {
@@ -26,6 +27,14 @@ describe('assertLeadInScope', () => {
   it('team: phòng đúng hợp lệ, phòng khác báo lỗi', () => {
     expect(assertLeadInScope(team, { showroomId: 'sr1', brandId: 'b1', salesTeamId: 't1' })).toBeNull();
     expect(assertLeadInScope(team, { showroomId: 'sr1', brandId: 'b1', salesTeamId: 't9' }))
+      .toBe('Phòng ngoài phạm vi của bạn.');
+  });
+
+  it('tvbh (assigned): khoá đúng phòng như tp_phong', () => {
+    expect(assertLeadInScope(tvbh, { showroomId: 'sr1', brandId: 'b1', salesTeamId: 't1' })).toBeNull();
+    expect(assertLeadInScope(tvbh, { showroomId: 'sr9', brandId: null, salesTeamId: null }))
+      .toBe('Showroom ngoài phạm vi của bạn.');
+    expect(assertLeadInScope(tvbh, { showroomId: 'sr1', brandId: 'b1', salesTeamId: 't9' }))
       .toBe('Phòng ngoài phạm vi của bạn.');
   });
 

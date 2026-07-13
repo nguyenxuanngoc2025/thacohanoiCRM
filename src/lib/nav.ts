@@ -23,7 +23,14 @@ export const ROLE_SCOPE_KIND: Record<UserRole, ViewScope> = {
 export const CAN_ASSIGN = new Set<UserRole>([
   'admin', 'gd_cty', 'gd_brand', 'tp_brand', 'gd_showroom', 'tp_phong',
 ]);
-export const CAN_CREATE_LEAD = CAN_ASSIGN;
+// Thêm lead thủ công: MỌI vai trò trong công ty (trừ platform_owner — không thuộc công ty).
+// Phần phân giao trong form tự co theo phạm vi người tạo (resolveCreatorScope) để tối ưu UX:
+// tp_phong/tvbh khoá đúng phòng mình, marketing showroom/hãng theo phân công, cấp công ty tự do.
+export const CAN_CREATE_LEAD = new Set<UserRole>([
+  'admin', 'gd_cty', 'mkt_cty', 'digital_mkt',
+  'gd_brand', 'mkt_brand', 'tp_brand',
+  'gd_showroom', 'mkt_showroom', 'tp_phong', 'tvbh',
+]);
 // Báo cáo: mọi vai trò (TVBH xem báo cáo cá nhân — chỉ lead của mình, RLS gác).
 export const CAN_VIEW_REPORTS = new Set<UserRole>([
   'admin', 'gd_cty', 'mkt_cty', 'digital_mkt', 'gd_brand', 'mkt_brand', 'tp_brand',

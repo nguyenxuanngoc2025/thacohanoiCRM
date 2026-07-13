@@ -21,7 +21,7 @@ export interface CreatorScope {
  * - company (admin, gd_cty): không giới hạn.
  * - brand (gd_brand, tp_brand): giới hạn theo user_brands.
  * - showroom (gd_showroom): giới hạn theo user_showrooms.
- * - team (tp_phong): cố định phòng của họ (+ showroom + tập hãng của phòng).
+ * - team (tp_phong) & assigned (tvbh): cố định phòng của họ (+ showroom + tập hãng của phòng).
  */
 export async function resolveCreatorScope(db: Db, userId: string): Promise<CreatorScope | null> {
   const { data: me } = await db
@@ -43,7 +43,8 @@ export async function resolveCreatorScope(db: Db, userId: string): Promise<Creat
     return { kind, showroomIds: (rows ?? []).map((r) => r.showroom_id as string), brandIds: null, teamId: null };
   }
 
-  if (kind === 'team') {
+  // tp_phong (team) và tvbh (assigned) đều gắn 1 phòng qua users.sales_team_id → khoá đúng phòng đó.
+  if (kind === 'team' || kind === 'assigned') {
     const teamId = (me.sales_team_id as string | null) ?? null;
     if (!teamId) return { kind, showroomIds: [], brandIds: [], teamId: null };
     const { data: team } = await db

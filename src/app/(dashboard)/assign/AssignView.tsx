@@ -363,7 +363,7 @@ function AssignPicker({
   const toggle = () => {
     if (open) { setOpen(false); return; }
     const r = btnRef.current?.getBoundingClientRect();
-    if (r) setPos({ top: r.bottom + 4, left: Math.max(8, r.right - 260), width: 260 });
+    if (r) setPos({ top: r.bottom + 4, left: Math.max(8, r.right - 320), width: 320 });
     setOpen(true);
   };
   const toggleTeam = (id: string) => setExpanded((prev) => {
