@@ -150,6 +150,21 @@ export default function ReportsView({
           <p className="text-sm text-slate-400 mt-0.5">Phân tích hiệu quả lead theo kênh & tỉ lệ chốt</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {hasFilter && (
+            <button onClick={clearFilters} className="text-xs text-rose-600 hover:underline">Xoá lọc</button>
+          )}
+          <button ref={filterBtnRef} onClick={toggleFilter}
+            className="inline-flex items-center gap-1.5 text-sm border rounded-lg px-3 py-1.5 transition-colors"
+            style={hasFilter
+              ? { borderColor: BRAND, background: '#e6f0fa', color: BRAND, fontWeight: 600 }
+              : { borderColor: '#e2e8f0', background: '#fff', color: '#64748b' }}>
+            <ListFilter size={14} /> Bộ lọc
+            {activeFilters > 0 && (
+              <span className="ml-0.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-bold text-white" style={{ background: BRAND }}>
+                {activeFilters}
+              </span>
+            )}
+          </button>
           <div className="w-44">
             <Dropdown value={range} onChange={setRange} placeholder="Thời gian" options={RANGE_OPTS} allowClear={false} />
           </div>
@@ -168,24 +183,6 @@ export default function ReportsView({
         </div>
       </div>
 
-      {/* Bộ lọc — gộp thành 1 nút, mở popup */}
-      <div className="flex items-center gap-2">
-        <button ref={filterBtnRef} onClick={toggleFilter}
-          className="inline-flex items-center gap-1.5 text-sm border rounded-lg px-3 py-1.5 transition-colors"
-          style={hasFilter
-            ? { borderColor: BRAND, background: '#e6f0fa', color: BRAND, fontWeight: 600 }
-            : { borderColor: '#e2e8f0', background: '#fff', color: '#64748b' }}>
-          <ListFilter size={14} /> Bộ lọc
-          {activeFilters > 0 && (
-            <span className="ml-0.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-bold text-white" style={{ background: BRAND }}>
-              {activeFilters}
-            </span>
-          )}
-        </button>
-        {hasFilter && (
-          <button onClick={clearFilters} className="text-xs text-rose-600 hover:underline">Xoá lọc</button>
-        )}
-      </div>
       {openFilter && filterPos && createPortal(
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 9998 }} onClick={() => setOpenFilter(false)} />
