@@ -23,6 +23,8 @@ const models = [
   { id: 'm2', brand_id: 'kia', name: 'Sorento', keywords: ['so ren to'], is_active: true },
   { id: 'm3', brand_id: 'kia', name: 'K5', keywords: [], is_active: false },
   { id: 'm4', brand_id: 'mazda', name: 'CX-5', keywords: ['cx5'], is_active: true },
+  { id: 'm5', brand_id: 'mazda', name: 'CX-3', keywords: [], is_active: true },
+  { id: 'm6', brand_id: 'mazda', name: 'CX-30', keywords: [], is_active: true },
 ];
 
 describe('detectModel', () => {
@@ -38,6 +40,13 @@ describe('detectModel', () => {
   });
   it('mơ hồ (≥2 dòng trúng) → null', () => {
     expect(detectModel({ brandId: 'kia', text: 'so sánh Seltos với Sorento', models })).toBeNull();
+  });
+  it('CX-30 KHÔNG bị nhầm sang CX-3 (chống trùng chuỗi con số)', () => {
+    expect(detectModel({ brandId: 'mazda', text: 'báo giá CX-30', models })).toBe('m6');
+    expect(detectModel({ brandId: 'mazda', text: 'em xem CX 30', models })).toBe('m6');
+  });
+  it('CX-3 trúng đúng CX-3', () => {
+    expect(detectModel({ brandId: 'mazda', text: 'báo giá CX-3', models })).toBe('m5');
   });
   it('không trúng → null', () => {
     expect(detectModel({ brandId: 'kia', text: 'cho hỏi giá lăn bánh', models })).toBeNull();

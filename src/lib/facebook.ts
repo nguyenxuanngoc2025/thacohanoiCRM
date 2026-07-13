@@ -83,6 +83,41 @@ export async function fetchLeadDetail(leadgenId: string): Promise<{
   };
 }
 
+/**
+ * Lấy nội dung vài tin nhắn gần nhất của 1 hội thoại Messenger (theo PSID người gửi)
+ * để dò dòng xe — vì khách thường nhắc "CX-5" ở tin KHÁC với tin để lại SĐT.
+ * FAIL-SAFE: mọi lỗi (thiếu token, trang bật Trợ lý AI, rate limit) → trả '' để
+ * luồng ingest tự quay về đọc mỗi tin có SĐT như cũ. KHÔNG bao giờ ném lỗi.
+ */
+export async function fetchConversationText(pageId: string, psid: string): Promise<string> {
+  const token = process.env.FB_SYSTEM_USER_TOKEN;
+  if (!token || !pageId || !psid) return '';
+  try {
+    const pr = await fetch(`${GRAPH}/${pageId}?fields=access_token&access_token=${token}`);
+    const pj = await pr.json();
+    const pageToken: string | undefined = pj?.access_token;
+    if (!pageToken) return '';
+    const url = `${GRAPH}/${pageId}/conversations?platform=messenger&user_id=${encodeURIComponent(psid)}&fields=messages.limit(15){message}&access_token=${pageToken}`;
+    const r = await fetch(url);
+    const j = await r.json();
+    if (!r.ok) {
+      console.error('[facebook] fetchConversationText non-200:', r.status, j?.error?.message ?? j);
+      return '';
+    }
+    const convs = (j?.data ?? []) as { messages?: { data?: { message?: string }[] } }[];
+    const texts: string[] = [];
+    for (const c of convs) {
+      for (const msg of (c.messages?.data ?? [])) {
+        if (typeof msg.message === 'string' && msg.message.trim()) texts.push(msg.message.trim());
+      }
+    }
+    return texts.join(' \n ');
+  } catch (e) {
+    console.error('[facebook] fetchConversationText lỗi:', e);
+    return '';
+  }
+}
+
 export interface BackfillLead {
   leadgenId: string;
   createdTime: string; // ISO — thời điểm gốc trên Facebook

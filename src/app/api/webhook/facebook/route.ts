@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { fetchLeadDetail, verifyFbSignature, type FbLeadField } from '@/lib/facebook';
+import { fetchLeadDetail, fetchConversationText, verifyFbSignature, type FbLeadField } from '@/lib/facebook';
 import { ingestLead } from '@/lib/ingest';
 import { extractPhone } from '@/lib/phone';
 import { gatherIntentText } from '@/lib/lead-intent-text';
@@ -102,6 +102,13 @@ export async function POST(request: NextRequest) {
         if (m.message?.is_echo) continue; // bỏ tin do page gửi
         const phone = extractPhone(m.message?.text);
         if (!phone) continue;
+        const thisText = typeof m.message?.text === 'string' ? m.message.text : '';
+        // Khách hay nhắc dòng xe (CX-5, Seltos...) ở TIN KHÁC với tin để lại SĐT.
+        // Đọc thêm lịch sử hội thoại để dò dòng xe cho đúng; lỗi/không lấy được thì
+        // fetchConversationText trả '' → vẫn dùng riêng tin hiện tại (an toàn, không chặn lead).
+        const psid = m.sender?.id ? String(m.sender.id) : '';
+        const convoText = await fetchConversationText(pageId, psid);
+        const intentText = [convoText, thisText].filter((s) => s.trim()).join(' \n ');
         await ingestLead({
           page_id: pageId,
           phone_raw: phone,
@@ -109,7 +116,7 @@ export async function POST(request: NextRequest) {
           source: 'fb_message',
           fb_lead_id: m.message?.mid ? String(m.message.mid) : null,
           external_payload: m as Record<string, unknown>,
-          intent_text: typeof m.message?.text === 'string' ? m.message.text : '',
+          intent_text: intentText,
         });
       }
     }
