@@ -6,7 +6,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
 } from 'recharts';
 import {
-  computeFunnel, groupBySource, groupByBrand, groupByDimension,
+  computeFunnel, groupBySource, groupByBrand, groupByModel, groupByDimension,
   dailyTrend, statusDistribution, childDimension, isOverdue,
   DIMENSION_LABEL, type ReportLead, type ReportLevel,
 } from '@/lib/reports';
@@ -33,6 +33,7 @@ export default function OverviewTab({
   const statusDist = useMemo(() => statusDistribution(leads), [leads]);
   const byBrand = useMemo(() => groupByBrand(leads, now), [leads]);
   const bySource = useMemo(() => groupBySource(leads, now, sourceCatalog), [leads, sourceCatalog]);
+  const byModel = useMemo(() => groupByModel(leads, now), [leads]);
   const byChild = useMemo(
     () => (childDim ? groupByDimension(leads, childDim, now, sourceCatalog) : []),
     [leads, childDim, sourceCatalog],
@@ -47,6 +48,7 @@ export default function OverviewTab({
   const brandData = byBrand.map((r) => ({ name: r.label, value: r.leads }));
   const sourceData = bySource.slice(0, 6).map((r) => ({ name: shorten(r.label), lead: r.leads, won: r.won }));
   const childData = byChild.map((r) => ({ name: shorten(r.label), lead: r.leads, won: r.won, winRate: r.winRate }));
+  const modelData = byModel.slice(0, 8).map((r) => ({ name: shorten(r.label), lead: r.leads, won: r.won, winRate: r.winRate }));
   const trendData = trend.map((d) => ({ date: d.date.slice(5), count: d.count }));
 
   const showBrandDonut = reportLevel === 'company' || reportLevel === 'showroom';
@@ -117,26 +119,48 @@ export default function OverviewTab({
         </div>
       </div>
 
-      {/* Hàng 3: So sánh cấp dưới (dynamic) */}
-      {childDim !== null && childData.length > 0 && (
-        <Panel
-          title={`So sánh ${DIMENSION_LABEL[childDim]}`}
-          desc="Cột: số lead & ký HĐ — tỉ lệ chốt (%)"
-        >
-          <div style={{ height: 260 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={childData} margin={{ top: 8, right: 8, left: -18, bottom: 0 }} barGap={4}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="name" tick={AXIS} tickLine={false} axisLine={false} interval={0} angle={-12} textAnchor="end" height={50} />
-                <YAxis tick={AXIS} tickLine={false} axisLine={false} allowDecimals={false} width={32} />
-                <Tooltip content={<TipGeneric unit="lead" />} cursor={{ fill: '#f8fafc' }} />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Bar dataKey="lead" name="Lead" fill={BRAND} radius={[4, 4, 0, 0]} />
-                <Bar dataKey="won" name="Ký HĐ" fill="#0d9488" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </Panel>
+      {/* Hàng 3: So sánh cấp dưới (thu nhỏ) + Dòng xe hút khách, xếp cạnh nhau */}
+      {((childDim !== null && childData.length > 0) || modelData.length > 0) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
+          {childDim !== null && childData.length > 0 && (
+            <div className="h-full">
+              <Panel fill title={`So sánh ${DIMENSION_LABEL[childDim]}`} desc="Cột: số lead & ký HĐ">
+                <div style={{ height: 200 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={childData} margin={{ top: 8, right: 8, left: -18, bottom: 0 }} barGap={4}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis dataKey="name" tick={AXIS} tickLine={false} axisLine={false} interval={0} angle={-12} textAnchor="end" height={44} />
+                      <YAxis tick={AXIS} tickLine={false} axisLine={false} allowDecimals={false} width={32} />
+                      <Tooltip content={<TipGeneric unit="lead" />} cursor={{ fill: '#f8fafc' }} />
+                      <Legend wrapperStyle={{ fontSize: 11 }} />
+                      <Bar dataKey="lead" name="Lead" fill={BRAND} radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="won" name="Ký HĐ" fill="#0d9488" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </Panel>
+            </div>
+          )}
+          {modelData.length > 0 && (
+            <div className={`h-full ${childDim !== null && childData.length > 0 ? '' : 'lg:col-span-2'}`}>
+              <Panel fill title="Dòng xe hút khách" desc="Top dòng xe theo số lead">
+                <div style={{ height: 200 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={modelData} layout="vertical" margin={{ top: 4, right: 12, left: 4, bottom: 4 }} barCategoryGap={10}>
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                      <XAxis type="number" tick={AXIS} tickLine={false} axisLine={false} allowDecimals={false} />
+                      <YAxis type="category" dataKey="name" tick={AXIS} tickLine={false} axisLine={false} width={110} />
+                      <Tooltip content={<TipGeneric unit="lead" />} cursor={{ fill: '#f8fafc' }} />
+                      <Legend wrapperStyle={{ fontSize: 11 }} />
+                      <Bar dataKey="lead" name="Lead" fill={PALETTE[0]} radius={[0, 4, 4, 0]} />
+                      <Bar dataKey="won" name="Ký HĐ" fill={PALETTE[3]} radius={[0, 4, 4, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </Panel>
+            </div>
+          )}
+        </div>
       )}
 
       {reportLevel === 'personal' && (
