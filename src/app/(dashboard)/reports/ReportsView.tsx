@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState, useDeferredValue } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { Users, PhoneCall, TrendingUp, FileSignature, Clock, XCircle, LayoutDashboard, Table2, BarChart2, GitBranch, ListFilter } from 'lucide-react';
@@ -112,6 +112,10 @@ export default function ReportsView({
   const filtered = useMemo(() => applyFilters(leads), [leads, brand, model, showroom, source, assignee, status]);
   const filteredPrev = useMemo(() => applyFilters(prevLeads), [prevLeads, brand, model, showroom, source, assignee, status]);
 
+  // Hoãn dữ liệu nặng cho các tab (biểu đồ recharts) — giữ thao tác bộ lọc mượt.
+  const tabLeads = useDeferredValue(filtered);
+  const tabPrev = useDeferredValue(filteredPrev);
+
   // So sánh KPI 2 kỳ
   const cmp = useMemo(() => compareKpis(filtered, filteredPrev, nowMs), [filtered, filteredPrev, nowMs]);
   const kpis = cmp.current;
@@ -153,18 +157,20 @@ export default function ReportsView({
           {hasFilter && (
             <button onClick={clearFilters} className="text-xs text-rose-600 hover:underline">Xoá lọc</button>
           )}
-          <button ref={filterBtnRef} onClick={toggleFilter}
-            className="inline-flex items-center gap-1.5 text-sm border rounded-lg px-3 py-1.5 transition-colors"
-            style={hasFilter
-              ? { borderColor: BRAND, background: '#e6f0fa', color: BRAND, fontWeight: 600 }
-              : { borderColor: '#e2e8f0', background: '#fff', color: '#64748b' }}>
-            <ListFilter size={14} /> Bộ lọc
-            {activeFilters > 0 && (
-              <span className="ml-0.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-bold text-white" style={{ background: BRAND }}>
-                {activeFilters}
-              </span>
-            )}
-          </button>
+          <div className="w-44">
+            <button ref={filterBtnRef} onClick={toggleFilter}
+              className="flex w-full items-center justify-center gap-1.5 text-sm border rounded-lg px-2.5 py-1.5 transition-colors"
+              style={hasFilter
+                ? { borderColor: BRAND, background: '#e6f0fa', color: BRAND, fontWeight: 600 }
+                : { borderColor: '#e2e8f0', background: '#fff', color: '#64748b' }}>
+              <ListFilter size={14} /> Bộ lọc
+              {activeFilters > 0 && (
+                <span className="ml-0.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-bold text-white" style={{ background: BRAND }}>
+                  {activeFilters}
+                </span>
+              )}
+            </button>
+          </div>
           <div className="w-44">
             <Dropdown value={range} onChange={setRange} placeholder="Thời gian" options={RANGE_OPTS} allowClear={false} />
           </div>
@@ -270,16 +276,16 @@ export default function ReportsView({
       </div>
 
       {tab === 'overview' && (
-        <OverviewTab leads={filtered} fromMs={fromMs} toMs={toMs} reportLevel={reportLevel} prevLeads={filteredPrev} sourceCatalog={sourceCatalog} />
+        <OverviewTab leads={tabLeads} fromMs={fromMs} toMs={toMs} reportLevel={reportLevel} prevLeads={tabPrev} sourceCatalog={sourceCatalog} />
       )}
       {tab === 'ranking' && (
-        <RankingTab leads={filtered} prevLeads={filteredPrev} level={reportLevel} showB10={showB10} />
+        <RankingTab leads={tabLeads} prevLeads={tabPrev} level={reportLevel} showB10={showB10} />
       )}
       {tab === 'management' && (
-        <ManagementTab leads={filtered} prevLeads={filteredPrev} level={reportLevel} showB10={showB10} periodLabel={periodLabel} sourceCatalog={sourceCatalog} />
+        <ManagementTab leads={tabLeads} prevLeads={tabPrev} level={reportLevel} showB10={showB10} periodLabel={periodLabel} sourceCatalog={sourceCatalog} />
       )}
       {tab === 'tables' && (
-        <TablesTab leads={filtered} showB10={showB10} dims={dimensionsForLevel(reportLevel)} sourceCatalog={sourceCatalog} />
+        <TablesTab leads={tabLeads} showB10={showB10} dims={dimensionsForLevel(reportLevel)} sourceCatalog={sourceCatalog} />
       )}
     </div>
   );

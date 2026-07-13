@@ -51,7 +51,7 @@ export function Dropdown({ value, onChange, placeholder, options, allowClear = t
   return (
     <>
       <button ref={btnRef} onClick={toggle}
-        className="inline-flex items-center justify-between gap-1.5 text-sm border rounded-lg px-2.5 py-1.5 outline-none transition-colors min-w-[150px]"
+        className="flex w-full items-center justify-between gap-1.5 text-sm border rounded-lg px-2.5 py-1.5 outline-none transition-colors"
         style={{
           borderColor: active ? BRAND : '#e2e8f0',
           background: active ? '#e6f0fa' : '#fff',
