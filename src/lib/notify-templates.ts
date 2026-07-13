@@ -160,6 +160,35 @@ export function renderOverdue(showroom: string, items: OverdueItem[]): string {
   return lines.join('\n');
 }
 
+export interface CallbackItem {
+  fullName: string | null;
+  phone: string;
+  assignee: string | null;
+  noAnswerCount: number; // số lần đã gọi hụt (chưa liên hệ được)
+}
+
+// Tin nhắc gọi lại cho lead "Chưa LH được": tinh tế, nhấn số lần đã gọi hụt để TVBH kiên trì.
+export function renderCallbackReminder(showroom: string, items: CallbackItem[]): string {
+  const total = items.length;
+  const top = [...items]
+    .sort((a, b) => b.noAnswerCount - a.noAnswerCount)
+    .slice(0, OVERDUE_TOP)
+    .map((it) => {
+      const ten = it.fullName?.trim() || 'Khách lẻ';
+      const tvbh = it.assignee?.trim() || 'chưa phân giao';
+      return `• ${ten} ${maskPhone(it.phone)} — ${tvbh} — đã gọi ${it.noAnswerCount} lần`;
+    });
+  const remaining = total - top.length;
+  const lines = [
+    `<b>CẦN GỌI LẠI — ${showroom}</b>`,
+    `<b>${total}</b> khách chưa liên hệ được, đề nghị gọi lại:`,
+    ...top,
+  ];
+  if (remaining > 0) lines.push(`… và ${remaining} khách khác.`);
+  lines.push('Vui lòng chủ động liên hệ lại khách.');
+  return lines.join('\n');
+}
+
 export interface DailySrStats {
   total: number;
   contacted: number;

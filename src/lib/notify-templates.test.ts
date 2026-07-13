@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { renderNewLead, renderLeadAssigned, renderLeadsAssignedSummary, renderRosterMissing, renderOverdue, renderDailySr, renderDailyMgmt, maskPhone, renderChannelDaily, type ChannelReportView } from './notify-templates';
+import { renderNewLead, renderLeadAssigned, renderLeadsAssignedSummary, renderRosterMissing, renderOverdue, renderCallbackReminder, renderDailySr, renderDailyMgmt, maskPhone, renderChannelDaily, type ChannelReportView } from './notify-templates';
 
 const stats = (o: Partial<{ total: number; contacted: number; pending: number; overdue: number; KHQT: number; GDTD: number; KyHD: number; Fail: number }> = {}) =>
   ({ total: 0, contacted: 0, pending: 0, overdue: 0, KHQT: 0, GDTD: 0, KyHD: 0, Fail: 0, ...o });
@@ -210,6 +210,31 @@ describe('notify-templates', () => {
     expect(t).toContain('… và 89 lead khác.');        // phần dư gói gọn
     expect(t).toContain('92h');                       // top nêu lead quá hạn lâu nhất
     expect(t.length).toBeLessThan(600);               // tin gọn, dễ đọc
+  });
+
+  it('renderCallbackReminder: nhắc gọi lại, nêu số lần gọi hụt, SĐT che, tinh tế', () => {
+    const t = renderCallbackReminder('KIA Hà Nội', [
+      { fullName: 'A', phone: '+84901234567', assignee: 'B', noAnswerCount: 1 },
+      { fullName: null, phone: '+84909876543', assignee: 'C', noAnswerCount: 2 },
+    ]);
+    expect(t).toContain('CẦN GỌI LẠI');
+    expect(t).toContain('<b>2</b> khách chưa liên hệ được');
+    expect(t).toContain('đã gọi 2 lần'); // top nêu khách gọi hụt nhiều nhất trước
+    expect(t).toContain('Khách lẻ');
+    expect(t).toContain('0901234***');
+    expect(t).not.toContain('+84');
+    expect(t).toContain('liên hệ lại khách');
+  });
+
+  it('renderCallbackReminder: nhiều khách → gói "… và N khách khác"', () => {
+    const items = Array.from({ length: 10 }, (_, i) => ({
+      fullName: `KH ${i}`, phone: '+84901234567', assignee: 'B', noAnswerCount: (i % 3) + 1,
+    }));
+    const t = renderCallbackReminder('KIA Hà Nội', items);
+    expect(t).toContain('<b>10</b> khách');
+    const lineCount = t.split('\n').filter((l) => l.startsWith('•')).length;
+    expect(lineCount).toBeLessThanOrEqual(3);
+    expect(t).toContain('… và 7 khách khác.');
   });
 
   it('renderDailySr: tổng lead, tỷ lệ LH, phân loại, dòng chưa tuân thủ', () => {

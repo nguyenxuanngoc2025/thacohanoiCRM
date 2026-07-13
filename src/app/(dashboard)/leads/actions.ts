@@ -34,6 +34,25 @@ async function slaFirstResponseAt(db: DB, companyId: string | null): Promise<str
 }
 
 /**
+ * Mốc nhắc "gọi lại" kế tiếp cho lead 'Chưa LH được' = now + follow_up_hours (chu kỳ nhắc).
+ * Mặc định 2h nếu công ty chưa cấu hình. Cron sẽ nhắc lặp mỗi chu kỳ này.
+ */
+async function slaFollowUpAt(db: DB, companyId: string | null): Promise<string> {
+  let gap = 2;
+  if (companyId) {
+    const { data: sla } = await db
+      .from('sla_config')
+      .select('follow_up_hours')
+      .eq('company_id', companyId)
+      .eq('round', 1)
+      .eq('is_active', true)
+      .maybeSingle();
+    if (sla?.follow_up_hours != null) gap = Math.max(0, Number(sla.follow_up_hours));
+  }
+  return new Date(Date.now() + gap * 3600 * 1000).toISOString();
+}
+
+/**
  * Phân loại lead. Gán phân loại đồng thời TỰ đánh dấu đã liên hệ (vì đã phân loại
  * tức là đã làm việc với lead). status=null = bỏ phân loại (KHÔNG đụng last_contact_at).
  * Quy tắc bổ sung:
@@ -47,7 +66,7 @@ export async function classifyLead(leadId: string, status: LeadStatus | null, fa
   const { data: { user } } = await db.auth.getUser();
   if (!user) return;
 
-  const { data: prev } = await db.from('leads').select('status, last_contact_at, no_answer_count').eq('id', leadId).maybeSingle();
+  const { data: prev } = await db.from('leads').select('status, last_contact_at, no_answer_count, company_id').eq('id', leadId).maybeSingle();
   const now = new Date().toISOString();
   const willMarkContacted = status !== null && !prev?.last_contact_at;
 
@@ -56,10 +75,17 @@ export async function classifyLead(leadId: string, status: LeadStatus | null, fa
     last_contact_at?: string;
     fail_reason?: string | null;
     no_answer_count?: number;
+    next_contact_at?: string;
+    last_overdue_notified_at?: null;
   } = { status };
   if (willMarkContacted) patch.last_contact_at = now;
   patch.fail_reason = status === 'Fail' ? (failReason?.trim() || 'Khác') : null;
-  if (status === 'Chưa LH được') patch.no_answer_count = (prev?.no_answer_count ?? 0) + 1;
+  if (status === 'Chưa LH được') {
+    patch.no_answer_count = (prev?.no_answer_count ?? 0) + 1;
+    // Lên lịch nhắc "gọi lại" sau 1 chu kỳ; reset mốc nhắc gần nhất để cron tính lại từ đầu.
+    patch.next_contact_at = await slaFollowUpAt(db, (prev?.company_id as string | null) ?? null);
+    patch.last_overdue_notified_at = null;
+  }
 
   const { error } = await db.from('leads').update(patch).eq('id', leadId);
   if (error) return;
