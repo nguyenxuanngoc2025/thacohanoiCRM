@@ -316,7 +316,7 @@ function StrategyPicker({
         <ChevronDown size={13} className="opacity-60 shrink-0" />
       </button>
       {open && pos && (
-        <>
+        <ModalPortal>
           <div style={{ position: 'fixed', inset: 0, zIndex: 9998 }} onClick={() => setOpen(false)} />
           <div style={{
             position: 'fixed', top: pos.top, left: pos.left, minWidth: pos.width, zIndex: 9999,
@@ -331,7 +331,7 @@ function StrategyPicker({
               </button>
             ))}
           </div>
-        </>
+        </ModalPortal>
       )}
     </>
   );
@@ -394,7 +394,7 @@ function AssignPicker({
         <ChevronDown size={13} className="opacity-60 shrink-0" />
       </button>
       {open && pos && (
-        <>
+        <ModalPortal>
           <div style={{ position: 'fixed', inset: 0, zIndex: 9998 }} onClick={() => setOpen(false)} />
           <div style={{
             position: 'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex: 9999,
@@ -452,7 +452,7 @@ function AssignPicker({
               })
             )}
           </div>
-        </>
+        </ModalPortal>
       )}
     </>
   );
