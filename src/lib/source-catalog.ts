@@ -34,7 +34,6 @@ export const BUILTIN_SEED: SourceChannelRow[] = [
   { platform_key: 'facebook', platform_name: 'Facebook', value: 'facebook', label: 'Lead Ads', is_builtin: true, is_active: true, digital: true, sort_order: 10 },
   { platform_key: 'facebook', platform_name: 'Facebook', value: 'fb_message', label: 'Tin nhắn', is_builtin: true, is_active: true, digital: true, sort_order: 11 },
   { platform_key: 'facebook', platform_name: 'Facebook', value: 'fb_comment', label: 'Bình luận', is_builtin: true, is_active: true, digital: true, sort_order: 12 },
-  { platform_key: 'website', platform_name: 'Website form', value: 'Website form', label: 'Mặc định', is_builtin: true, is_active: true, digital: true, sort_order: 20 },
   { platform_key: 'zalo', platform_name: 'Zalo OA', value: 'zalo', label: 'Tin nhắn OA', is_builtin: true, is_active: true, digital: true, sort_order: 30 },
   { platform_key: 'zalo', platform_name: 'Zalo OA', value: 'zalo_ads', label: 'Quảng cáo', is_builtin: true, is_active: true, digital: true, sort_order: 31 },
   { platform_key: 'google', platform_name: 'Google', value: 'google_hotline', label: 'Hotline', is_builtin: true, is_active: true, digital: true, sort_order: 50 },
