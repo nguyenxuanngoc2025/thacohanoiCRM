@@ -40,8 +40,8 @@ describe('assertSourceEditable', () => {
 });
 
 describe('BUILTIN_SEED', () => {
-  it('đủ 8 kênh hệ thống khớp value cũ', () => {
+  it('đủ 10 kênh hệ thống khớp value cũ', () => {
     const vals = BUILTIN_SEED.map((r) => r.value);
-    expect(vals).toEqual(['facebook', 'fb_message', 'fb_comment', 'Website form', 'zalo', 'zalo_ads', 'google_sheet', 'Google (gọi hotline)']);
+    expect(vals).toEqual(['facebook', 'fb_message', 'fb_comment', 'Website form', 'zalo', 'zalo_ads', 'google_sheet', 'google_hotline', 'google_form_web', 'google_zalo_oa']);
   });
 });

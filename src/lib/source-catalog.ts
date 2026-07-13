@@ -38,7 +38,9 @@ export const BUILTIN_SEED: SourceChannelRow[] = [
   { platform_key: 'zalo', platform_name: 'Zalo OA', value: 'zalo', label: 'Tin nhắn OA', is_builtin: true, is_active: true, digital: true, sort_order: 30 },
   { platform_key: 'zalo', platform_name: 'Zalo OA', value: 'zalo_ads', label: 'Quảng cáo', is_builtin: true, is_active: true, digital: true, sort_order: 31 },
   { platform_key: 'google_sheet', platform_name: 'Google Sheet', value: 'google_sheet', label: 'Google Sheet', is_builtin: true, is_active: true, digital: true, sort_order: 40 },
-  { platform_key: 'google', platform_name: 'Google (gọi hotline)', value: 'Google (gọi hotline)', label: 'Mặc định', is_builtin: true, is_active: true, digital: true, sort_order: 50 },
+  { platform_key: 'google', platform_name: 'Google', value: 'google_hotline', label: 'Hotline', is_builtin: true, is_active: true, digital: true, sort_order: 50 },
+  { platform_key: 'google', platform_name: 'Google', value: 'google_form_web', label: 'Form web', is_builtin: false, is_active: true, digital: true, sort_order: 51 },
+  { platform_key: 'google', platform_name: 'Google', value: 'google_zalo_oa', label: 'Zalo OA', is_builtin: false, is_active: true, digital: true, sort_order: 52 },
 ];
 
 /** Dựng catalog từ các dòng DB. platforms/variants = active(+digital); bản đồ hiển thị = tất cả. */
