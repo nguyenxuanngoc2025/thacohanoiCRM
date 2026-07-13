@@ -9,6 +9,7 @@ interface TimerView {
   service: string;
   group: 'crm' | 'infra' | 'os';
   dangerous: boolean;
+  title: string;
   description: string;
   explain: string;
   enabled: boolean;
@@ -111,7 +112,7 @@ export default function CronManager() {
                           <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: LIGHT_COLOR[t.light] }} />
                           <div className="min-w-0">
                             <div className="font-medium text-slate-800 flex items-center gap-1.5">
-                              {t.description || t.unit}
+                              {t.title}
                               {t.dangerous && (
                                 <span title="Tác vụ hệ thống — đổi lịch/tắt cần thận trọng">
                                   <AlertTriangle size={13} className="text-amber-500 shrink-0" />
@@ -252,7 +253,7 @@ function ConfirmModal({
         <AlertTriangle size={18} className="text-amber-500" />
         <h3 className="font-semibold text-slate-900">{ACTION_LABEL[action]} tác vụ hệ thống?</h3>
       </div>
-      <p className="text-sm text-slate-600 mb-1">{timer.description || timer.unit}</p>
+      <p className="text-sm text-slate-600 mb-1">{timer.title}</p>
       <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
         Đây là tác vụ hạ tầng / hệ điều hành. Thay đổi sai có thể ảnh hưởng máy chủ (sao lưu, chứng chỉ, cập nhật hệ thống). Chắc chắn tiếp tục?
       </p>
@@ -301,7 +302,7 @@ function RescheduleModal({
   return (
     <Overlay onClose={onCancel}>
       <h3 className="font-semibold text-slate-900 mb-1">Đổi lịch chạy</h3>
-      <p className="text-sm text-slate-500 mb-1">{timer.description || timer.unit}</p>
+      <p className="text-sm text-slate-500 mb-1">{timer.title}</p>
       <p className="text-xs text-slate-400 mb-4">Lịch hiện tại: {timer.calendars.join(' · ') || '—'}</p>
 
       <div className="flex gap-1 mb-4 text-xs">

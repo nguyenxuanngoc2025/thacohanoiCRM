@@ -8,6 +8,7 @@ import {
   buildOverrideContent,
   unitStatusLight,
   explainCron,
+  cronTitle,
 } from './cron-admin';
 
 const UNIT_FILES = `apt-daily.timer              enabled  enabled
@@ -125,6 +126,22 @@ describe('explainCron', () => {
 
   it('timer lạ, không mô tả → câu chung', () => {
     expect(explainCron('unknown-x.timer')).toBe('Tác vụ tự động chạy định kỳ trên máy chủ.');
+  });
+});
+
+describe('cronTitle', () => {
+  it('timer đã biết → tên tiếng Việt dễ đọc (bỏ .timer)', () => {
+    expect(cronTitle('cron-health-digest.timer')).toBe('Báo cáo sức khoẻ hệ thống');
+    expect(cronTitle('supabase-backup.timer')).toBe('Sao lưu Supabase');
+    expect(cronTitle('certbot.timer')).toBe('Gia hạn chứng chỉ SSL');
+  });
+
+  it('timer lạ → rơi về mô tả systemd nếu có', () => {
+    expect(cronTitle('unknown-x.timer', 'Mô tả gốc')).toBe('Mô tả gốc');
+  });
+
+  it('timer lạ, không mô tả → tên unit (bỏ .timer)', () => {
+    expect(cronTitle('unknown-x.timer')).toBe('unknown-x');
   });
 });
 

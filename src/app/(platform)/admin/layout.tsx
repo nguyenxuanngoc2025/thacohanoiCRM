@@ -23,10 +23,13 @@ export default async function PlatformAdminLayout({ children }: { children: Reac
   if (role !== 'platform_owner') redirect('/leads');
 
   return (
-    <div className="min-h-screen flex bg-slate-50">
+    <div
+      className="app-shell bg-slate-50"
+      style={{ display: 'flex', overflow: 'hidden' }}
+    >
       <aside
-        className="w-60 shrink-0 flex flex-col text-white sticky top-0 h-screen"
-        style={{ background: 'var(--sidebar-bg)', borderRight: '1px solid rgba(0,0,0,0.18)' }}
+        className="w-60 shrink-0 flex flex-col text-white"
+        style={{ background: 'var(--sidebar-bg)', borderRight: '1px solid rgba(0,0,0,0.18)', height: '100%' }}
       >
         <div
           className="px-5 py-4 flex flex-col items-center text-center gap-2 shrink-0"
@@ -53,7 +56,18 @@ export default async function PlatformAdminLayout({ children }: { children: Reac
           })}
         </nav>
       </aside>
-      <main className="flex-1 min-w-0">{children}</main>
+      <main
+        className="flex-1 min-w-0"
+        style={{
+          minHeight: 0,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          overscrollBehavior: 'contain',
+          WebkitOverflowScrolling: 'touch',
+        }}
+      >
+        {children}
+      </main>
     </div>
   );
 }

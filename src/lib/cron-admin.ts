@@ -98,6 +98,42 @@ export function explainCron(name: string, systemdDescription = ''): string {
   return CRON_EXPLAIN[base] || systemdDescription || 'Tác vụ tự động chạy định kỳ trên máy chủ.';
 }
 
+/**
+ * Tên hiển thị NGẮN, dễ đọc tiếng Việt cho từng timer (giữ nguyên thuật ngữ như
+ * Facebook, Zalo, Supabase, SSL). CHỈ là nhãn — tên kỹ thuật (unit) không đổi.
+ */
+const CRON_TITLE: Record<string, string> = {
+  'cron-health-digest': 'Báo cáo sức khoẻ hệ thống',
+  'cron-watchdog': 'Canh gác hệ thống',
+  'cron-daily-report': 'Báo cáo lead cuối ngày',
+  'cron-weekly-report': 'Báo cáo tuần',
+  'cron-monthly-report': 'Báo cáo tháng',
+  'cron-reminders': 'Nhắc chăm sóc lead',
+  'cron-enrich-names': 'Bổ sung tên khách',
+  'cron-google-sheets': 'Đồng bộ Google Sheet',
+  'cron-poll-fb-messages': 'Quét tin nhắn Facebook',
+  'cron-poll-fb-comments': 'Quét bình luận Facebook',
+  'zca-bot-heal': 'Hồi phục bot Zalo',
+  'certbot': 'Gia hạn chứng chỉ SSL',
+  'supabase-backup': 'Sao lưu Supabase',
+  'apt-daily': 'Kiểm tra cập nhật hệ thống',
+  'apt-daily-upgrade': 'Cài cập nhật hệ thống',
+  'apt-listchanges': 'Ghi chú cập nhật hệ thống',
+  'dpkg-db-backup': 'Sao lưu danh mục phần mềm',
+  'e2scrub_all': 'Kiểm tra ổ đĩa',
+  'exim4-base': 'Bảo trì hệ thư (Exim4)',
+  'fstrim': 'Dọn ổ SSD',
+  'man-db': 'Cập nhật chỉ mục tài liệu',
+  'systemd-tmpfiles-clean': 'Dọn file tạm',
+  'logrotate': 'Xoay vòng nhật ký (log)',
+};
+
+/** Tên hiển thị dễ đọc cho 1 timer. Fallback: mô tả systemd, rồi tên unit (bỏ .timer). */
+export function cronTitle(name: string, systemdDescription = ''): string {
+  const base = name.replace(/\.timer$/, '');
+  return CRON_TITLE[base] || systemdDescription || base;
+}
+
 const p2 = (n: number) => String(n).padStart(2, '0');
 const VN_TZ = 'Asia/Ho_Chi_Minh';
 
