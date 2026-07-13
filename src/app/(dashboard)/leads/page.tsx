@@ -4,6 +4,7 @@ import LeadsView, { type ModelOption, type BrandOption, type ShowroomOption, typ
 import { CAN_CREATE_LEAD, CAN_ASSIGN, CAN_MANAGE_STAFF } from '@/lib/nav';
 import { getOpenBrandIds, isBrandClosed, getInactiveShowroomIds } from '@/lib/company-brands';
 import { resolveCreatorScope } from '@/lib/lead-scope';
+import { loadSourceCatalog } from '@/lib/source-catalog';
 import { getTenant } from '@/lib/tenant';
 import { type UserRole } from '@/types/database';
 
@@ -153,8 +154,11 @@ export default async function LeadsPage() {
     && (!fixedTeamId || t.id === fixedTeamId),
   );
 
+  const sourceCatalog = await loadSourceCatalog(supabase);
+
   return (
     <LeadsView
+      sourceCatalog={sourceCatalog}
       leads={leads}
       models={models}
       brands={brands}

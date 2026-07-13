@@ -10,19 +10,21 @@ import {
   dailyTrend, statusDistribution, childDimension, isOverdue,
   DIMENSION_LABEL, type ReportLead, type ReportLevel,
 } from '@/lib/reports';
+import type { SourceCatalog } from '@/lib/source';
 import { STATUS_COLOR, STATUS_LABEL } from '@/lib/lead-status';
 import { Panel, PALETTE, BRAND, fmt } from './ui';
 
 const AXIS = { fontSize: 11, fill: '#94a3b8' };
 
 export default function OverviewTab({
-  leads, fromMs, toMs, reportLevel, prevLeads,
+  leads, fromMs, toMs, reportLevel, prevLeads, sourceCatalog,
 }: {
   leads: ReportLead[];
   fromMs: number;
   toMs: number;
   reportLevel: ReportLevel;
   prevLeads: ReportLead[];
+  sourceCatalog: SourceCatalog;
 }) {
   const now = Date.now();
   const childDim = childDimension(reportLevel);
@@ -30,10 +32,10 @@ export default function OverviewTab({
   const funnel = useMemo(() => computeFunnel(leads), [leads]);
   const statusDist = useMemo(() => statusDistribution(leads), [leads]);
   const byBrand = useMemo(() => groupByBrand(leads, now), [leads]);
-  const bySource = useMemo(() => groupBySource(leads, now), [leads]);
+  const bySource = useMemo(() => groupBySource(leads, now, sourceCatalog), [leads, sourceCatalog]);
   const byChild = useMemo(
-    () => (childDim ? groupByDimension(leads, childDim, now) : []),
-    [leads, childDim],
+    () => (childDim ? groupByDimension(leads, childDim, now, sourceCatalog) : []),
+    [leads, childDim, sourceCatalog],
   );
   const trend = useMemo(() => dailyTrend(leads, fromMs, toMs), [leads, fromMs, toMs]);
   const overdueLeads = useMemo(

@@ -10,7 +10,7 @@ import {
 import { formatPhoneDisplay } from '@/lib/phone';
 import { matchesQuery } from '@/lib/search';
 import { STATUS_OPTIONS, FAIL_REASONS, isContacted, type LeadStatus } from '@/lib/lead-status';
-import { sourceLabel, sourcePlatform } from '@/lib/source';
+import { sourceLabel, sourcePlatform, type SourceCatalog } from '@/lib/source';
 import { classifyLead, markContacted, unmarkContacted, bulkReassign, deleteLeads, setLeadModel } from './actions';
 import { isLeadOverdue } from '@/lib/overdue';
 import type { ModelOption, BrandOption, ShowroomOption, AssigneeOption, TeamOption } from './LeadsView';
@@ -68,14 +68,14 @@ export function isOverdue(l: LeadRow): boolean {
 }
 
 /** Áp các bộ lọc phạm vi (KHÔNG gồm tab/sort — phần đó nằm trong bảng). */
-export function applyScope(leads: LeadRow[], f: Filters): LeadRow[] {
+export function applyScope(leads: LeadRow[], f: Filters, catalog?: SourceCatalog): LeadRow[] {
   return leads.filter((l) => {
     if (!matchesQuery(l.full_name, formatPhoneDisplay(l.phone), f.q)) return false;
     if (f.showroom && l.showroom_name !== f.showroom) return false;
     if (f.team && l.team_name !== f.team) return false;
     if (f.brand && l.brand_name !== f.brand) return false;
     if (f.model && l.model_name !== f.model) return false;
-    if (f.source && sourcePlatform(l.source) !== f.source) return false;
+    if (f.source && sourcePlatform(l.source, catalog) !== f.source) return false;
     if (f.assignee) {
       if (f.assignee === '__none__') { if (l.assigned_to) return false; }
       else if (l.assigned_to !== f.assignee) return false;
@@ -102,7 +102,7 @@ const STATUS_ORDER: Record<string, number> = Object.fromEntries(
 // Mốc thời gian (null = -1 để cuộn lên đầu khi sort tăng dần)
 const tsOrNeg = (v: string | null) => (v ? Date.parse(v) : -1);
 
-function compare(key: ColKey, a: LeadRow, b: LeadRow): number {
+function compare(key: ColKey, a: LeadRow, b: LeadRow, catalog?: SourceCatalog): number {
   switch (key) {
     case 'time': return Date.parse(a.created_at) - Date.parse(b.created_at);
     case 'name': return (a.full_name ?? '').localeCompare(b.full_name ?? '', 'vi');
@@ -120,8 +120,8 @@ function compare(key: ColKey, a: LeadRow, b: LeadRow): number {
     case 'b10note': return (a.b10_care_note ?? '').localeCompare(b.b10_care_note ?? '', 'vi');
     case 'contactedAt': return tsOrNeg(a.last_contact_at) - tsOrNeg(b.last_contact_at);
     case 'note': return (a.last_note ?? '').localeCompare(b.last_note ?? '', 'vi');
-    case 'platform': return sourcePlatform(a.source).localeCompare(sourcePlatform(b.source), 'vi');
-    case 'source': return sourceLabel(a.source).localeCompare(sourceLabel(b.source), 'vi');
+    case 'platform': return sourcePlatform(a.source, catalog).localeCompare(sourcePlatform(b.source, catalog), 'vi');
+    case 'source': return sourceLabel(a.source, catalog).localeCompare(sourceLabel(b.source, catalog), 'vi');
     case 'next': return tsOrNeg(a.next_contact_at) - tsOrNeg(b.next_contact_at);
     case 'count': return a.contact_count - b.contact_count;
   }
@@ -541,7 +541,7 @@ function StatusPicker({ lead, variant, pending, start }: {
 export default function LeadsTable({
   leads, allLeads, filters, setFilters, models, brands, showrooms, assignees, teams,
   formBrands, formShowrooms, formTeams, fixedTeamId,
-  canCreate, canAssign, canDelete, b10Enabled, isTvbh,
+  canCreate, canAssign, canDelete, b10Enabled, isTvbh, sourceCatalog,
 }: {
   leads: LeadRow[];
   allLeads: LeadRow[];
@@ -561,6 +561,7 @@ export default function LeadsTable({
   canDelete: boolean;
   b10Enabled: boolean;
   isTvbh: boolean;
+  sourceCatalog: SourceCatalog;
 }) {
   // Khoá lưu cấu hình cột + bộ cột ẩn mặc định khác nhau theo vai trò (TVBH gọn hơn).
   const storageKey = isTvbh ? TVBH_STORAGE_KEY : STORAGE_KEY;
@@ -708,8 +709,8 @@ export default function LeadsTable({
     [allLeads, filters.brand],
   );
   const sourceOpts = useMemo<Opt[]>(
-    () => uniqSorted(allLeads.map((l) => sourcePlatform(l.source))).map((s) => ({ value: s, label: s })),
-    [allLeads],
+    () => uniqSorted(allLeads.map((l) => sourcePlatform(l.source, sourceCatalog))).map((s) => ({ value: s, label: s })),
+    [allLeads, sourceCatalog],
   );
   const assigneeOpts = useMemo<Opt[]>(() => {
     const base = assignees.map((a) => ({ value: a.id, label: a.full_name }));
@@ -735,9 +736,9 @@ export default function LeadsTable({
       return true;
     });
     if (!sortKey) return filtered;
-    const sorted = [...filtered].sort((a, b) => compare(sortKey, a, b));
+    const sorted = [...filtered].sort((a, b) => compare(sortKey, a, b, sourceCatalog));
     return sortDir === 'asc' ? sorted : sorted.reverse();
-  }, [leads, tab, sortKey, sortDir]);
+  }, [leads, tab, sortKey, sortDir, sourceCatalog]);
 
   const onSort = (key: ColKey) => {
     if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -780,7 +781,7 @@ export default function LeadsTable({
     const lines = rows.map((l) => [
       fmtDate(l.created_at), l.full_name ?? '', formatPhoneDisplay(l.phone),
       isContacted(l.last_contact_at) ? 'Đã liên hệ' : 'Chưa liên hệ', l.status ?? '', l.fail_reason ?? '',
-      sourcePlatform(l.source), sourceLabel(l.source), l.brand_name, l.model_name ?? '',
+      sourcePlatform(l.source, sourceCatalog), sourceLabel(l.source, sourceCatalog), l.brand_name, l.model_name ?? '',
       l.showroom_name ?? '', l.team_name ?? '', l.assignee_name ?? '', l.contact_count, l.no_answer_count,
       l.next_contact_at ? fmtDay(l.next_contact_at) : '', l.last_note ?? '',
     ].map(cell).join(','));
@@ -846,8 +847,8 @@ export default function LeadsTable({
         return <span className="text-slate-500">{contacted ? fmtDate(l.last_contact_at!) : '—'}</span>;
       case 'note':
         return <span className="text-slate-500 line-clamp-1 max-w-[220px] inline-block align-bottom">{l.last_note ?? '—'}</span>;
-      case 'platform': return <span className="text-slate-600">{sourcePlatform(l.source)}</span>;
-      case 'source': return <span className="text-slate-500">{sourceLabel(l.source)}</span>;
+      case 'platform': return <span className="text-slate-600">{sourcePlatform(l.source, sourceCatalog)}</span>;
+      case 'source': return <span className="text-slate-500">{sourceLabel(l.source, sourceCatalog)}</span>;
       case 'next':
         return l.next_contact_at ? (
           <span className={isOverdue(l) ? 'inline-flex items-center gap-1 text-rose-600 font-medium' : 'text-slate-500'}>
@@ -1148,7 +1149,7 @@ export default function LeadsTable({
                   <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
                     <span>{fmtDate(l.created_at)}</span>
                     <span className="text-slate-300">·</span>
-                    <span>{sourcePlatform(l.source)}</span>
+                    <span>{sourcePlatform(l.source, sourceCatalog)}</span>
                     <span className="text-slate-300">·</span>
                     <span className="truncate">{l.brand_name}</span>
                   </div>
@@ -1250,6 +1251,7 @@ export default function LeadsTable({
           teams={teams}
           canManage={canCreate}
           b10Enabled={b10Enabled}
+          sourceCatalog={sourceCatalog}
           onClose={() => setOpenLead(null)}
         />
       )}
@@ -1262,6 +1264,7 @@ export default function LeadsTable({
           assignees={assignees}
           teams={formTeams}
           fixedTeamId={fixedTeamId}
+          sourceCatalog={sourceCatalog}
           onClose={() => setShowNew(false)}
         />
       )}

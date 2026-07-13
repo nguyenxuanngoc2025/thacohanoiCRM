@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useTransition } from 'react';
 import { X, PhoneCall, RefreshCw, Clock, Save, Pencil, Check, History } from 'lucide-react';
 import { formatPhoneDisplay } from '@/lib/phone';
-import { sourceLabel, sourcePlatform } from '@/lib/source';
+import { sourceLabel, sourcePlatform, type SourceCatalog } from '@/lib/source';
 import { STATUS_OPTIONS, FAIL_REASONS, type LeadStatus } from '@/lib/lead-status';
 import { updateLead, reassignLead, reassignTeam, renameLead, getLeadLogs, type LeadLogItem } from './actions';
 import type { LeadRow } from './LeadsTable';
@@ -32,7 +32,7 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 }
 
 export default function LeadDrawer({
-  lead, models, assignees, teams, canManage, b10Enabled, onClose,
+  lead, models, assignees, teams, canManage, b10Enabled, sourceCatalog, onClose,
 }: {
   lead: LeadRow;
   models: ModelOption[];
@@ -40,6 +40,7 @@ export default function LeadDrawer({
   teams: TeamOption[];
   canManage: boolean;
   b10Enabled: boolean;
+  sourceCatalog: SourceCatalog;
   onClose: () => void;
 }) {
   const [status, setStatus] = useState<LeadStatus | ''>(lead.status ?? '');
@@ -206,8 +207,8 @@ export default function LeadDrawer({
           <section className="bg-slate-50 rounded-xl p-3">
             <InfoRow label="Showroom" value={lead.showroom_name ?? '—'} />
             <InfoRow label="Thương hiệu" value={lead.brand_name} />
-            <InfoRow label="Nguồn" value={sourcePlatform(lead.source)} />
-            <InfoRow label="Chi tiết kênh" value={sourceLabel(lead.source)} />
+            <InfoRow label="Nguồn" value={sourcePlatform(lead.source, sourceCatalog)} />
+            <InfoRow label="Chi tiết kênh" value={sourceLabel(lead.source, sourceCatalog)} />
             {canManage ? (
               <div className="flex justify-between items-center gap-3 py-1.5 text-sm">
                 <span className="text-slate-400">Phòng bán hàng</span>

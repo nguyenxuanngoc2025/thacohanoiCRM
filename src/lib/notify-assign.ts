@@ -66,6 +66,8 @@ export async function notifyNewLead(leadId: string): Promise<void> {
       ? (await db.from('users').select('full_name').eq('id', lead.assigned_to).maybeSingle()).data?.full_name ?? null
       : null;
 
+    const { loadSourceCatalog } = await import('@/lib/source-catalog');
+    const catalog = await loadSourceCatalog(db);
     const text = renderNewLead({
       showroom: showroomName,
       team: teamName,
@@ -75,6 +77,7 @@ export async function notifyNewLead(leadId: string): Promise<void> {
       model: modelName,
       assignee: assigneeName,
       b10Prior: lead.b10_status ? { status: lead.b10_status, note: lead.b10_care_note } : null,
+      catalog,
     });
 
     // Tên rác → kèm enrich để bot tra Zalo bù tên trước khi gửi.

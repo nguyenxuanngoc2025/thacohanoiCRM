@@ -6,6 +6,7 @@ import {
   computeKpis, groupByDimension, crossDimension,
   DIMENSION_LABEL, type Dimension, type GroupRow, type ReportLead, type Pivot,
 } from '@/lib/reports';
+import type { SourceCatalog } from '@/lib/source';
 import { exportXlsx, type SheetData } from '@/lib/xlsx-export';
 import { Panel, Dropdown, BRAND, fmt, type Opt } from './ui';
 
@@ -38,7 +39,7 @@ const B10_METRICS: MetricCol[] = [
   { key: 'b10Loai', label: 'Loại·B10', tone: '#be123c' },
 ];
 
-export default function TablesTab({ leads, showB10, dims }: { leads: ReportLead[]; showB10: boolean; dims: Dimension[] }) {
+export default function TablesTab({ leads, showB10, dims, sourceCatalog }: { leads: ReportLead[]; showB10: boolean; dims: Dimension[]; sourceCatalog: SourceCatalog }) {
   const nowMs = useMemo(() => Date.now(), []);
   const [rowDim, setRowDim] = useState<Dimension>(() => dims[0]);
   const [colDim, setColDim] = useState<string>(''); // '' = không tách cột (bảng phẳng)
@@ -58,10 +59,10 @@ export default function TablesTab({ leads, showB10, dims }: { leads: ReportLead[
   const [asc, setAsc] = useState(false);
 
   const totals = useMemo(() => computeKpis(leads, nowMs), [leads, nowMs]);
-  const flatRows = useMemo(() => groupByDimension(leads, safeRowDim, nowMs), [leads, safeRowDim, nowMs]);
+  const flatRows = useMemo(() => groupByDimension(leads, safeRowDim, nowMs, sourceCatalog), [leads, safeRowDim, nowMs, sourceCatalog]);
   const pivot = useMemo<Pivot | null>(
-    () => (colDim ? crossDimension(leads, safeRowDim, colDim as Dimension) : null),
-    [leads, safeRowDim, colDim],
+    () => (colDim ? crossDimension(leads, safeRowDim, colDim as Dimension, sourceCatalog) : null),
+    [leads, safeRowDim, colDim, sourceCatalog],
   );
 
   const allMetrics = useMemo(() => (showB10 ? [...METRICS, ...B10_METRICS] : METRICS), [showB10]);
@@ -74,7 +75,7 @@ export default function TablesTab({ leads, showB10, dims }: { leads: ReportLead[
   const colOpts = dimOpts.filter((o) => o.value !== safeRowDim);
   const onRowDim = (d: string) => { setRowDim(d as Dimension); if (d === colDim) setColDim(''); };
 
-  const handleExport = () => exportXlsx('bao-cao-lead', buildSheets(leads, nowMs, safeRowDim, colDim, showB10, dims));
+  const handleExport = () => exportXlsx('bao-cao-lead', buildSheets(leads, nowMs, safeRowDim, colDim, showB10, dims, sourceCatalog));
 
   return (
     <div className="space-y-4">
@@ -316,8 +317,8 @@ function PivotTable({ pivot, rowLabel }: { pivot: Pivot; rowLabel: string }) {
 
 // ─── Build workbook ──────────────────────────────────────────────────────────
 
-function flatSheet(leads: ReportLead[], nowMs: number, dim: Dimension, metrics: MetricCol[]): SheetData {
-  const rows = groupByDimension(leads, dim, nowMs);
+function flatSheet(leads: ReportLead[], nowMs: number, dim: Dimension, metrics: MetricCol[], catalog: SourceCatalog): SheetData {
+  const rows = groupByDimension(leads, dim, nowMs, catalog);
   const totals = computeKpis(leads, nowMs);
   const header = [DIMENSION_LABEL[dim], ...metrics.map((m) => m.label)];
   const body = rows.map((r) => [r.label, ...metrics.map((m) => r[m.key] as number)]);
@@ -348,21 +349,21 @@ function totalsVal(totals: ReturnType<typeof computeKpis>, k: MetricKey): number
   }
 }
 
-function pivotSheet(leads: ReportLead[], rowDim: Dimension, colDim: Dimension): SheetData {
-  const p = crossDimension(leads, rowDim, colDim);
+function pivotSheet(leads: ReportLead[], rowDim: Dimension, colDim: Dimension, catalog: SourceCatalog): SheetData {
+  const p = crossDimension(leads, rowDim, colDim, catalog);
   const header = [DIMENSION_LABEL[rowDim], ...p.cols.map((c) => c.label), 'Tổng'];
   const body = p.rows.map((r) => [r.label, ...p.cols.map((c) => r.cells[c.key]?.leads ?? 0), r.total.leads]);
   const totalRow: (string | number)[] = ['Tổng', ...p.cols.map((c) => p.colTotals[c.key]?.leads ?? 0), p.grandTotal.leads];
   return { name: `${DIMENSION_LABEL[rowDim]} x ${DIMENSION_LABEL[colDim]}`, rows: [header, ...body, totalRow] };
 }
 
-function buildSheets(leads: ReportLead[], nowMs: number, rowDim: Dimension, colDim: string, showB10: boolean, dims: Dimension[]): SheetData[] {
+function buildSheets(leads: ReportLead[], nowMs: number, rowDim: Dimension, colDim: string, showB10: boolean, dims: Dimension[], catalog: SourceCatalog): SheetData[] {
   const sheets: SheetData[] = [];
   const metrics = showB10 ? [...METRICS, ...B10_METRICS] : METRICS;
   // Sheet đầu = bảng đang xem.
-  if (colDim) sheets.push(pivotSheet(leads, rowDim, colDim as Dimension));
+  if (colDim) sheets.push(pivotSheet(leads, rowDim, colDim as Dimension, catalog));
   // Mỗi chiều hợp lệ với cấp báo cáo 1 sheet chỉ số đầy đủ.
-  for (const d of dims) sheets.push(flatSheet(leads, nowMs, d, metrics));
+  for (const d of dims) sheets.push(flatSheet(leads, nowMs, d, metrics, catalog));
   return sheets;
 }
 

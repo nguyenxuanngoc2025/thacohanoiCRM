@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { CAN_VIEW_REPORTS } from '@/lib/nav';
 import { getOpenBrandIds, getInactiveShowroomIds } from '@/lib/company-brands';
+import { loadSourceCatalog } from '@/lib/source-catalog';
 import { getTenant } from '@/lib/tenant';
 import type { UserRole } from '@/types/database';
 import type { ReportLead } from '@/lib/reports';
@@ -142,10 +143,13 @@ export default async function ReportsPage({
   const reportLevel = roleToReportLevel(me.role as UserRole);
   const marketing = isMarketingRole(me.role as UserRole);
 
+  const sourceCatalog = await loadSourceCatalog(supabase);
+
   return (
     <ReportsView
       leads={leads}
       prevLeads={prevLeads}
+      sourceCatalog={sourceCatalog}
       range={range}
       from={sp.from ?? ymd(fromMs)}
       to={sp.to ?? ymd(toMs)}

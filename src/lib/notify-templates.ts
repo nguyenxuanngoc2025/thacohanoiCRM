@@ -5,7 +5,7 @@
 // không hiện trên app. Dùng tag <b>/<i> (không phải **...**) để KHÔNG đụng dấu * trong SĐT che (***).
 
 import { formatPhoneDisplay } from './phone';
-import { sourcePlatform, sourceLabel } from './source';
+import { sourcePlatform, sourceLabel, type SourceCatalog } from './source';
 
 // Che 3 số cuối SĐT khi gửi vào nhóm chung: chống TVBH xem trọn SĐT KH của TVBH khác.
 // TVBH phụ trách vẫn xem SĐT đầy đủ trong app (lead của mình).
@@ -36,6 +36,8 @@ export interface NewLeadInput {
   assignee: string | null;
   // Khách cũ đã có trên B10 (đối soát trước đó): có = thêm dòng cảnh báo để làm căn cứ phân giao.
   b10Prior?: { status: string | null; note: string | null } | null;
+  // Danh mục nguồn/kênh từ DB — có thì hiển thị đúng tên kênh tự tạo (vd "Tool"). Không có → fallback builtin.
+  catalog?: SourceCatalog;
 }
 
 // Cắt bớt nội dung chăm sóc B10 khi quá dài để tin Zalo không bị từ chối.
@@ -46,8 +48,8 @@ export function renderNewLead(i: NewLeadInput): string {
   // Nguồn data thật (Facebook/Google/TikTok…) — Google Sheet chỉ là kênh trung chuyển,
   // nguồn đã được gán khi cấu hình sheet nên hiển thị đúng nền tảng gốc.
   // Kèm chi tiết kênh nếu có (Lead Ads / Tin nhắn / Bình luận…) để biết lead đến từ đâu.
-  const platform = sourcePlatform(i.source);
-  const detail = sourceLabel(i.source);
+  const platform = sourcePlatform(i.source, i.catalog);
+  const detail = sourceLabel(i.source, i.catalog);
   const nguon = detail !== '—' ? `${platform} · ${detail}` : platform;
   // Luôn hiển thị dòng xe; chưa dò ra thì ghi rõ "chưa xác định".
   const xe = i.model?.trim() || 'chưa xác định';

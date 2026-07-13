@@ -10,6 +10,7 @@ import {
   sourceQuality, groupBySource, groupByModel, computeKpis, dailyTrend,
   type ReportLead,
 } from '@/lib/reports';
+import type { SourceCatalog } from '@/lib/source';
 import { exportXlsx } from '@/lib/xlsx-export';
 import { Panel, PALETTE, BRAND, fmt, DeltaArrow } from '../ui';
 import { tableSheet, type SheetCol } from '../report-export';
@@ -53,18 +54,19 @@ function TipWithWinRate({ active, payload, label }: { active?: boolean; payload?
 }
 
 export default function SourceTab({
-  leads, prevLeads, fromMs, toMs, showB10: _showB10,
+  leads, prevLeads, fromMs, toMs, showB10: _showB10, sourceCatalog,
 }: {
   leads: ReportLead[];
   prevLeads: ReportLead[];
   fromMs: number;
   toMs: number;
   showB10: boolean;
+  sourceCatalog: SourceCatalog;
 }) {
   const now = Date.now();
 
-  const quality = useMemo(() => sourceQuality(leads, prevLeads, now), [leads, prevLeads]);
-  const bySource = useMemo(() => groupBySource(leads, now), [leads]);
+  const quality = useMemo(() => sourceQuality(leads, prevLeads, now, sourceCatalog), [leads, prevLeads, sourceCatalog]);
+  const bySource = useMemo(() => groupBySource(leads, now, sourceCatalog), [leads, sourceCatalog]);
   const byModel = useMemo(() => groupByModel(leads, now), [leads]);
   const trend = useMemo(() => dailyTrend(leads, fromMs, toMs), [leads, fromMs, toMs]);
 

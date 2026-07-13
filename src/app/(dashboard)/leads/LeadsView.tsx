@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import LeadsTable, { type LeadRow, type Filters, EMPTY_FILTERS, applyScope } from './LeadsTable';
+import type { SourceCatalog } from '@/lib/source';
 import { isContacted } from '@/lib/lead-status';
 import { createClient } from '@/lib/supabase/client';
 
@@ -28,7 +29,7 @@ const THRESHOLD = 140; // px cuộn trong bảng để thu hết card
 export default function LeadsView({
   leads, models, brands, showrooms, assignees, teams,
   formBrands, formShowrooms, formTeams, fixedTeamId,
-  canCreate, canAssign, canDelete, b10Enabled, isTvbh,
+  canCreate, canAssign, canDelete, b10Enabled, isTvbh, sourceCatalog,
 }: {
   leads: LeadRow[];
   models: ModelOption[];
@@ -46,6 +47,7 @@ export default function LeadsView({
   canDelete: boolean;
   b10Enabled: boolean;
   isTvbh: boolean;
+  sourceCatalog: SourceCatalog;
 }) {
   const router = useRouter();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -73,7 +75,7 @@ export default function LeadsView({
   }, [router]);
 
   // Tập lead theo bộ lọc phạm vi → KPI cards tính từ đây để "nhảy" theo filter.
-  const scoped = useMemo(() => applyScope(leads, filters), [leads, filters]);
+  const scoped = useMemo(() => applyScope(leads, filters, sourceCatalog), [leads, filters, sourceCatalog]);
 
   const cards = useMemo<StatCard[]>(() => {
     const total = scoped.length;
@@ -167,6 +169,7 @@ export default function LeadsView({
           canDelete={canDelete}
           b10Enabled={b10Enabled}
           isTvbh={isTvbh}
+          sourceCatalog={sourceCatalog}
         />
       </div>
     </div>

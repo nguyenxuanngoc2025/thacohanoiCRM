@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { Users, PhoneCall, TrendingUp, FileSignature, Clock, XCircle, LayoutDashboard, Table2, BarChart2, GitBranch, Radio, ListFilter } from 'lucide-react';
 import { compareKpis, type ReportLead, type ReportLevel } from '@/lib/reports';
-import { sourcePlatform } from '@/lib/source';
+import { sourcePlatform, type SourceCatalog } from '@/lib/source';
 import { STATUS_LABEL, type LeadStatus } from '@/lib/lead-status';
 import { Dropdown, uniqOpts, BRAND, fmt, DeltaArrow, type Opt } from './ui';
 import { tabsForLevel, defaultTab, dimensionsForLevel, type ReportTab } from './report-level';
@@ -34,10 +34,11 @@ const TAB_ICONS: Record<ReportTab, React.ReactNode> = {
 };
 
 export default function ReportsView({
-  leads, prevLeads, range, from, to, fromMs, toMs, showB10, reportLevel, marketing,
+  leads, prevLeads, sourceCatalog, range, from, to, fromMs, toMs, showB10, reportLevel, marketing,
 }: {
   leads: ReportLead[];
   prevLeads: ReportLead[];
+  sourceCatalog: SourceCatalog;
   range: RangeKey;
   from: string;
   to: string;
@@ -67,7 +68,7 @@ export default function ReportsView({
     [leads, brand],
   );
   const showroomOpts = useMemo<Opt[]>(() => uniqOpts(leads, (l) => [l.showroom_id, l.showroom_name]), [leads]);
-  const sourceOpts = useMemo<Opt[]>(() => uniqOpts(leads, (l) => [l.source ? sourcePlatform(l.source) : null, l.source ? sourcePlatform(l.source) : null]), [leads]);
+  const sourceOpts = useMemo<Opt[]>(() => uniqOpts(leads, (l) => [l.source ? sourcePlatform(l.source, sourceCatalog) : null, l.source ? sourcePlatform(l.source, sourceCatalog) : null]), [leads, sourceCatalog]);
   const assigneeOpts = useMemo<Opt[]>(() => uniqOpts(leads, (l) => [l.assigned_to, l.assignee_name]), [leads]);
   const statusOpts = useMemo<Opt[]>(
     () => uniqOpts(leads, (l) => [l.status, l.status ? STATUS_LABEL[l.status as LeadStatus] : null]),
@@ -100,7 +101,7 @@ export default function ReportsView({
       (!brand || l.brand_id === brand) &&
       (!model || l.model_id === model) &&
       (!showroom || l.showroom_id === showroom) &&
-      (!source || (l.source ? sourcePlatform(l.source) === source : false)) &&
+      (!source || (l.source ? sourcePlatform(l.source, sourceCatalog) === source : false)) &&
       (!assignee || l.assigned_to === assignee) &&
       (!status || l.status === status));
 
@@ -272,7 +273,7 @@ export default function ReportsView({
       </div>
 
       {tab === 'overview' && (
-        <OverviewTab leads={filtered} fromMs={fromMs} toMs={toMs} reportLevel={reportLevel} prevLeads={filteredPrev} />
+        <OverviewTab leads={filtered} fromMs={fromMs} toMs={toMs} reportLevel={reportLevel} prevLeads={filteredPrev} sourceCatalog={sourceCatalog} />
       )}
       {tab === 'ranking' && (
         <RankingTab leads={filtered} prevLeads={filteredPrev} level={reportLevel} showB10={showB10} />
@@ -281,10 +282,10 @@ export default function ReportsView({
         <ManagementTab leads={filtered} prevLeads={filteredPrev} level={reportLevel} showB10={showB10} periodLabel={periodLabel} />
       )}
       {tab === 'source' && (
-        <SourceTab leads={filtered} prevLeads={filteredPrev} fromMs={fromMs} toMs={toMs} showB10={showB10} />
+        <SourceTab leads={filtered} prevLeads={filteredPrev} fromMs={fromMs} toMs={toMs} showB10={showB10} sourceCatalog={sourceCatalog} />
       )}
       {tab === 'tables' && (
-        <TablesTab leads={filtered} showB10={showB10} dims={dimensionsForLevel(reportLevel)} />
+        <TablesTab leads={filtered} showB10={showB10} dims={dimensionsForLevel(reportLevel)} sourceCatalog={sourceCatalog} />
       )}
     </div>
   );

@@ -1,5 +1,5 @@
 import { STATUS_LABEL, type LeadStatus } from './lead-status';
-import { sourcePlatform } from './source';
+import { sourcePlatform, type SourceCatalog } from './source';
 import { bestB10Status } from './b10';
 import { isLeadOverdue } from './overdue';
 
@@ -203,15 +203,15 @@ function groupBy(
   return rows;
 }
 
-export function groupBySource(leads: ReportLead[], nowMs: number): GroupRow[] {
+export function groupBySource(leads: ReportLead[], nowMs: number, catalog?: SourceCatalog): GroupRow[] {
   // Gom theo NGUỒN CHÍNH (Facebook, Zalo OA…) — fb_message/fb_comment/lead ads chỉ là chi tiết kênh.
-  return groupBy(leads, (l) => l.source ? sourcePlatform(l.source) : '__none__', (l) => l.source ? sourcePlatform(l.source) : 'Không rõ nguồn', nowMs);
+  return groupBy(leads, (l) => l.source ? sourcePlatform(l.source, catalog) : '__none__', (l) => l.source ? sourcePlatform(l.source, catalog) : 'Không rõ nguồn', nowMs);
 }
 
 /** Nguồn theo %chốt giảm dần kèm Δ%chốt so kỳ trước (chất lượng, không chỉ số lượng). */
-export function sourceQuality(current: ReportLead[], previous: ReportLead[], nowMs: number): RankedRow[] {
-  const prevByKey = new Map(groupBySource(previous, nowMs).map((r) => [r.key, r]));
-  const rows: RankedRow[] = groupBySource(current, nowMs).map((r) => ({ ...r, winRateDelta: Math.round((r.winRate - (prevByKey.get(r.key)?.winRate ?? 0)) * 10) / 10 }));
+export function sourceQuality(current: ReportLead[], previous: ReportLead[], nowMs: number, catalog?: SourceCatalog): RankedRow[] {
+  const prevByKey = new Map(groupBySource(previous, nowMs, catalog).map((r) => [r.key, r]));
+  const rows: RankedRow[] = groupBySource(current, nowMs, catalog).map((r) => ({ ...r, winRateDelta: Math.round((r.winRate - (prevByKey.get(r.key)?.winRate ?? 0)) * 10) / 10 }));
   rows.sort((a, b) => b.winRate - a.winRate || b.leads - a.leads);
   return rows;
 }
@@ -301,13 +301,13 @@ export function rankChildren(current: ReportLead[], previous: ReportLead[], leve
   return ranked;
 }
 
-export function groupByDimension(leads: ReportLead[], dim: Dimension, nowMs: number): GroupRow[] {
+export function groupByDimension(leads: ReportLead[], dim: Dimension, nowMs: number, catalog?: SourceCatalog): GroupRow[] {
   switch (dim) {
     case 'showroom': return groupByShowroom(leads, nowMs);
     case 'brand': return groupByBrand(leads, nowMs);
     case 'team': return groupByTeam(leads, nowMs);
     case 'model': return groupByModel(leads, nowMs);
-    case 'source': return groupBySource(leads, nowMs);
+    case 'source': return groupBySource(leads, nowMs, catalog);
     case 'assignee': return groupByAssignee(leads, nowMs);
     case 'status': return groupByStatus(leads, nowMs);
   }
@@ -337,34 +337,34 @@ export interface Pivot {
 const emptyCell = (): PivotCell => ({ leads: 0, won: 0 });
 
 /** Khoá + nhãn của 1 lead theo chiều phân tích. */
-function dimKey(l: ReportLead, dim: Dimension): [string, string] {
+function dimKey(l: ReportLead, dim: Dimension, catalog?: SourceCatalog): [string, string] {
   switch (dim) {
     case 'showroom': return [l.showroom_id ?? '__none__', l.showroom_name ?? 'Chưa gán showroom'];
     case 'brand': return [l.brand_id, l.brand_name];
     case 'team': return [l.sales_team_id ?? '__none__', l.team_name ?? 'Chưa gán phòng'];
     case 'model': return [l.model_id ?? '__none__', l.model_name ?? 'Chưa gán dòng xe'];
-    case 'source': return l.source ? [sourcePlatform(l.source), sourcePlatform(l.source)] : ['__none__', 'Không rõ nguồn'];
+    case 'source': return l.source ? [sourcePlatform(l.source, catalog), sourcePlatform(l.source, catalog)] : ['__none__', 'Không rõ nguồn'];
     case 'assignee': return [l.assigned_to ?? '__none__', l.assignee_name ?? 'Chưa giao'];
     case 'status': { const s = effectiveStatus(l); return [s ?? '__none__', s ? STATUS_LABEL[s] : 'Chưa phân loại']; }
   }
 }
 
 /** Khoá gom nhóm của 1 lead theo chiều (phần key, bỏ nhãn) — để lọc lead con khi drill-down. */
-export function keyOfDim(l: ReportLead, dim: Dimension): string {
-  return dimKey(l, dim)[0];
+export function keyOfDim(l: ReportLead, dim: Dimension, catalog?: SourceCatalog): string {
+  return dimKey(l, dim, catalog)[0];
 }
 
 /** Bảng chéo tổng quát: hàng theo rowDim, cột theo colDim; mỗi ô có số lead + ký HĐ. */
-export function crossDimension(leads: ReportLead[], rowDim: Dimension, colDim: Dimension): Pivot {
+export function crossDimension(leads: ReportLead[], rowDim: Dimension, colDim: Dimension, catalog?: SourceCatalog): Pivot {
   const colMap = new Map<string, string>();
   const rowMap = new Map<string, PivotRow>();
   const colTotals: Record<string, PivotCell> = {};
   const grandTotal = emptyCell();
 
   for (const l of leads) {
-    const [cId, cLabel] = dimKey(l, colDim);
+    const [cId, cLabel] = dimKey(l, colDim, catalog);
     if (!colMap.has(cId)) colMap.set(cId, cLabel);
-    const [rId, rLabel] = dimKey(l, rowDim);
+    const [rId, rLabel] = dimKey(l, rowDim, catalog);
     let row = rowMap.get(rId);
     if (!row) {
       row = { key: rId, label: rLabel, cells: {}, total: emptyCell() };

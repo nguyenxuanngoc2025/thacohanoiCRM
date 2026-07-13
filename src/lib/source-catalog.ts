@@ -1,4 +1,11 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+// Client tối giản (cấu trúc) — nhận mọi Supabase client bất kể schema generic, không ràng buộc 'public'.
+type CatalogDb = {
+  from: (table: string) => {
+    select: (cols: string) => {
+      order: (col: string) => PromiseLike<{ data: unknown[] | null; error: unknown }>;
+    };
+  };
+};
 
 export interface SourceChannelRow {
   platform_key: string;
@@ -76,7 +83,7 @@ export function assertSourceEditable(row: SourceChannelRow, patch: SourcePatch):
 }
 
 /** Đọc danh mục từ DB → catalog. Rỗng/lỗi → BUILTIN_CATALOG (an toàn, không chặn nghiệp vụ). */
-export async function loadSourceCatalog(db: SupabaseClient): Promise<SourceCatalog> {
+export async function loadSourceCatalog(db: CatalogDb): Promise<SourceCatalog> {
   try {
     const { data, error } = await db
       .from('lead_source_channels')

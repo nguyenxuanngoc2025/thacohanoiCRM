@@ -447,6 +447,8 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
 
     const fullName = payload.full_name ?? null;
     const { renderNewLead } = await import('@/lib/notify-templates');
+    const { loadSourceCatalog } = await import('@/lib/source-catalog');
+    const catalog = await loadSourceCatalog(db);
     const text = renderNewLead({
       showroom: srRow?.name ?? 'Showroom',
       team: teamName,
@@ -456,6 +458,7 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
       model: modelName,
       assignee: assigneeName,
       b10Prior,
+      catalog,
     });
 
     // Tên rác → kèm enrich để bot tra Zalo bù tên TRƯỚC khi gửi.

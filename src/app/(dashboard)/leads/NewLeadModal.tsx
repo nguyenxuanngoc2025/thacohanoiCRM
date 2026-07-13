@@ -4,13 +4,12 @@ import React, { useState, useTransition, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { X, UserPlus, Sparkles } from 'lucide-react';
 import { createLead, recommendAssignment } from './actions';
-import { DIGITAL_PLATFORMS, DEFAULT_PLATFORM_KEY } from '@/lib/platforms';
-import { SOURCE_VARIANTS } from '@/lib/source';
+import type { SourceCatalog } from '@/lib/source';
 import type { ModelOption, BrandOption, ShowroomOption, AssigneeOption, TeamOption } from './LeadsView';
 import ModalPortal from '@/components/ui/ModalPortal';
 
 export default function NewLeadModal({
-  brands, showrooms, models, assignees, teams, fixedTeamId, onClose,
+  brands, showrooms, models, assignees, teams, fixedTeamId, sourceCatalog, onClose,
 }: {
   brands: BrandOption[];
   showrooms: ShowroomOption[];
@@ -19,6 +18,8 @@ export default function NewLeadModal({
   teams: TeamOption[];
   // Phòng cố định theo cấp (tp_phong tạo lead cho chính phòng mình) — khoá + ẩn ô Phòng.
   fixedTeamId: string | null;
+  // Danh mục Nguồn & chi tiết kênh (đọc từ DB — tự quản lý ở /admin).
+  sourceCatalog: SourceCatalog;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -38,9 +39,12 @@ export default function NewLeadModal({
   // Phòng (sales_team): để trống = tự động theo cấu hình; chọn cụ thể khi khách muốn về 1 phòng.
   const [salesTeamId, setSalesTeamId] = useState(lockTeam ? (fixedTeamId as string) : '');
   const [modelId, setModelId] = useState('');
-  // Nguồn = kênh (platform key); nếu kênh có phân nhánh thì chọn thêm chi tiết kênh
-  const [sourceKey, setSourceKey] = useState<string>(DEFAULT_PLATFORM_KEY);
-  const variants = SOURCE_VARIANTS[sourceKey];
+  // Nguồn = kênh (platform key); nếu kênh có phân nhánh thì chọn thêm chi tiết kênh.
+  // Danh mục lấy từ DB (sourceCatalog) — tự quản lý ở /admin.
+  const digitalPlatforms = sourceCatalog.platforms;
+  const defaultKey = digitalPlatforms[0]?.key ?? '';
+  const [sourceKey, setSourceKey] = useState<string>(defaultKey);
+  const variants = sourceCatalog.variantsByKey[sourceKey];
   const [variant, setVariant] = useState<string>(variants?.[0]?.value ?? '');
   const [assignedTo, setAssignedTo] = useState('');
   const [note, setNote] = useState('');
@@ -110,16 +114,16 @@ export default function NewLeadModal({
   // Đổi kênh → đặt lại nhánh mặc định (nhánh đầu nếu kênh có phân nhánh)
   const onSourceChange = (key: string) => {
     setSourceKey(key);
-    setVariant(SOURCE_VARIANTS[key]?.[0]?.value ?? '');
+    setVariant(sourceCatalog.variantsByKey[key]?.[0]?.value ?? '');
   };
 
   const submit = () => {
     setError(null);
     if (!phone.trim()) { setError('Nhập số điện thoại.'); return; }
     if (!brandId) { setError('Chọn thương hiệu.'); return; }
-    // Kênh có phân nhánh → lưu giá trị nhánh (vd fb_message); không nhánh → lưu tên kênh
-    const platformName = DIGITAL_PLATFORMS.find((p) => p.key === sourceKey)?.name ?? sourceKey;
-    const source = variants ? (variant || variants[0].value) : platformName;
+    // Kênh có variant → lưu giá trị variant (vd fb_message / fb_tool); không variant → lưu tên Nguồn
+    const platformName = digitalPlatforms.find((p) => p.key === sourceKey)?.name ?? sourceKey;
+    const source = variants && variants.length >= 1 ? (variant || variants[0].value) : platformName;
     start(async () => {
       const res = await createLead({
         fullName,
@@ -228,11 +232,11 @@ export default function NewLeadModal({
           <div>
             <label className={lblCls}>Nguồn</label>
             <select value={sourceKey} onChange={(e) => onSourceChange(e.target.value)} className={inputCls}>
-              {DIGITAL_PLATFORMS.map((p) => <option key={p.key} value={p.key}>{p.name}</option>)}
+              {digitalPlatforms.map((p) => <option key={p.key} value={p.key}>{p.name}</option>)}
             </select>
           </div>
 
-          {variants && (
+          {variants && variants.length > 1 && (
             <div>
               <label className={lblCls}>Chi tiết kênh</label>
               <select value={variant} onChange={(e) => setVariant(e.target.value)} className={inputCls}>
