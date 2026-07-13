@@ -3,7 +3,7 @@
 import React, { useMemo, useRef, useState, useDeferredValue } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
-import { Users, PhoneCall, TrendingUp, FileSignature, Clock, XCircle, LayoutDashboard, Table2, BarChart2, GitBranch, ListFilter } from 'lucide-react';
+import { Users, PhoneCall, TrendingUp, FileSignature, Clock, Percent, LayoutDashboard, Table2, BarChart2, GitBranch, ListFilter } from 'lucide-react';
 import { compareKpis, type ReportLead, type ReportLevel } from '@/lib/reports';
 import { type RangeKey } from '@/lib/report-range';
 import { sourcePlatform, type SourceCatalog } from '@/lib/source';
@@ -123,7 +123,9 @@ export default function ReportsView({
   // Delta tỷ lệ (% - % = điểm %)
   const contactRate = (k: typeof kpis) => (k.total ? (k.contacted / k.total) * 100 : 0);
   const contactRateDelta = contactRate(cmp.current) - contactRate(cmp.previous);
-  const winRateDelta = cmp.current.winRate - cmp.previous.winRate;
+  // Tỷ lệ GDTD = số lead đang giao dịch / tổng lead
+  const dealRate = (k: typeof kpis) => (k.total ? (k.following / k.total) * 100 : 0);
+  const dealRateDelta = dealRate(cmp.current) - dealRate(cmp.previous);
 
   const setRange = (r: string) => {
     if (r === 'custom') { router.push(`/reports?range=custom&from=${cFrom}&to=${cTo}`); return; }
@@ -220,7 +222,7 @@ export default function ReportsView({
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
         <Kpi
           icon={<Users size={16} />}
-          label={isPersonal ? 'Lead được giao' : 'Tổng lead'}
+          label={isPersonal ? 'Lead được giao' : 'Tổng Lead'}
           value={fmt(kpis.total)}
           tone="#0f172a"
           delta={cmp.delta.total}
@@ -235,25 +237,25 @@ export default function ReportsView({
         />
         <Kpi
           icon={<TrendingUp size={16} />}
-          label="Đang giao dịch"
+          label="GDTD"
           value={fmt(kpis.following)}
           tone="#b45309"
           delta={cmp.delta.following}
         />
         <Kpi
+          icon={<Percent size={16} />}
+          label="Tỷ lệ GDTD"
+          value={`${dealRate(kpis).toFixed(1)}%`}
+          tone="#b45309"
+          delta={dealRateDelta}
+          deltaPct
+        />
+        <Kpi
           icon={<FileSignature size={16} />}
-          label={isPersonal ? 'Đã chốt' : 'Đã chốt'}
+          label="KHĐ"
           value={fmt(kpis.won)}
           tone="#047857"
           delta={cmp.delta.won}
-        />
-        <Kpi
-          icon={<XCircle size={16} />}
-          label={isPersonal ? 'Tỷ lệ chốt của tôi' : 'Tỷ lệ chốt'}
-          value={`${kpis.winRate}%`}
-          tone="#047857"
-          delta={winRateDelta}
-          deltaPct
         />
         <Kpi
           icon={<Clock size={16} />}
