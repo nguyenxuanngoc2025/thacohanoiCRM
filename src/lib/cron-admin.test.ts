@@ -62,9 +62,10 @@ TimersCalendar={ OnCalendar=*-*-* 06:00:00 Asia/Ho_Chi_Minh ; next_elapse=Mon 20
 });
 
 describe('classifyTimer', () => {
-  it('cron-* và zca-bot* là nhóm CRM, không nguy hiểm', () => {
+  it('cron-*, zca-bot* và leads-export là nhóm CRM, không nguy hiểm', () => {
     expect(classifyTimer('cron-health-digest.timer')).toEqual({ group: 'crm', dangerous: false });
     expect(classifyTimer('zca-bot-heal.timer')).toEqual({ group: 'crm', dangerous: false });
+    expect(classifyTimer('leads-export.timer')).toEqual({ group: 'crm', dangerous: false });
   });
 
   it('certbot + supabase-backup là hạ tầng, nguy hiểm', () => {
@@ -134,6 +135,7 @@ describe('cronTitle', () => {
     expect(cronTitle('cron-health-digest.timer')).toBe('Báo cáo sức khoẻ hệ thống');
     expect(cronTitle('supabase-backup.timer')).toBe('Sao lưu Supabase');
     expect(cronTitle('certbot.timer')).toBe('Gia hạn chứng chỉ SSL');
+    expect(cronTitle('leads-export.timer')).toBe('Xuất dự phòng bảng lead');
   });
 
   it('timer lạ → rơi về mô tả systemd nếu có', () => {

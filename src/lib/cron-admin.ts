@@ -51,7 +51,9 @@ const OS_TIMERS = [
 /** Phân nhóm timer + cờ nguy hiểm (mọi timer ngoài CRM đều nguy hiểm — cần xác nhận gắt). */
 export function classifyTimer(name: string): { group: TimerGroup; dangerous: boolean } {
   const base = name.replace(/\.timer$/, '');
-  if (base.startsWith('cron-') || base.startsWith('zca-bot')) return { group: 'crm', dangerous: false };
+  if (base.startsWith('cron-') || base.startsWith('zca-bot') || base === 'leads-export') {
+    return { group: 'crm', dangerous: false };
+  }
   if (base === 'certbot' || base.includes('supabase-backup') || base.includes('backup')) {
     return { group: 'infra', dangerous: true };
   }
@@ -76,6 +78,7 @@ const CRON_EXPLAIN: Record<string, string> = {
   'cron-poll-fb-messages': 'Quét tin nhắn Facebook mới, tạo thành lead trong CRM.',
   'cron-poll-fb-comments': 'Quét bình luận Facebook mới, tạo thành lead trong CRM.',
   'zca-bot-heal': 'Tự kiểm tra và hồi phục bot Zalo nếu bị rớt, giúp tin báo không bị nghẽn.',
+  'leads-export': 'Mỗi giờ xuất bảng lead của từng công ty ra file CSV rồi tải lên Google Drive — để phòng khi CRM lỗi vẫn còn dữ liệu khách hàng.',
   // Hạ tầng
   'certbot': 'Tự động gia hạn chứng chỉ bảo mật (HTTPS) cho website — hết hạn thì web báo "không an toàn".',
   'supabase-backup': 'Sao lưu toàn bộ cơ sở dữ liệu để phòng khi cần khôi phục.',
@@ -114,6 +117,7 @@ const CRON_TITLE: Record<string, string> = {
   'cron-poll-fb-messages': 'Quét tin nhắn Facebook',
   'cron-poll-fb-comments': 'Quét bình luận Facebook',
   'zca-bot-heal': 'Hồi phục bot Zalo',
+  'leads-export': 'Xuất dự phòng bảng lead',
   'certbot': 'Gia hạn chứng chỉ SSL',
   'supabase-backup': 'Sao lưu Supabase',
   'apt-daily': 'Kiểm tra cập nhật hệ thống',
