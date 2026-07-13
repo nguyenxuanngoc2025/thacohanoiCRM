@@ -95,7 +95,7 @@ export function applyScope(leads: LeadRow[], f: Filters): LeadRow[] {
 type Tab = 'all' | 'pending' | 'contacted' | 'overdue';
 type ColKey =
   | 'time' | 'name' | 'phone' | 'showroom' | 'team' | 'brand' | 'model' | 'platform' | 'assignee'
-  | 'contacted' | 'class' | 'contactedAt' | 'note' | 'source' | 'next' | 'count'
+  | 'contacted' | 'class' | 'failreason' | 'contactedAt' | 'note' | 'source' | 'next' | 'count'
   | 'b10on' | 'b10class' | 'b10note';
 
 const STATUS_ORDER: Record<string, number> = Object.fromEntries(
@@ -117,6 +117,7 @@ function compare(key: ColKey, a: LeadRow, b: LeadRow): number {
     case 'assignee': return (a.assignee_name ?? '').localeCompare(b.assignee_name ?? '', 'vi');
     case 'contacted': return (isContacted(a.last_contact_at) ? 1 : 0) - (isContacted(b.last_contact_at) ? 1 : 0);
     case 'class': return (STATUS_ORDER[a.status ?? ''] ?? 99) - (STATUS_ORDER[b.status ?? ''] ?? 99);
+    case 'failreason': return (a.fail_reason ?? '').localeCompare(b.fail_reason ?? '', 'vi');
     case 'b10on': return (a.b10_on ? 1 : 0) - (b.b10_on ? 1 : 0);
     case 'b10class': return (STATUS_ORDER[a.b10_status ?? ''] ?? 99) - (STATUS_ORDER[b.b10_status ?? ''] ?? 99);
     case 'b10note': return (a.b10_care_note ?? '').localeCompare(b.b10_care_note ?? '', 'vi');
@@ -137,6 +138,7 @@ const COLS: ColDef[] = [
   { key: 'phone', label: 'SĐT', pad: 'px-4' },
   { key: 'contacted', label: 'Trạng thái', pad: 'px-4' },
   { key: 'class', label: 'Phân loại', pad: 'px-4' },
+  { key: 'failreason', label: 'Lý do loại', pad: 'px-4' },
   { key: 'b10on', label: 'B10', pad: 'px-4' },
   { key: 'b10class', label: 'Trạng thái B10', pad: 'px-4' },
   { key: 'b10note', label: 'Nội dung chăm sóc B10', pad: 'px-4' },
@@ -809,6 +811,10 @@ export default function LeadsTable({
         return <StatusPicker lead={l} variant="contacted" pending={pending} start={start} />;
       case 'class':
         return <StatusPicker lead={l} variant="class" pending={pending} start={start} />;
+      case 'failreason':
+        return l.status === 'Fail' && l.fail_reason
+          ? <span className="text-rose-600 line-clamp-1 max-w-[220px] inline-block align-bottom" title={l.fail_reason}>{l.fail_reason}</span>
+          : <span className="text-slate-300">—</span>;
       case 'b10on':
         return l.b10_on
           ? <span className="inline-flex items-center gap-1 text-emerald-600 font-medium"><Check size={13} /></span>
@@ -1152,6 +1158,9 @@ export default function LeadsTable({
                   <div className="mt-1 text-xs text-slate-500 space-y-0.5">
                     <div>Phòng: <span className="text-slate-700">{l.team_name ?? 'Chưa phân'}</span></div>
                     <div>Phụ trách: <span className="text-slate-700">{l.assignee_name ?? 'Chưa giao'}</span></div>
+                    {l.status === 'Fail' && l.fail_reason && (
+                      <div>Lý do loại: <span className="text-rose-600">{l.fail_reason}</span></div>
+                    )}
                   </div>
                 </div>
               </div>

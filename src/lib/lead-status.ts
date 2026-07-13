@@ -28,6 +28,7 @@ export const FAIL_REASONS = [
   'Đã mua xe nơi khác',
   'Chỉ khảo giá, không mua',
   'Ngoài khả năng tài chính',
+  'KH ở tỉnh khác',
   'Trùng / spam',
   'Khác',
 ] as const;
