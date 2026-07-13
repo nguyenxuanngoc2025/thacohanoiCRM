@@ -32,8 +32,8 @@ export function Panel({ title, desc, action, children, fill }: {
 }
 
 /** Dropdown popup — đồng bộ style filter của trang Lead. */
-export function Dropdown({ value, onChange, placeholder, options, allowClear = true }: {
-  value: string; onChange: (v: string) => void; placeholder: string; options: Opt[]; allowClear?: boolean;
+export function Dropdown({ value, onChange, placeholder, options, allowClear = true, neutral = false }: {
+  value: string; onChange: (v: string) => void; placeholder: string; options: Opt[]; allowClear?: boolean; neutral?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
@@ -70,13 +70,15 @@ export function Dropdown({ value, onChange, placeholder, options, allowClear = t
   return (
     <>
       <button ref={btnRef} onClick={toggle}
-        className="flex w-full items-center justify-between gap-1.5 text-sm border rounded-lg px-2.5 py-1.5 outline-none transition-colors"
-        style={{
-          borderColor: active ? BRAND : '#e2e8f0',
-          background: active ? '#e6f0fa' : '#fff',
-          color: active ? BRAND : '#64748b',
-          fontWeight: active ? 600 : 400,
-        }}>
+        className="flex w-full items-center justify-between gap-1.5 text-sm border rounded-lg px-3 py-2 outline-none shadow-sm transition-colors"
+        style={neutral
+          ? { borderColor: '#cbd5e1', background: '#fff', color: '#334155', fontWeight: 500 }
+          : {
+              borderColor: active ? BRAND : '#e2e8f0',
+              background: active ? '#e6f0fa' : '#fff',
+              color: active ? BRAND : '#64748b',
+              fontWeight: active ? 600 : 400,
+            }}>
         <span className="truncate">{active ? (current?.label ?? value) : placeholder}</span>
         <ChevronDown size={13} className="opacity-60 shrink-0" />
       </button>

@@ -161,10 +161,10 @@ export default function ReportsView({
           )}
           <div className="w-44">
             <button ref={filterBtnRef} onClick={toggleFilter}
-              className="flex w-full items-center justify-center gap-1.5 text-sm border rounded-lg px-2.5 py-1.5 transition-colors"
+              className="flex w-full items-center justify-center gap-1.5 text-sm border rounded-lg px-3 py-2 shadow-sm transition-colors"
               style={hasFilter
                 ? { borderColor: BRAND, background: '#e6f0fa', color: BRAND, fontWeight: 600 }
-                : { borderColor: '#e2e8f0', background: '#fff', color: '#64748b' }}>
+                : { borderColor: '#cbd5e1', background: '#fff', color: '#334155', fontWeight: 500 }}>
               <ListFilter size={14} /> Bộ lọc
               {activeFilters > 0 && (
                 <span className="ml-0.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-bold text-white" style={{ background: BRAND }}>
@@ -174,7 +174,7 @@ export default function ReportsView({
             </button>
           </div>
           <div className="w-44">
-            <Dropdown value={range} onChange={setRange} placeholder="Thời gian" options={RANGE_OPTS} allowClear={false} />
+            <Dropdown value={range} onChange={setRange} placeholder="Thời gian" options={RANGE_OPTS} allowClear={false} neutral />
           </div>
           {range === 'custom' && (
             <div className="flex items-center gap-1.5 border rounded-lg px-2 py-1" style={{ borderColor: BRAND, background: '#e6f0fa' }}>
