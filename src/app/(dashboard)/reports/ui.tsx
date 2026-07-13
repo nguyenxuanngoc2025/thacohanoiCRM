@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { BRAND } from '@/lib/brand';
 
@@ -37,6 +38,7 @@ export function Dropdown({ value, onChange, placeholder, options, allowClear = t
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const active = value !== '';
   const current = options.find((o) => o.value === value);
 
@@ -47,6 +49,23 @@ export function Dropdown({ value, onChange, placeholder, options, allowClear = t
     setOpen(true);
   };
   const pick = (v: string) => { onChange(v); setOpen(false); };
+
+  // Đóng khi bấm ra ngoài (nút + menu) hoặc nhấn Esc — không chặn cả màn hình.
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as Node;
+      if (btnRef.current?.contains(t) || menuRef.current?.contains(t)) return;
+      setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('pointerdown', onDown, true);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onDown, true);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
 
   return (
     <>
@@ -61,30 +80,28 @@ export function Dropdown({ value, onChange, placeholder, options, allowClear = t
         <span className="truncate">{active ? (current?.label ?? value) : placeholder}</span>
         <ChevronDown size={13} className="opacity-60 shrink-0" />
       </button>
-      {open && pos && (
-        <>
-          <div style={{ position: 'fixed', inset: 0, zIndex: 9998 }} onClick={() => setOpen(false)} />
-          <div style={{
-            position: 'fixed', top: pos.top, left: pos.left, minWidth: pos.width, zIndex: 9999,
-            background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8,
-            boxShadow: '0 8px 24px rgba(0,0,0,0.12)', padding: 6, maxHeight: 280, overflowY: 'auto',
-          }}>
-            {allowClear && (
-              <button onClick={() => pick('')}
-                className="block w-full text-left text-sm rounded-md px-2.5 py-1.5 hover:bg-slate-50"
-                style={{ color: !active ? BRAND : '#475569', fontWeight: !active ? 600 : 400 }}>
-                {placeholder}
-              </button>
-            )}
-            {options.map((o) => (
-              <button key={o.value} onClick={() => pick(o.value)}
-                className="block w-full text-left text-sm rounded-md px-2.5 py-1.5 hover:bg-slate-50"
-                style={{ color: value === o.value ? BRAND : '#475569', fontWeight: value === o.value ? 600 : 400 }}>
-                {o.label}
-              </button>
-            ))}
-          </div>
-        </>
+      {open && pos && createPortal(
+        <div ref={menuRef} style={{
+          position: 'fixed', top: pos.top, left: pos.left, minWidth: pos.width, zIndex: 10000,
+          background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.12)', padding: 6, maxHeight: 280, overflowY: 'auto',
+        }}>
+          {allowClear && (
+            <button onClick={() => pick('')}
+              className="block w-full text-left text-sm rounded-md px-2.5 py-1.5 hover:bg-slate-50"
+              style={{ color: !active ? BRAND : '#475569', fontWeight: !active ? 600 : 400 }}>
+              {placeholder}
+            </button>
+          )}
+          {options.map((o) => (
+            <button key={o.value} onClick={() => pick(o.value)}
+              className="block w-full text-left text-sm rounded-md px-2.5 py-1.5 hover:bg-slate-50"
+              style={{ color: value === o.value ? BRAND : '#475569', fontWeight: value === o.value ? 600 : 400 }}>
+              {o.label}
+            </button>
+          ))}
+        </div>,
+        document.body,
       )}
     </>
   );
