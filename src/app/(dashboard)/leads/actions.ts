@@ -492,19 +492,27 @@ export async function createLead(input: NewLeadInput) {
   });
   if (scopeErr) return { ok: false as const, error: scopeErr };
 
+  // TVBH tạo lead: RLS yêu cầu assigned_to = chính họ. Để trống → tự gán bản thân.
+  const assignedTo = input.assignedTo ?? (me.role === 'tvbh' ? user.id : null);
+
   // Phòng: ưu tiên phòng chỉ định; nếu trống nhưng có TVBH thì suy ra phòng của TVBH (giữ liên kết).
   // Cấp trưởng phòng (scope.teamId cố định) bỏ trống → dùng luôn phòng của họ.
   let salesTeamId = input.salesTeamId ?? scope.teamId;
-  if (!salesTeamId && input.assignedTo) {
-    const { data: tvbh } = await db.from('users').select('sales_team_id').eq('id', input.assignedTo).maybeSingle();
+  if (!salesTeamId && assignedTo) {
+    const { data: tvbh } = await db.from('users').select('sales_team_id').eq('id', assignedTo).maybeSingle();
     salesTeamId = tvbh?.sales_team_id ?? null;
   }
-  // Showroom: cấp trưởng phòng bỏ trống → suy từ showroom phòng (scope.showroomIds[0]).
-  const showroomId = input.showroomId ?? (scope.teamId && scope.showroomIds?.length ? scope.showroomIds[0] : null);
+  // Showroom: cấp trưởng phòng bỏ trống → suy từ showroom phòng (scope.showroomIds[0]); còn lại
+  // (marketing showroom…) suy từ showroom của phòng đã chọn — cần cho RLS insert theo showroom.
+  let showroomId = input.showroomId ?? (scope.teamId && scope.showroomIds?.length ? scope.showroomIds[0] : null);
+  if (!showroomId && salesTeamId) {
+    const { data: team } = await db.from('sales_teams').select('showroom_id').eq('id', salesTeamId).maybeSingle();
+    showroomId = (team?.showroom_id as string | null) ?? null;
+  }
 
   const note = input.note.trim();
   // Đã có TVBH ngay khi tạo → đặt đồng hồ SLA từ bây giờ; chưa giao thì chưa tính hạn.
-  const nextContactAt = input.assignedTo ? await slaFirstResponseAt(db, me.company_id) : null;
+  const nextContactAt = assignedTo ? await slaFirstResponseAt(db, me.company_id) : null;
   const { data: inserted, error } = await db
     .from('leads')
     .insert({
@@ -513,7 +521,7 @@ export async function createLead(input: NewLeadInput) {
       showroom_id: showroomId,
       sales_team_id: salesTeamId,
       model_id: input.modelId,
-      assigned_to: input.assignedTo,
+      assigned_to: assignedTo,
       phone,
       phone_raw: input.phone.trim(),
       full_name: input.fullName.trim() || null,
