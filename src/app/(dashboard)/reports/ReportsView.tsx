@@ -3,7 +3,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
-import { Users, PhoneCall, TrendingUp, FileSignature, Clock, XCircle, LayoutDashboard, Table2, BarChart2, GitBranch, Radio, ListFilter } from 'lucide-react';
+import { Users, PhoneCall, TrendingUp, FileSignature, Clock, XCircle, LayoutDashboard, Table2, BarChart2, GitBranch, ListFilter } from 'lucide-react';
 import { compareKpis, type ReportLead, type ReportLevel } from '@/lib/reports';
 import { type RangeKey } from '@/lib/report-range';
 import { sourcePlatform, type SourceCatalog } from '@/lib/source';
@@ -14,7 +14,6 @@ import OverviewTab from './OverviewTab';
 import TablesTab from './TablesTab';
 import RankingTab from './tabs/RankingTab';
 import ManagementTab from './tabs/ManagementTab';
-import SourceTab from './tabs/SourceTab';
 
 const RANGE_OPTS: Opt[] = [
   { value: 'today', label: 'Hôm nay' },
@@ -29,7 +28,6 @@ const TAB_LABELS: Record<ReportTab, string> = {
   overview: 'Tổng quan',
   ranking: 'Xếp hạng',
   management: 'Bảng quản trị',
-  source: 'Nguồn & Kênh',
   tables: 'Bảng chi tiết',
 };
 
@@ -37,12 +35,11 @@ const TAB_ICONS: Record<ReportTab, React.ReactNode> = {
   overview: <LayoutDashboard size={15} />,
   ranking: <BarChart2 size={15} />,
   management: <GitBranch size={15} />,
-  source: <Radio size={15} />,
   tables: <Table2 size={15} />,
 };
 
 export default function ReportsView({
-  leads, prevLeads, sourceCatalog, range, from, to, fromMs, toMs, showB10, reportLevel, marketing,
+  leads, prevLeads, sourceCatalog, range, from, to, fromMs, toMs, showB10, reportLevel,
 }: {
   leads: ReportLead[];
   prevLeads: ReportLead[];
@@ -54,13 +51,12 @@ export default function ReportsView({
   toMs: number;
   showB10: boolean;
   reportLevel: ReportLevel;
-  marketing: boolean;
 }) {
   const router = useRouter();
   const nowMs = useMemo(() => Date.now(), []);
 
   const tabs = tabsForLevel(reportLevel);
-  const [tab, setTab] = useState<ReportTab>(defaultTab(reportLevel, marketing));
+  const [tab, setTab] = useState<ReportTab>(defaultTab(reportLevel));
   const [brand, setBrand] = useState('');
   const [model, setModel] = useState('');
   const [showroom, setShowroom] = useState('');
@@ -284,9 +280,6 @@ export default function ReportsView({
       )}
       {tab === 'management' && (
         <ManagementTab leads={filtered} prevLeads={filteredPrev} level={reportLevel} showB10={showB10} periodLabel={periodLabel} sourceCatalog={sourceCatalog} />
-      )}
-      {tab === 'source' && (
-        <SourceTab leads={filtered} prevLeads={filteredPrev} fromMs={fromMs} toMs={toMs} showB10={showB10} sourceCatalog={sourceCatalog} />
       )}
       {tab === 'tables' && (
         <TablesTab leads={filtered} showB10={showB10} dims={dimensionsForLevel(reportLevel)} sourceCatalog={sourceCatalog} />

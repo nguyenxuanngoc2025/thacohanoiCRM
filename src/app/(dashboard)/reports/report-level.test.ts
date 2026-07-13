@@ -18,21 +18,20 @@ describe('tabsForLevel', () => {
   it('personal ẩn ranking + management', () => {
     const tabs = tabsForLevel('personal');
     expect(tabs).toContain('overview');
-    expect(tabs).toContain('source');
     expect(tabs).toContain('tables');
     expect(tabs).not.toContain('ranking');
     expect(tabs).not.toContain('management');
+    expect(tabs).not.toContain('source');
   });
-  it('company có đủ 5 tab', () => {
-    expect(tabsForLevel('company')).toEqual(['overview', 'ranking', 'management', 'source', 'tables']);
+  it('company có 4 tab (không còn tab Nguồn)', () => {
+    expect(tabsForLevel('company')).toEqual(['overview', 'ranking', 'management', 'tables']);
   });
 });
 
 describe('defaultTab', () => {
-  it('marketing mặc định source, còn lại overview', () => {
-    expect(defaultTab('company', true)).toBe('source');
-    expect(defaultTab('company', false)).toBe('overview');
-    expect(defaultTab('personal', true)).toBe('source');
+  it('luôn mặc định overview', () => {
+    expect(defaultTab('company')).toBe('overview');
+    expect(defaultTab('personal')).toBe('overview');
   });
 });
 

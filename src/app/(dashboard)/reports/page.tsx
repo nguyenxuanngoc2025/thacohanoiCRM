@@ -8,7 +8,7 @@ import type { UserRole } from '@/types/database';
 import type { ReportLead } from '@/lib/reports';
 import ReportsView from './ReportsView';
 import { resolveRange, isRangeKey } from '@/lib/report-range';
-import { roleToReportLevel, isMarketingRole } from './report-level';
+import { roleToReportLevel } from './report-level';
 
 export const dynamic = 'force-dynamic';
 
@@ -116,9 +116,8 @@ export default async function ReportsPage({
     .map(mapLead)
     .filter((l) => !inactiveSrIds.has(String(l.showroom_id ?? '')));
 
-  // Suy cấp báo cáo + vai trò marketing
+  // Suy cấp báo cáo
   const reportLevel = roleToReportLevel(me.role as UserRole);
-  const marketing = isMarketingRole(me.role as UserRole);
 
   const sourceCatalog = await loadSourceCatalog(supabase);
 
@@ -134,7 +133,6 @@ export default async function ReportsPage({
       toMs={toMs}
       showB10={showB10}
       reportLevel={reportLevel}
-      marketing={marketing}
     />
   );
 }
