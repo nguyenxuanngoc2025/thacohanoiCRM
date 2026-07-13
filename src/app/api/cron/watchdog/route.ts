@@ -3,6 +3,7 @@ import { createServiceClient } from '@/lib/supabase/server';
 import { checkCronSecret } from '@/lib/cron-auth';
 import { getPlatformSetting, setPlatformSetting } from '@/lib/platform-settings';
 import { gatherSystemHealth, type SystemHealth } from '@/lib/system-health';
+import { loadAlertRouting, buildAlertInserts } from '@/lib/alert-dispatch';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,10 +14,10 @@ export const dynamic = 'force-dynamic';
  *  - Chống spam (dedup): chỉ báo LẠI khi tập lỗi ĐỔI, hoặc quá 6 giờ kể từ lần báo trước.
  *  - Khi hết lỗi (đã khôi phục): báo 1 tin "đã khôi phục" rồi thôi.
  * Lead vẫn được lưu bình thường dù có lỗi — watchdog chỉ để CON NGƯỜI biết mà xử lý sớm.
+ * Định tuyến đích cảnh báo (cá nhân / nhóm BLĐ) tách sang lib/alert-dispatch (dùng chung health-digest).
  */
 
 const REALERT_MS = 6 * 3600 * 1000; // báo lại cùng lỗi sau 6 giờ
-const WATCHDOG_ALERT_TARGET_KEY = 'watchdog_alert_target';
 
 interface WatchState { sig: string; at: number }
 
@@ -59,62 +60,13 @@ export async function POST(request: NextRequest) {
   const service = createServiceClient();
 
   // Mọi công ty có nhóm Zalo đang hoạt động → cần theo dõi sức khoẻ.
-  // Đích nhận cảnh báo = nhóm BLĐ (scope='management', không gắn phòng). Nếu công ty chưa cấu
-  // hình nhóm BLĐ thì vẫn tính health (để dashboard/summary thấy) nhưng KHÔNG đẩy tin (no_target).
-  const { data: allChannels } = await service
-    .from('notification_channels')
-    .select('id, company_id, channel, target, scope, sales_team_id')
-    .eq('is_active', true);
-
+  // Định tuyến đích (cá nhân / nhóm BLĐ) + danh sách công ty lấy từ helper dùng chung.
+  const routing = await loadAlertRouting(service);
   const companyIds = [
-    ...new Set(
-      ((allChannels ?? []) as { company_id: string | null }[])
-        .map((c) => c.company_id)
-        .filter((x): x is string => !!x),
-    ),
+    ...new Set([...routing.zaloChannelByCompany.keys(), ...routing.mgmtByCompany.keys()]),
   ];
-
-  const mgmtByCompany = new Map<string, { id: string; channel: string; target: string }[]>();
-  // 1 kênh zalo bất kỳ của công ty — dùng làm channel_id để child (poll theo company) nhặt được
-  // tin cảnh báo cá nhân (payload.target sẽ override đích thật sang Zalo cá nhân).
-  const zaloChannelByCompany = new Map<string, string>();
-  for (const c of (allChannels ?? []) as { id: string; company_id: string | null; channel: string; target: string; scope: string; sales_team_id: string | null }[]) {
-    if (!c.company_id) continue;
-    if (c.channel === 'zalo' && !zaloChannelByCompany.has(c.company_id)) zaloChannelByCompany.set(c.company_id, c.id);
-    if (c.scope !== 'management' || c.sales_team_id) continue;
-    (mgmtByCompany.get(c.company_id) ?? mgmtByCompany.set(c.company_id, []).get(c.company_id)!).push({ id: c.id, channel: c.channel, target: c.target });
-  }
-
-  // Đích cảnh báo cá nhân (Zalo cá nhân người vận hành) — ưu tiên hơn nhóm BLĐ nếu đã cấu hình.
-  // platform_settings['watchdog_alert_target'] = {"target":"<uid>","thread_type":0,"label":"..."}
-  let personal: { target: string; thread_type: number } | null = null;
-  try {
-    const raw = await getPlatformSetting(WATCHDOG_ALERT_TARGET_KEY);
-    const j = raw ? (JSON.parse(raw) as { target?: string; thread_type?: number }) : null;
-    if (j?.target) personal = { target: j.target, thread_type: j.thread_type === 0 ? 0 : 1 };
-  } catch { personal = null; }
-
-  // Dựng các dòng notifications cho 1 tin cảnh báo, theo đích cá nhân hoặc nhóm BLĐ.
-  const buildInserts = (
-    companyId: string,
-    text: string,
-  ): Record<string, unknown>[] | null => {
-    if (personal) {
-      // Gắn 1 channel_id zalo của công ty để child poll được; payload.target override sang Zalo cá nhân.
-      const channelId = zaloChannelByCompany.get(companyId);
-      if (!channelId) return null;
-      return [{
-        channel: 'zalo', channel_id: channelId, status: 'pending',
-        payload: { event: 'system_alert', target: personal.target, thread_type: personal.thread_type, text },
-      }];
-    }
-    const channels = mgmtByCompany.get(companyId) ?? [];
-    if (channels.length === 0) return null;
-    return channels.map((c) => ({
-      channel: c.channel, channel_id: c.id, status: 'pending',
-      payload: { event: 'system_alert', target: c.target, thread_type: 1, text },
-    }));
-  };
+  const buildInserts = (companyId: string, text: string) =>
+    buildAlertInserts(routing, companyId, text, 'system_alert');
 
   const summary: { company: string; overall: string; sent: boolean; reason: string }[] = [];
 
