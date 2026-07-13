@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  computeKpis, computeFunnel, groupBySource, groupByAssignee, groupByModel,
+  computeKpis, computeFunnel, groupBySource, groupByChannel, groupByAssignee, groupByModel,
   dailyTrend, failReasons, statusDistribution, isOverdue, crossShowroomBrand, crossDimension,
   effectiveStatus, groupByTeam, groupByDimension, childDimension, compareKpis, rankChildren,
   sourceQuality,
@@ -151,6 +151,36 @@ describe('groupBySource', () => {
     expect(fb.fail).toBe(1);
     expect(fb.failRate).toBe(25);
     expect(fb.overdue).toBe(1);
+  });
+});
+
+describe('groupByChannel', () => {
+  it('gom theo CHI TIẾT KÊNH (giá trị source thô), nhãn dùng sourceLabel', () => {
+    const leads = [
+      L({ source: 'facebook' }),
+      L({ source: 'facebook' }),
+      L({ source: 'fb_message' }),
+    ];
+    const rows = groupByChannel(leads, NOW);
+    // facebook và fb_message là 2 kênh KHÁC nhau (khác groupBySource gộp về Facebook)
+    expect(rows).toHaveLength(2);
+    const fb = rows.find((r) => r.key === 'facebook')!;
+    expect(fb.leads).toBe(2);
+    expect(fb.label).toBe('Lead Ads');
+    const msg = rows.find((r) => r.key === 'fb_message')!;
+    expect(msg.leads).toBe(1);
+    expect(msg.label).toBe('Tin nhắn');
+  });
+
+  it('source null → nhóm __none__ nhãn "Không rõ kênh"', () => {
+    const rows = groupByChannel([L({ source: null })], NOW);
+    expect(rows[0].key).toBe('__none__');
+    expect(rows[0].label).toBe('Không rõ kênh');
+  });
+
+  it('groupByDimension("channel") = groupByChannel', () => {
+    const leads = [L({ source: 'facebook' }), L({ source: 'fb_message' })];
+    expect(groupByDimension(leads, 'channel', NOW)).toEqual(groupByChannel(leads, NOW));
   });
 });
 

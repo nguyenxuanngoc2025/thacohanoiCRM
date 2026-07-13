@@ -1,5 +1,5 @@
 import { STATUS_LABEL, type LeadStatus } from './lead-status';
-import { sourcePlatform, type SourceCatalog } from './source';
+import { sourcePlatform, sourceLabel, type SourceCatalog } from './source';
 import { bestB10Status } from './b10';
 import { isLeadOverdue } from './overdue';
 
@@ -208,6 +208,11 @@ export function groupBySource(leads: ReportLead[], nowMs: number, catalog?: Sour
   return groupBy(leads, (l) => l.source ? sourcePlatform(l.source, catalog) : '__none__', (l) => l.source ? sourcePlatform(l.source, catalog) : 'Không rõ nguồn', nowMs);
 }
 
+/** Gom theo CHI TIẾT KÊNH (giá trị source thô: facebook/fb_message/lead ads…), nhãn dùng sourceLabel. */
+export function groupByChannel(leads: ReportLead[], nowMs: number, catalog?: SourceCatalog): GroupRow[] {
+  return groupBy(leads, (l) => l.source ?? '__none__', (l) => l.source ? sourceLabel(l.source, catalog) : 'Không rõ kênh', nowMs);
+}
+
 /** Nguồn theo %chốt giảm dần kèm Δ%chốt so kỳ trước (chất lượng, không chỉ số lượng). */
 export function sourceQuality(current: ReportLead[], previous: ReportLead[], nowMs: number, catalog?: SourceCatalog): RankedRow[] {
   const prevByKey = new Map(groupBySource(previous, nowMs, catalog).map((r) => [r.key, r]));
@@ -256,7 +261,7 @@ export function groupByStatus(leads: ReportLead[], nowMs: number): GroupRow[] {
 }
 
 /** Các chiều phân tích dùng cho tab Bảng dữ liệu. */
-export type Dimension = 'showroom' | 'brand' | 'team' | 'model' | 'source' | 'assignee' | 'status';
+export type Dimension = 'showroom' | 'brand' | 'team' | 'model' | 'source' | 'channel' | 'assignee' | 'status';
 
 // Thứ tự khai báo = thứ tự hiện trong dropdown; 'model' đặt ngay sau 'brand' (dòng xe là cấp con của thương hiệu).
 export const DIMENSION_LABEL: Record<Dimension, string> = {
@@ -265,6 +270,7 @@ export const DIMENSION_LABEL: Record<Dimension, string> = {
   team: 'Phòng bán hàng',
   model: 'Dòng xe',
   source: 'Nguồn',
+  channel: 'Chi tiết kênh',
   assignee: 'Tư vấn bán hàng',
   status: 'Trạng thái',
 };
@@ -308,6 +314,7 @@ export function groupByDimension(leads: ReportLead[], dim: Dimension, nowMs: num
     case 'team': return groupByTeam(leads, nowMs);
     case 'model': return groupByModel(leads, nowMs);
     case 'source': return groupBySource(leads, nowMs, catalog);
+    case 'channel': return groupByChannel(leads, nowMs, catalog);
     case 'assignee': return groupByAssignee(leads, nowMs);
     case 'status': return groupByStatus(leads, nowMs);
   }
@@ -344,6 +351,7 @@ function dimKey(l: ReportLead, dim: Dimension, catalog?: SourceCatalog): [string
     case 'team': return [l.sales_team_id ?? '__none__', l.team_name ?? 'Chưa gán phòng'];
     case 'model': return [l.model_id ?? '__none__', l.model_name ?? 'Chưa gán dòng xe'];
     case 'source': return l.source ? [sourcePlatform(l.source, catalog), sourcePlatform(l.source, catalog)] : ['__none__', 'Không rõ nguồn'];
+    case 'channel': return l.source ? [l.source, sourceLabel(l.source, catalog)] : ['__none__', 'Không rõ kênh'];
     case 'assignee': return [l.assigned_to ?? '__none__', l.assignee_name ?? 'Chưa giao'];
     case 'status': { const s = effectiveStatus(l); return [s ?? '__none__', s ? STATUS_LABEL[s] : 'Chưa phân loại']; }
   }
