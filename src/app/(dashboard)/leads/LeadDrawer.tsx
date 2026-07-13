@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useEffect, useTransition } from 'react';
+import React, { useState, useEffect, useRef, useTransition } from 'react';
 import { X, PhoneCall, RefreshCw, Clock, Save, Pencil, Check, History } from 'lucide-react';
 import { formatPhoneDisplay } from '@/lib/phone';
 import { type SourceCatalog } from '@/lib/source';
+import { planDrawerSave, isDrawerDirty, type DrawerBaseline } from '@/lib/lead-drawer-save';
 import { STATUS_OPTIONS, FAIL_REASONS, type LeadStatus } from '@/lib/lead-status';
 import { updateLead, reassignLead, reassignTeam, renameLead, setLeadSource, getLeadLogs, type LeadLogItem } from './actions';
 import type { LeadRow } from './LeadsTable';
@@ -68,6 +69,26 @@ export default function LeadDrawer({
   const [pending, start] = useTransition();
   const [logs, setLogs] = useState<LeadLogItem[] | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
+  const [confirmClose, setConfirmClose] = useState(false);
+
+  // Giá trị gốc để so dirty — cập nhật lại sau khi lưu thành công (hết dirty).
+  const [base, setBase] = useState<DrawerBaseline>({
+    source: lead.source ?? '',
+    salesTeamId: lead.sales_team_id ?? '',
+    assignedTo: lead.assigned_to ?? '',
+    status: lead.status ?? '',
+    modelId: lead.model_id ?? '',
+    nextDate: toDateInput(lead.next_contact_at),
+    failReason: initReason,
+  });
+  const effFailReason = reasonSel === 'Khác' ? customReason : reasonSel;
+  const plan = planDrawerSave(base, {
+    source: sourceVal, salesTeamId, assignedTo, status, modelId, nextDate, failReason: effFailReason, note,
+  });
+  const dirty = isDrawerDirty(plan);
+  const dirtyRef = useRef(dirty);
+  dirtyRef.current = dirty;
+  const tryClose = () => { if (dirtyRef.current) setConfirmClose(true); else onClose(); };
 
   const brandModels = models.filter((m) => m.brand_id === lead.brand_id);
   // Phòng bán hàng của ĐÚNG showroom + có bán thương hiệu của lead (phòng gắn TẬP brand_ids).
@@ -94,104 +115,86 @@ export default function LeadDrawer({
     });
   };
 
-  const onReassign = (next: string) => {
-    const prev = assignedTo;
-    setAssignedTo(next);
-    start(async () => {
-      const res = await reassignLead(lead.id, next || null);
-      if (res.ok) {
-        setFlash('Đã đổi người phụ trách.');
-        getLeadLogs(lead.id).then(setLogs);
-        setTimeout(() => setFlash(null), 2500);
-      } else {
-        setAssignedTo(prev);
-        setFlash(res.error ?? 'Đổi phụ trách thất bại.');
-      }
-    });
-  };
+  // 4 ô dưới đây chỉ ĐỔI TẠM (state) — ghi thật khi bấm nút "Lưu".
+  const onPickAssignee = (next: string) => setAssignedTo(next);
 
-  const onSetSource = (val: string) => {
-    const prevVal = sourceVal;
-    const prevKey = platformKey;
+  const onPickChannel = (val: string) => {
     setSourceVal(val);
     setPlatformKey(platformKeyOf(val));
-    start(async () => {
-      const res = await setLeadSource(lead.id, val);
-      if (res.ok) {
-        setFlash('Đã đổi nguồn.');
-        getLeadLogs(lead.id).then(setLogs);
-        setTimeout(() => setFlash(null), 2500);
-      } else {
-        setSourceVal(prevVal);
-        setPlatformKey(prevKey);
-        setFlash(res.error ?? 'Đổi nguồn thất bại.');
-      }
-    });
   };
 
-  // Đổi Nguồn → chọn kênh đầu tiên của nền tảng đó rồi lưu.
+  // Đổi Nguồn → tự chọn kênh đầu tiên của nền tảng đó (chưa lưu).
   const onChangePlatform = (key: string) => {
+    setPlatformKey(key);
     const first = sourceCatalog.variantsByKey[key]?.[0]?.value;
-    if (!first || first === sourceVal) { setPlatformKey(key); return; }
-    onSetSource(first);
+    if (first && first !== sourceVal) setSourceVal(first);
   };
 
-  const onReassignTeam = (next: string) => {
-    const prev = salesTeamId;
+  // Đổi phòng → reset phụ trách (TVBH phải thuộc phòng mới), chưa lưu.
+  const onPickTeam = (next: string) => {
     setSalesTeamId(next);
-    start(async () => {
-      const res = await reassignTeam(lead.id, next || null);
-      if (res.ok) {
-        // Đổi phòng có thể gỡ phụ trách (TP phòng mới tự phân lại) → đồng bộ UI.
-        if (res.clearedAssignee) setAssignedTo('');
-        setFlash(res.clearedAssignee
-          ? 'Đã chuyển phòng — gỡ phụ trách để trưởng phòng phân lại.'
-          : 'Đã chuyển phòng bán hàng.');
-        getLeadLogs(lead.id).then(setLogs);
-        setTimeout(() => setFlash(null), 2500);
-      } else {
-        setSalesTeamId(prev);
-        setFlash(res.error ?? 'Chuyển phòng thất bại.');
-      }
-    });
+    setAssignedTo('');
   };
 
   useEffect(() => {
     getLeadLogs(lead.id).then(setLogs);
   }, [lead.id]);
 
-  // Đóng bằng phím Esc
+  // Đóng bằng phím Esc — còn thay đổi chưa lưu thì hỏi trước.
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (dirtyRef.current) setConfirmClose(true); else onClose();
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
   const onSave = () => {
+    const refreshFail = (msg: string) => { setFlash(msg); getLeadLogs(lead.id).then(setLogs); };
     start(async () => {
-      const res = await updateLead({
-        leadId: lead.id,
-        status: status || null,
-        failReason: reasonSel === 'Khác' ? customReason : reasonSel,
-        modelId: modelId || null,
-        note,
-        nextContactAt: nextDate ? new Date(nextDate + 'T00:00:00').toISOString() : null,
-      });
-      if (res?.ok) {
-        setFlash('Đã lưu cập nhật.');
-        setNote('');
-        getLeadLogs(lead.id).then(setLogs);
-        setTimeout(() => setFlash(null), 2500);
-      } else {
-        setFlash(res?.error ?? 'Lưu thất bại.');
+      // 1. Nguồn
+      if (plan.sourceChanged) {
+        const r = await setLeadSource(lead.id, sourceVal);
+        if (!r.ok) return refreshFail(r.error ?? 'Đổi nguồn thất bại.');
       }
+      // 2. Phòng bán hàng (có thể xoá phụ trách)
+      let teamCleared = false;
+      if (plan.teamChanged) {
+        const r = await reassignTeam(lead.id, salesTeamId || null);
+        if (!r.ok) return refreshFail(r.error ?? 'Chuyển phòng thất bại.');
+        teamCleared = !!r.clearedAssignee;
+      }
+      // 3. Phụ trách — bỏ qua nếu đổi phòng vừa xoá phụ trách và đang để trống (tránh log thừa)
+      if (plan.assigneeChanged && !(teamCleared && assignedTo === '')) {
+        const r = await reassignLead(lead.id, assignedTo || null);
+        if (!r.ok) return refreshFail(r.error ?? 'Đổi phụ trách thất bại.');
+      }
+      // 4. Phân loại/lý do/dòng xe/ghi chú/hẹn gọi lại
+      if (plan.fieldsChanged) {
+        const r = await updateLead({
+          leadId: lead.id,
+          status: status || null,
+          failReason: effFailReason,
+          modelId: modelId || null,
+          note,
+          nextContactAt: nextDate ? new Date(nextDate + 'T00:00:00').toISOString() : null,
+        });
+        if (!r?.ok) return refreshFail(r?.error ?? 'Lưu thất bại.');
+      }
+      // Thành công hết → chốt baseline (hết dirty), xoá ô ghi chú, refresh lịch sử.
+      setBase({ source: sourceVal, salesTeamId, assignedTo, status, modelId, nextDate, failReason: effFailReason });
+      setNote('');
+      setFlash('Đã lưu cập nhật.');
+      getLeadLogs(lead.id).then(setLogs);
+      setTimeout(() => setFlash(null), 2500);
     });
   };
 
   return (
     <ModalPortal>
     <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 1000 }}>
-      <div className="absolute inset-0 bg-slate-900/40" onClick={onClose} />
+      <div className="absolute inset-0 bg-slate-900/40" onClick={tryClose} />
       <div className="relative w-full max-w-4xl max-h-[92dvh] bg-white rounded-2xl shadow-2xl flex flex-col animate-[popIn_0.18s_ease]">
         <style>{`@keyframes popIn{from{opacity:0;transform:scale(0.97)}to{opacity:1;transform:scale(1)}}`}</style>
 
@@ -230,7 +233,7 @@ export default function LeadDrawer({
               </span>
             )}
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 p-1 -mr-1 shrink-0">
+          <button onClick={tryClose} className="text-slate-400 hover:text-slate-700 p-1 -mr-1 shrink-0">
             <X size={20} />
           </button>
         </div>
@@ -258,7 +261,7 @@ export default function LeadDrawer({
               <select
                 value={sourceVal}
                 disabled={pending || (sourceCatalog.variantsByKey[platformKey]?.length ?? 0) === 0}
-                onChange={(e) => onSetSource(e.target.value)}
+                onChange={(e) => onPickChannel(e.target.value)}
                 className="text-sm border border-slate-200 rounded-lg px-2 py-1 bg-white focus:border-brand outline-none disabled:opacity-50 max-w-[60%]"
               >
                 {(sourceCatalog.variantsByKey[platformKey] ?? []).map((v) => <option key={v.value} value={v.value}>{v.label}</option>)}
@@ -270,7 +273,7 @@ export default function LeadDrawer({
                 <select
                   value={salesTeamId}
                   disabled={pending || showroomTeams.length === 0}
-                  onChange={(e) => onReassignTeam(e.target.value)}
+                  onChange={(e) => onPickTeam(e.target.value)}
                   className="text-sm border border-slate-200 rounded-lg px-2 py-1 bg-white focus:border-brand outline-none disabled:opacity-50 max-w-[60%]"
                 >
                   <option value="">— Chưa phân phòng —</option>
@@ -286,7 +289,7 @@ export default function LeadDrawer({
                 <select
                   value={assignedTo}
                   disabled={pending}
-                  onChange={(e) => onReassign(e.target.value)}
+                  onChange={(e) => onPickAssignee(e.target.value)}
                   className="text-sm border border-slate-200 rounded-lg px-2 py-1 bg-white focus:border-brand outline-none disabled:opacity-50 max-w-[60%]"
                 >
                   <option value="">— Chưa giao —</option>
@@ -441,15 +444,43 @@ export default function LeadDrawer({
 
         {/* Footer */}
         <div className="shrink-0 px-6 py-3 border-t border-slate-100">
+          {dirty && !pending && (
+            <div className="mb-2 text-xs font-medium text-amber-600 text-center">• Có thay đổi chưa lưu</div>
+          )}
           <button
             onClick={onSave}
-            disabled={pending}
+            disabled={pending || !dirty}
             className="w-full inline-flex items-center justify-center gap-2 text-sm font-semibold text-white rounded-lg px-4 py-2.5 disabled:opacity-50"
             style={{ background: 'var(--color-brand)' }}
           >
-            <Save size={16} /> {pending ? 'Đang lưu…' : 'Lưu cập nhật'}
+            <Save size={16} /> {pending ? 'Đang lưu…' : dirty ? 'Lưu thay đổi' : 'Đã lưu'}
           </button>
         </div>
+
+        {/* Xác nhận đóng khi còn thay đổi chưa lưu */}
+        {confirmClose && (
+          <div className="absolute inset-0 flex items-center justify-center p-4" style={{ zIndex: 10 }}>
+            <div className="absolute inset-0 bg-slate-900/40 rounded-2xl" onClick={() => setConfirmClose(false)} />
+            <div className="relative w-full max-w-sm bg-white rounded-xl shadow-2xl p-5">
+              <div className="text-base font-semibold text-slate-900">Thoát và bỏ thay đổi?</div>
+              <div className="mt-1.5 text-sm text-slate-500">Bạn có thay đổi chưa lưu. Thoát bây giờ sẽ mất các thay đổi này.</div>
+              <div className="mt-4 flex justify-end gap-2">
+                <button
+                  onClick={() => setConfirmClose(false)}
+                  className="text-sm font-medium text-slate-600 hover:text-slate-800 rounded-lg px-4 py-2"
+                >
+                  Ở lại
+                </button>
+                <button
+                  onClick={onClose}
+                  className="text-sm font-semibold text-white rounded-lg px-4 py-2 bg-rose-600 hover:bg-rose-700"
+                >
+                  Thoát bỏ thay đổi
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
     </ModalPortal>
