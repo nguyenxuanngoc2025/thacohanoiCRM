@@ -12,6 +12,7 @@ import { matchesQuery } from '@/lib/search';
 import { STATUS_OPTIONS, FAIL_REASONS, isContacted, type LeadStatus } from '@/lib/lead-status';
 import { sourceLabel, sourcePlatform } from '@/lib/source';
 import { classifyLead, markContacted, unmarkContacted, bulkReassign, deleteLeads, setLeadModel } from './actions';
+import { isLeadOverdue } from '@/lib/overdue';
 import type { ModelOption, BrandOption, ShowroomOption, AssigneeOption, TeamOption } from './LeadsView';
 import LeadDrawer from './LeadDrawer';
 import NewLeadModal from './NewLeadModal';
@@ -61,13 +62,9 @@ export const EMPTY_FILTERS: Filters = {
   q: '', showroom: '', brand: '', model: '', source: '', assignee: '', status: '', month: '', team: '',
 };
 
-/** Lead quá hạn chăm sóc: có hẹn gọi lại đã qua VÀ chưa chốt/loại. */
+/** Lead quá hạn: đã giao TVBH, chưa chuyển trạng thái, hạn SLA đã trôi qua. */
 export function isOverdue(l: LeadRow): boolean {
-  if (!l.next_contact_at) return false;
-  if (l.status === 'KHĐ' || l.status === 'Fail') return false;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return new Date(l.next_contact_at) < today;
+  return isLeadOverdue(l, Date.now());
 }
 
 /** Áp các bộ lọc phạm vi (KHÔNG gồm tab/sort — phần đó nằm trong bảng). */

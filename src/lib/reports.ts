@@ -1,6 +1,7 @@
 import { STATUS_LABEL, type LeadStatus } from './lead-status';
 import { sourcePlatform } from './source';
 import { bestB10Status } from './b10';
+import { isLeadOverdue } from './overdue';
 
 /** Lead tối giản cho tính toán báo cáo (lấy từ bảng leads, đã join tên brand/showroom/TVBH). */
 export interface ReportLead {
@@ -37,9 +38,9 @@ export const isContacted = (l: ReportLead): boolean => l.last_contact_at != null
 /** Còn trong pipeline: chưa chốt (KHĐ) và chưa loại (Fail). */
 export const isOpen = (l: ReportLead): boolean => { const s = effectiveStatus(l); return s !== 'KHĐ' && s !== 'Fail'; };
 
-/** Quá hạn liên hệ: còn mở + có hẹn liên hệ + hẹn đã trôi qua. */
+/** Quá hạn liên hệ: đã giao TVBH, chưa chuyển trạng thái, hạn SLA đã trôi qua. */
 export function isOverdue(l: ReportLead, nowMs: number): boolean {
-  return isOpen(l) && l.next_contact_at != null && new Date(l.next_contact_at).getTime() < nowMs;
+  return isLeadOverdue(l, nowMs);
 }
 
 const rate = (num: number, den: number): number => (den > 0 ? Math.round((num / den) * 1000) / 10 : 0);

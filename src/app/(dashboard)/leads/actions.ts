@@ -13,6 +13,26 @@ import { type UserRole } from '@/types/database';
 
 const VALID = new Set<LeadStatus>(STATUS_OPTIONS.map((s) => s.code));
 
+type DB = Awaited<ReturnType<typeof createClient>>;
+
+/**
+ * Hạn liên hệ SLA vòng 1 tính TỪ BÂY GIỜ (mốc giao lead cho TVBH). Vì "quá hạn" chỉ tính
+ * sau khi đã giao (chưa giao thì chưa đặt đồng hồ), mỗi lần giao lead cho TVBH ta đặt lại
+ * next_contact_at = now + first_response_hours. Trả null nếu công ty chưa bật SLA vòng 1.
+ */
+async function slaFirstResponseAt(db: DB, companyId: string | null): Promise<string | null> {
+  if (!companyId) return null;
+  const { data: sla } = await db
+    .from('sla_config')
+    .select('first_response_hours')
+    .eq('company_id', companyId)
+    .eq('round', 1)
+    .eq('is_active', true)
+    .maybeSingle();
+  if (!sla) return null;
+  return new Date(Date.now() + sla.first_response_hours * 3600 * 1000).toISOString();
+}
+
 /**
  * Phân loại lead. Gán phân loại đồng thời TỰ đánh dấu đã liên hệ (vì đã phân loại
  * tức là đã làm việc với lead). status=null = bỏ phân loại (KHÔNG đụng last_contact_at).
@@ -250,7 +270,7 @@ export async function reassignLead(leadId: string, newAssigneeId: string | null)
   const { data: me } = await db.from('users').select('role').eq('id', user.id).maybeSingle();
   if (!me || !CAN_ASSIGN.has(me.role as UserRole)) return { ok: false as const, error: 'Bạn không có quyền đổi người phụ trách.' };
 
-  const { data: prev } = await db.from('leads').select('assigned_to').eq('id', leadId).maybeSingle();
+  const { data: prev } = await db.from('leads').select('assigned_to, status, company_id').eq('id', leadId).maybeSingle();
   if (prev?.assigned_to === newAssigneeId) return { ok: true as const };
 
   // Phòng của TVBH đích: dùng cho (a) phòng thủ phạm vi ngoài RLS, (b) đồng bộ sales_team_id
@@ -276,9 +296,14 @@ export async function reassignLead(leadId: string, newAssigneeId: string | null)
     }
   }
 
-  const patch: { assigned_to: string | null; sales_team_id?: string } =
+  const patch: { assigned_to: string | null; sales_team_id?: string; next_contact_at?: string } =
     { assigned_to: newAssigneeId };
   if (targetTeamId) patch.sales_team_id = targetTeamId; // dời lead theo phòng của TVBH mới
+  // Giao cho TVBH (không phải gỡ) + lead chưa phân loại → đặt lại đồng hồ SLA tính từ lúc giao.
+  if (newAssigneeId && (prev?.status ?? null) === null) {
+    const next = await slaFirstResponseAt(db, prev?.company_id ?? null);
+    if (next) patch.next_contact_at = next;
+  }
   const { error } = await db.from('leads').update(patch).eq('id', leadId);
   if (error) return { ok: false as const, error: error.message };
 
@@ -376,7 +401,7 @@ export async function bulkReassign(leadIds: string[], newAssigneeId: string | nu
   const { data: { user } } = await db.auth.getUser();
   if (!user) return { ok: false as const, error: 'Chưa đăng nhập.' };
 
-  const { data: me } = await db.from('users').select('role').eq('id', user.id).maybeSingle();
+  const { data: me } = await db.from('users').select('role, company_id').eq('id', user.id).maybeSingle();
   if (!me || !CAN_ASSIGN.has(me.role as UserRole)) return { ok: false as const, error: 'Bạn không có quyền phân giao.' };
   if (leadIds.length === 0) return { ok: true as const, updated: 0 };
 
@@ -388,6 +413,12 @@ export async function bulkReassign(leadIds: string[], newAssigneeId: string | nu
 
   const { error } = await db.from('leads').update({ assigned_to: newAssigneeId }).in('id', leadIds);
   if (error) return { ok: false as const, error: error.message };
+
+  // Giao cho TVBH → đặt lại đồng hồ SLA (chỉ lead chưa phân loại) tính từ lúc giao.
+  if (newAssigneeId) {
+    const next = await slaFirstResponseAt(db, me.company_id ?? null);
+    if (next) await db.from('leads').update({ next_contact_at: next }).in('id', leadIds).is('status', null);
+  }
 
   await db.from('lead_logs').insert(
     leadIds.map((id) => ({
@@ -472,6 +503,8 @@ export async function createLead(input: NewLeadInput) {
   const showroomId = input.showroomId ?? (scope.teamId && scope.showroomIds?.length ? scope.showroomIds[0] : null);
 
   const note = input.note.trim();
+  // Đã có TVBH ngay khi tạo → đặt đồng hồ SLA từ bây giờ; chưa giao thì chưa tính hạn.
+  const nextContactAt = input.assignedTo ? await slaFirstResponseAt(db, me.company_id) : null;
   const { data: inserted, error } = await db
     .from('leads')
     .insert({
@@ -487,6 +520,7 @@ export async function createLead(input: NewLeadInput) {
       source: input.source.trim() || 'Khác',
       status: null,
       round: 1,
+      next_contact_at: nextContactAt,
       last_note: note || null,
     })
     .select('id')
@@ -611,10 +645,11 @@ export async function autoDistributeLeads(
   const { data: { user } } = await db.auth.getUser();
   if (!user) return { ok: false, assigned: 0, skipped: 0, error: 'Chưa đăng nhập.' };
 
-  const { data: me } = await db.from('users').select('role').eq('id', user.id).maybeSingle();
+  const { data: me } = await db.from('users').select('role, company_id').eq('id', user.id).maybeSingle();
   if (!me || !CAN_ASSIGN.has(me.role as UserRole)) return { ok: false, assigned: 0, skipped: 0, error: 'Bạn không có quyền phân giao.' };
 
   const scope = await resolveCreatorScope(db, user.id);
+  const slaNext = await slaFirstResponseAt(db, me.company_id ?? null);
 
   // Phòng đang có (để khớp lead → phòng). Lọc phạm vi người xem.
   const { data: rawTeams } = await db
@@ -658,7 +693,7 @@ export async function autoDistributeLeads(
   // Lead chưa giao (cũ trước → giao trước).
   const { data: unassigned } = await db
     .from('leads')
-    .select('id, showroom_id, brand_id, sales_team_id')
+    .select('id, showroom_id, brand_id, sales_team_id, status')
     .is('assigned_to', null)
     .order('created_at', { ascending: true });
   if (!unassigned || unassigned.length === 0) return { ok: true, assigned: 0, skipped: 0 };
@@ -666,7 +701,7 @@ export async function autoDistributeLeads(
   let assigned = 0;
   let skipped = 0;
   const assignedPairs: { leadId: string; assigneeId: string }[] = [];
-  for (const lead of unassigned as { id: string; showroom_id: string | null; brand_id: string | null; sales_team_id: string | null }[]) {
+  for (const lead of unassigned as { id: string; showroom_id: string | null; brand_id: string | null; sales_team_id: string | null; status: string | null }[]) {
     // Phòng khớp lead → gộp TVBH của mọi phòng khớp làm ứng viên.
     const teams = matchTeamsForLead(lead, allTeams);
     const pool: StrategyCandidate[] = [];
@@ -677,7 +712,10 @@ export async function autoDistributeLeads(
     }
     const pick = pickByStrategy(strategy === 'manual' || strategy === 'day_roster' ? 'least_loaded' : strategy, pool);
     if (!pick) { skipped += 1; continue; }
-    const { error } = await db.from('leads').update({ assigned_to: pick }).eq('id', lead.id);
+    // Giao lead → đặt lại đồng hồ SLA tính từ lúc giao (chỉ lead chưa phân loại).
+    const patch: { assigned_to: string; next_contact_at?: string } = { assigned_to: pick };
+    if (slaNext && (lead.status ?? null) === null) patch.next_contact_at = slaNext;
+    const { error } = await db.from('leads').update(patch).eq('id', lead.id);
     if (error) { skipped += 1; continue; }
     load[pick] = (load[pick] ?? 0) + 1;
     lastAt[pick] = Date.now();

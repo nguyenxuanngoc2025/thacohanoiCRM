@@ -43,12 +43,12 @@ describe('computeKpis', () => {
     expect(computeKpis([], NOW).winRate).toBe(0);
   });
 
-  it('đếm quá hạn: còn mở + hẹn đã trôi qua', () => {
+  it('đếm quá hạn: đã giao TVBH + chưa chuyển trạng thái + hạn SLA đã trôi qua', () => {
     const leads = [
-      L({ status: 'KHQT', next_contact_at: '2026-06-20T00:00:00Z' }), // quá hạn
-      L({ status: 'KHQT', next_contact_at: '2026-06-30T00:00:00Z' }), // chưa tới hạn
-      L({ status: 'KHĐ', next_contact_at: '2026-06-20T00:00:00Z' }), // đã chốt → không tính
-      L({ status: 'Fail', next_contact_at: '2026-06-20T00:00:00Z' }), // đã loại → không tính
+      L({ status: null, next_contact_at: '2026-06-20T00:00:00Z' }), // quá hạn
+      L({ status: null, next_contact_at: '2026-06-30T00:00:00Z' }), // chưa tới hạn
+      L({ status: 'KHQT', next_contact_at: '2026-06-20T00:00:00Z' }), // đã chuyển trạng thái → không tính
+      L({ status: null, assigned_to: null, next_contact_at: '2026-06-20T00:00:00Z' }), // chưa giao → không tính
     ];
     expect(computeKpis(leads, NOW).overdue).toBe(1);
   });
@@ -75,8 +75,15 @@ describe('effectiveStatus — trạng thái cuối cho báo cáo (best app vs B1
 });
 
 describe('isOverdue', () => {
-  it('lead đã chốt không bao giờ quá hạn', () => {
+  it('đã giao + chưa chuyển trạng thái + quá hạn SLA → quá hạn', () => {
+    expect(isOverdue(L({ status: null, next_contact_at: '2026-06-20T00:00:00Z' }), NOW)).toBe(true);
+  });
+  it('đã chuyển trạng thái (kể cả đã chốt) → không quá hạn', () => {
     expect(isOverdue(L({ status: 'KHĐ', next_contact_at: '2026-06-20T00:00:00Z' }), NOW)).toBe(false);
+    expect(isOverdue(L({ status: 'KHQT', next_contact_at: '2026-06-20T00:00:00Z' }), NOW)).toBe(false);
+  });
+  it('chưa giao TVBH → không quá hạn dù đã trôi hạn', () => {
+    expect(isOverdue(L({ status: null, assigned_to: null, next_contact_at: '2026-06-20T00:00:00Z' }), NOW)).toBe(false);
   });
 });
 
@@ -129,19 +136,20 @@ describe('groupBySource', () => {
   it('tính đủ chỉ số phân tích: tỉ trọng, đã LH %, theo dõi, loại %, quá hạn', () => {
     const leads = [
       L({ source: 'facebook', status: 'GDTD', last_contact_at: '2026-06-11T00:00:00Z' }),
-      L({ source: 'facebook', status: 'KHQT', next_contact_at: '2026-06-20T00:00:00Z' }), // quá hạn
+      L({ source: 'facebook', status: 'KHQT', last_contact_at: '2026-06-11T00:00:00Z' }), // đã LH, quan tâm
       L({ source: 'facebook', status: 'Fail' }),
+      L({ source: 'facebook', status: null, next_contact_at: '2026-06-20T00:00:00Z' }), // quá hạn (chưa chuyển trạng thái)
       L({ source: 'google', status: 'KHĐ', last_contact_at: '2026-06-11T00:00:00Z' }),
     ];
     const fb = groupBySource(leads, NOW).find((r) => r.key === 'Facebook')!;
-    expect(fb.leads).toBe(3);
-    expect(fb.share).toBe(75); // 3/4
-    expect(fb.contacted).toBe(1);
-    expect(fb.contactRate).toBe(33.3);
+    expect(fb.leads).toBe(4);
+    expect(fb.share).toBe(80); // 4/5
+    expect(fb.contacted).toBe(2);
+    expect(fb.contactRate).toBe(50);
     expect(fb.interested).toBe(1); // KHQT
     expect(fb.following).toBe(1); // GDTD
     expect(fb.fail).toBe(1);
-    expect(fb.failRate).toBe(33.3);
+    expect(fb.failRate).toBe(25);
     expect(fb.overdue).toBe(1);
   });
 });

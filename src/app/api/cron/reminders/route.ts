@@ -20,14 +20,15 @@ export async function POST(request: NextRequest) {
     .select('follow_up_hours').eq('round', 1).eq('is_active', true).maybeSingle();
   const gapHours = Math.max(0, Number(sla?.follow_up_hours ?? 2));
 
-  // Lead quá hạn: tới/quá next_contact_at, CHƯA liên hệ, status chưa chốt/loại,
-  // và chưa nhắc đủ 2 lần.
+  // Lead quá hạn (thống nhất với isLeadOverdue): ĐÃ giao TVBH + CHƯA chuyển trạng thái
+  // + tới/quá hạn SLA. Đã chuyển trạng thái → thoát quá hạn. Chưa giao → chưa tính hạn.
+  // Thêm điều kiện chưa nhắc đủ 2 lần.
   const { data: leads, error } = await db
     .from('leads')
     .select('id, sales_team_id, full_name, phone, assigned_to, next_contact_at, overdue_reminder_count, last_overdue_notified_at, sales_teams(name), users!assigned_to(full_name)')
     .lte('next_contact_at', now.toISOString())
-    .is('last_contact_at', null)
-    .or('status.is.null,status.not.in.("KHĐ","Fail")')
+    .is('status', null)
+    .not('assigned_to', 'is', null)
     .not('sales_team_id', 'is', null)
     .lt('overdue_reminder_count', 2);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
