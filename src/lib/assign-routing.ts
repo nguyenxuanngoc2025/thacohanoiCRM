@@ -35,6 +35,37 @@ export function matchTeamsForLead<T extends TeamRoute>(lead: LeadRoute, teams: T
   });
 }
 
+/**
+ * Cho người quản lý (không cố định 1 phòng): hiện MỌI phòng có thể nhận lead, KHÔNG
+ * dừng sớm ở sales_team_id như matchTeamsForLead. Dùng để chuyển lead sang phòng khác.
+ * - Khớp phòng cùng showroom + bán được hãng của lead (như cấp 2 ingest).
+ * - Phòng lead ĐANG ở (sales_team_id) luôn được giữ dù không khớp hãng/showroom (an toàn)
+ *   và được đưa LÊN ĐẦU làm "phòng đề xuất".
+ * - Lead chưa gắn phòng → phòng khớp đầu tiên là đề xuất.
+ * Trả { teams: danh sách đã sắp xếp, recommendedId: phòng đề xuất (null nếu rỗng) }.
+ */
+export function matchTeamsForManager<T extends TeamRoute>(
+  lead: LeadRoute,
+  teams: T[],
+): { teams: T[]; recommendedId: string | null } {
+  const matched = teams.filter((t) => {
+    if (lead.showroom_id && t.showroom_id !== lead.showroom_id) return false;
+    if (lead.brand_id) return t.brand_ids.includes(lead.brand_id);
+    return true;
+  });
+
+  const current = lead.sales_team_id ? teams.find((t) => t.id === lead.sales_team_id) : undefined;
+  let list = matched;
+  if (current && !list.some((t) => t.id === current.id)) list = [current, ...list];
+
+  const recommendedId = current ? current.id : (list[0]?.id ?? null);
+  if (recommendedId) {
+    const idx = list.findIndex((t) => t.id === recommendedId);
+    if (idx > 0) list = [list[idx], ...list.slice(0, idx), ...list.slice(idx + 1)];
+  }
+  return { teams: list, recommendedId };
+}
+
 /** Phòng có nằm trong phạm vi người xem không (phòng thủ ngoài RLS). */
 export function teamInScope(scope: ScopeLike, team: TeamRoute): boolean {
   if (scope.teamId) return team.id === scope.teamId;

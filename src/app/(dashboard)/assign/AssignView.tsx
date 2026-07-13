@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ChevronDown, ChevronRight, Users } from 'lucide-react';
 import { reassignLead, autoDistributeLeads, assignLeadToTeamAuto } from '../leads/actions';
 import { formatPhoneDisplay } from '@/lib/phone';
-import { matchTeamsForLead } from '@/lib/assign-routing';
+import { matchTeamsForLead, matchTeamsForManager } from '@/lib/assign-routing';
 import { type AssignStrategy } from '@/lib/assign';
 import ModalPortal from '@/components/ui/ModalPortal';
 
@@ -355,8 +355,10 @@ function AssignPicker({
   const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
 
-  // Phòng khớp lead (theo showroom + hãng, hoặc phòng sẵn có).
+  // Cấp phòng (tp_phong): chỉ phòng lead đang thuộc → danh sách phẳng TVBH.
   const matched = useMemo(() => matchTeamsForLead(lead, teams), [lead, teams]);
+  // Cấp quản lý: MỌI phòng có thể nhận, phòng đề xuất lên đầu (chuyển phòng được).
+  const manager = useMemo(() => matchTeamsForManager(lead, teams), [lead, teams]);
 
   const toggle = () => {
     if (open) { setOpen(false); return; }
@@ -404,12 +406,13 @@ function AssignPicker({
                       {t.full_name} <span className="text-slate-400">({t.open_count})</span>
                     </button>
                   ))
-            ) : matched.length === 0 ? (
+            ) : manager.teams.length === 0 ? (
               <div className="px-2.5 py-2 text-xs text-slate-400">Không có phòng phù hợp.</div>
             ) : (
-              matched.map((tm) => {
+              manager.teams.map((tm) => {
                 const members = tvbhByTeam.get(tm.id) ?? [];
                 const isOpen = expanded.has(tm.id);
+                const isRec = tm.id === manager.recommendedId;
                 return (
                   <div key={tm.id} className="mb-0.5">
                     <div className="flex items-center gap-1 min-w-0">
@@ -417,6 +420,11 @@ function AssignPicker({
                         className="flex-1 min-w-0 flex items-center gap-1.5 text-left text-sm rounded-md px-2 py-1.5 hover:bg-slate-50 font-medium text-slate-700">
                         {isOpen ? <ChevronDown size={13} className="opacity-60 shrink-0" /> : <ChevronRight size={13} className="opacity-60 shrink-0" />}
                         <span className="truncate">{tm.name}{showSrLayer && tm.showroom_name ? ` · ${tm.showroom_name}` : ''}</span>
+                        {isRec && (
+                          <span className="shrink-0 text-[10px] font-semibold rounded px-1.5 py-0.5 text-white" style={{ background: NAVY }}>
+                            Phòng đề xuất
+                          </span>
+                        )}
                         <span className="text-slate-400 text-xs shrink-0">({members.length})</span>
                       </button>
                       <button onClick={() => pickTeam(tm.id)} title="Giao cả phòng (tự chọn 1 TVBH)"

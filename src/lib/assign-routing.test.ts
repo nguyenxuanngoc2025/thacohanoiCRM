@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { matchTeamsForLead, teamInScope, type TeamRoute, type LeadRoute, type ScopeLike } from './assign-routing';
+import { matchTeamsForLead, matchTeamsForManager, teamInScope, type TeamRoute, type LeadRoute, type ScopeLike } from './assign-routing';
 
 const teams: (TeamRoute & { name: string })[] = [
   { id: 't1', showroom_id: 's1', brand_ids: ['kia'], name: 'Phòng A' },
@@ -37,6 +37,36 @@ describe('matchTeamsForLead', () => {
   it('lead gắn phòng không tồn tại trong danh sách → rỗng', () => {
     const lead: LeadRoute = { showroom_id: 's1', brand_id: 'kia', sales_team_id: 'tX' };
     expect(matchTeamsForLead(lead, teams)).toEqual([]);
+  });
+});
+
+describe('matchTeamsForManager', () => {
+  it('lead đã gắn phòng → hiện MỌI phòng khớp showroom+hãng, phòng hiện tại lên đầu', () => {
+    const lead: LeadRoute = { showroom_id: 's1', brand_id: 'kia', sales_team_id: 't2' };
+    const r = matchTeamsForManager(lead, teams);
+    expect(r.recommendedId).toBe('t2');
+    expect(r.teams.map((t) => t.id)).toEqual(['t2', 't1']);
+  });
+
+  it('lead chưa gắn phòng → phòng khớp đầu tiên là đề xuất', () => {
+    const lead: LeadRoute = { showroom_id: 's1', brand_id: 'kia', sales_team_id: null };
+    const r = matchTeamsForManager(lead, teams);
+    expect(r.recommendedId).toBe('t1');
+    expect(r.teams.map((t) => t.id)).toEqual(['t1', 't2']);
+  });
+
+  it('phòng hiện tại không khớp hãng/showroom vẫn được giữ (an toàn) và lên đầu', () => {
+    const lead: LeadRoute = { showroom_id: 's1', brand_id: 'kia', sales_team_id: 't3' };
+    const r = matchTeamsForManager(lead, teams);
+    expect(r.recommendedId).toBe('t3');
+    expect(r.teams.map((t) => t.id)).toEqual(['t3', 't1', 't2']);
+  });
+
+  it('không có phòng nào khớp và lead chưa gắn phòng → rỗng, không đề xuất', () => {
+    const lead: LeadRoute = { showroom_id: 's9', brand_id: 'kia', sales_team_id: null };
+    const r = matchTeamsForManager(lead, teams);
+    expect(r.recommendedId).toBeNull();
+    expect(r.teams).toEqual([]);
   });
 });
 

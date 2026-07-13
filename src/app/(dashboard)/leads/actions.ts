@@ -253,29 +253,33 @@ export async function reassignLead(leadId: string, newAssigneeId: string | null)
   const { data: prev } = await db.from('leads').select('assigned_to').eq('id', leadId).maybeSingle();
   if (prev?.assigned_to === newAssigneeId) return { ok: true as const };
 
-  // Phòng thủ ngoài RLS: phòng của TVBH đích phải nằm trong phạm vi người phân giao.
+  // Phòng của TVBH đích: dùng cho (a) phòng thủ phạm vi ngoài RLS, (b) đồng bộ sales_team_id
+  // để khi quản lý giao lead sang TVBH ở PHÒNG KHÁC, lead cũng dời về đúng phòng đó.
+  let targetTeamId: string | null = null;
   if (newAssigneeId) {
+    const { data: target } = await db
+      .from('users')
+      .select('sales_team_id')
+      .eq('id', newAssigneeId)
+      .maybeSingle();
+    targetTeamId = target?.sales_team_id ?? null;
     const scope = await resolveCreatorScope(db, user.id);
-    if (scope) {
-      const { data: target } = await db
-        .from('users')
-        .select('sales_team_id')
-        .eq('id', newAssigneeId)
+    if (scope && targetTeamId) {
+      const { data: tm } = await db
+        .from('sales_teams')
+        .select('id, showroom_id, brand_ids')
+        .eq('id', targetTeamId)
         .maybeSingle();
-      if (target?.sales_team_id) {
-        const { data: tm } = await db
-          .from('sales_teams')
-          .select('id, showroom_id, brand_ids')
-          .eq('id', target.sales_team_id)
-          .maybeSingle();
-        if (tm && !teamInScope(scope, { id: tm.id, showroom_id: tm.showroom_id, brand_ids: (tm.brand_ids as string[] | null) ?? [] })) {
-          return { ok: false as const, error: 'Tư vấn bán hàng ngoài phạm vi của bạn.' };
-        }
+      if (tm && !teamInScope(scope, { id: tm.id, showroom_id: tm.showroom_id, brand_ids: (tm.brand_ids as string[] | null) ?? [] })) {
+        return { ok: false as const, error: 'Tư vấn bán hàng ngoài phạm vi của bạn.' };
       }
     }
   }
 
-  const { error } = await db.from('leads').update({ assigned_to: newAssigneeId }).eq('id', leadId);
+  const patch: { assigned_to: string | null; sales_team_id?: string } =
+    { assigned_to: newAssigneeId };
+  if (targetTeamId) patch.sales_team_id = targetTeamId; // dời lead theo phòng của TVBH mới
+  const { error } = await db.from('leads').update(patch).eq('id', leadId);
   if (error) return { ok: false as const, error: error.message };
 
   // Lấy tên cũ + mới để ghi log
