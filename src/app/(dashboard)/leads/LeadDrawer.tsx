@@ -3,9 +3,9 @@
 import React, { useState, useEffect, useTransition } from 'react';
 import { X, PhoneCall, RefreshCw, Clock, Save, Pencil, Check, History } from 'lucide-react';
 import { formatPhoneDisplay } from '@/lib/phone';
-import { sourceLabel, sourcePlatform, type SourceCatalog } from '@/lib/source';
+import { type SourceCatalog } from '@/lib/source';
 import { STATUS_OPTIONS, FAIL_REASONS, type LeadStatus } from '@/lib/lead-status';
-import { updateLead, reassignLead, reassignTeam, renameLead, getLeadLogs, type LeadLogItem } from './actions';
+import { updateLead, reassignLead, reassignTeam, renameLead, setLeadSource, getLeadLogs, type LeadLogItem } from './actions';
 import type { LeadRow } from './LeadsTable';
 import type { ModelOption, AssigneeOption, TeamOption } from './LeadsView';
 import ModalPortal from '@/components/ui/ModalPortal';
@@ -56,6 +56,15 @@ export default function LeadDrawer({
   const [nextDate, setNextDate] = useState(toDateInput(lead.next_contact_at));
   const [assignedTo, setAssignedTo] = useState<string>(lead.assigned_to ?? '');
   const [salesTeamId, setSalesTeamId] = useState<string>(lead.sales_team_id ?? '');
+  // Nguồn/chi tiết kênh sửa được: platformKey suy từ source hiện tại; sourceVal = 1 value trong danh mục.
+  const platformKeyOf = (val: string) => {
+    for (const [key, vars] of Object.entries(sourceCatalog.variantsByKey)) {
+      if (vars.some((v) => v.value === val)) return key;
+    }
+    return sourceCatalog.platforms[0]?.key ?? '';
+  };
+  const [sourceVal, setSourceVal] = useState<string>(lead.source ?? '');
+  const [platformKey, setPlatformKey] = useState<string>(platformKeyOf(lead.source ?? ''));
   const [pending, start] = useTransition();
   const [logs, setLogs] = useState<LeadLogItem[] | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
@@ -99,6 +108,32 @@ export default function LeadDrawer({
         setFlash(res.error ?? 'Đổi phụ trách thất bại.');
       }
     });
+  };
+
+  const onSetSource = (val: string) => {
+    const prevVal = sourceVal;
+    const prevKey = platformKey;
+    setSourceVal(val);
+    setPlatformKey(platformKeyOf(val));
+    start(async () => {
+      const res = await setLeadSource(lead.id, val);
+      if (res.ok) {
+        setFlash('Đã đổi nguồn.');
+        getLeadLogs(lead.id).then(setLogs);
+        setTimeout(() => setFlash(null), 2500);
+      } else {
+        setSourceVal(prevVal);
+        setPlatformKey(prevKey);
+        setFlash(res.error ?? 'Đổi nguồn thất bại.');
+      }
+    });
+  };
+
+  // Đổi Nguồn → chọn kênh đầu tiên của nền tảng đó rồi lưu.
+  const onChangePlatform = (key: string) => {
+    const first = sourceCatalog.variantsByKey[key]?.[0]?.value;
+    if (!first || first === sourceVal) { setPlatformKey(key); return; }
+    onSetSource(first);
   };
 
   const onReassignTeam = (next: string) => {
@@ -207,8 +242,28 @@ export default function LeadDrawer({
           <section className="bg-slate-50 rounded-xl p-3">
             <InfoRow label="Showroom" value={lead.showroom_name ?? '—'} />
             <InfoRow label="Thương hiệu" value={lead.brand_name} />
-            <InfoRow label="Nguồn" value={sourcePlatform(lead.source, sourceCatalog)} />
-            <InfoRow label="Chi tiết kênh" value={sourceLabel(lead.source, sourceCatalog)} />
+            <div className="flex justify-between items-center gap-3 py-1.5 text-sm">
+              <span className="text-slate-400">Nguồn</span>
+              <select
+                value={platformKey}
+                disabled={pending || sourceCatalog.platforms.length === 0}
+                onChange={(e) => onChangePlatform(e.target.value)}
+                className="text-sm border border-slate-200 rounded-lg px-2 py-1 bg-white focus:border-brand outline-none disabled:opacity-50 max-w-[60%]"
+              >
+                {sourceCatalog.platforms.map((p) => <option key={p.key} value={p.key}>{p.name}</option>)}
+              </select>
+            </div>
+            <div className="flex justify-between items-center gap-3 py-1.5 text-sm">
+              <span className="text-slate-400">Chi tiết kênh</span>
+              <select
+                value={sourceVal}
+                disabled={pending || (sourceCatalog.variantsByKey[platformKey]?.length ?? 0) === 0}
+                onChange={(e) => onSetSource(e.target.value)}
+                className="text-sm border border-slate-200 rounded-lg px-2 py-1 bg-white focus:border-brand outline-none disabled:opacity-50 max-w-[60%]"
+              >
+                {(sourceCatalog.variantsByKey[platformKey] ?? []).map((v) => <option key={v.value} value={v.value}>{v.label}</option>)}
+              </select>
+            </div>
             {canManage ? (
               <div className="flex justify-between items-center gap-3 py-1.5 text-sm">
                 <span className="text-slate-400">Phòng bán hàng</span>

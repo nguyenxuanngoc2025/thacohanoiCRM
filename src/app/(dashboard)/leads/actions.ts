@@ -9,6 +9,7 @@ import { matchTeamsForLead, teamInScope, type TeamRoute } from '@/lib/assign-rou
 import { CAN_CREATE_LEAD, CAN_ASSIGN, CAN_MANAGE_STAFF } from '@/lib/nav';
 import { notifyNewLead, notifyLeadAssigned, notifyLeadsAssignedBulk } from '@/lib/notify-assign';
 import { resolveCreatorScope, assertLeadInScope } from '@/lib/lead-scope';
+import { loadSourceCatalog } from '@/lib/source-catalog';
 import { type UserRole } from '@/types/database';
 
 const VALID = new Set<LeadStatus>(STATUS_OPTIONS.map((s) => s.code));
@@ -281,6 +282,38 @@ export async function setLeadModel(leadId: string, modelId: string | null) {
 
   revalidatePath('/leads');
   revalidatePath('/assign');
+  return { ok: true as const };
+}
+
+/**
+ * Đổi nguồn/chi tiết kênh của lead (sửa ngay trong popup KH). `source` = value 1 kênh
+ * trong danh mục (lead_source_channels). CHỈ ghi cột source — KHÔNG đụng trạng thái/
+ * đánh dấu liên hệ. Ghi log 'system'. Validate source thuộc danh mục hiện hành.
+ */
+export async function setLeadSource(leadId: string, source: string) {
+  const db = await createClient();
+  const { data: { user } } = await db.auth.getUser();
+  if (!user) return { ok: false as const, error: 'Chưa đăng nhập.' };
+
+  const catalog = await loadSourceCatalog(db);
+  if (!source || !catalog.valueToLabel[source]) {
+    return { ok: false as const, error: 'Nguồn không hợp lệ.' };
+  }
+
+  const { data: prev } = await db.from('leads').select('source').eq('id', leadId).maybeSingle();
+  if ((prev?.source ?? null) === source) return { ok: true as const };
+
+  const { data, error } = await db.from('leads').update({ source }).eq('id', leadId).select('id');
+  if (error) return { ok: false as const, error: error.message };
+  if (!data || data.length === 0) return { ok: false as const, error: 'Bạn không có quyền sửa lead này.' };
+
+  const label = `${catalog.valueToPlatform[source]} · ${catalog.valueToLabel[source]}`;
+  await db.from('lead_logs').insert({
+    lead_id: leadId, user_id: user.id, type: 'system',
+    content: `Cập nhật nguồn: ${label}.`,
+  });
+
+  revalidatePath('/leads');
   return { ok: true as const };
 }
 
