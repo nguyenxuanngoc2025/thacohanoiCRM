@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { Users, PhoneCall, TrendingUp, FileSignature, Clock, XCircle, LayoutDashboard, Table2, BarChart2, GitBranch, Radio, ListFilter } from 'lucide-react';
 import { compareKpis, type ReportLead, type ReportLevel } from '@/lib/reports';
+import { type RangeKey } from '@/lib/report-range';
 import { sourcePlatform, type SourceCatalog } from '@/lib/source';
 import { STATUS_LABEL, type LeadStatus } from '@/lib/lead-status';
 import { Dropdown, uniqOpts, BRAND, fmt, DeltaArrow, type Opt } from './ui';
@@ -15,7 +16,14 @@ import RankingTab from './tabs/RankingTab';
 import ManagementTab from './tabs/ManagementTab';
 import SourceTab from './tabs/SourceTab';
 
-export type RangeKey = 'this_month' | 'last_month' | '30d' | 'custom';
+const RANGE_OPTS: Opt[] = [
+  { value: 'today', label: 'Hôm nay' },
+  { value: 'this_week', label: 'Tuần này' },
+  { value: 'this_month', label: 'Tháng này' },
+  { value: 'last_month', label: 'Tháng trước' },
+  { value: '30d', label: '30 ngày' },
+  { value: 'custom', label: 'Tùy chọn ngày…' },
+];
 
 const TAB_LABELS: Record<ReportTab, string> = {
   overview: 'Tổng quan',
@@ -117,11 +125,16 @@ export default function ReportsView({
   const contactRateDelta = contactRate(cmp.current) - contactRate(cmp.previous);
   const winRateDelta = cmp.current.winRate - cmp.previous.winRate;
 
-  const setRange = (r: RangeKey) => router.push(`/reports?range=${r}`);
+  const setRange = (r: string) => {
+    if (r === 'custom') { router.push(`/reports?range=custom&from=${cFrom}&to=${cTo}`); return; }
+    router.push(`/reports?range=${r}`);
+  };
   const applyCustom = () => router.push(`/reports?range=custom&from=${cFrom}&to=${cTo}`);
 
   // Label kỳ cho ManagementTab
   const periodLabel: string = useMemo(() => {
+    if (range === 'today') return 'Hôm nay';
+    if (range === 'this_week') return 'Tuần này';
     if (range === 'this_month') return 'Tháng này';
     if (range === 'last_month') return 'Tháng trước';
     if (range === '30d') return '30 ngày';
@@ -141,30 +154,21 @@ export default function ReportsView({
           <p className="text-sm text-slate-400 mt-0.5">Phân tích hiệu quả lead theo kênh & tỉ lệ chốt</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {([
-            ['this_month', 'Tháng này'],
-            ['last_month', 'Tháng trước'],
-            ['30d', '30 ngày'],
-          ] as [RangeKey, string][]).map(([k, label]) => (
-            <button key={k} onClick={() => setRange(k)}
-              className="text-sm rounded-lg px-3 py-1.5 border transition-colors"
-              style={range === k
-                ? { background: '#e6f0fa', borderColor: BRAND, color: BRAND, fontWeight: 600 }
-                : { background: '#fff', borderColor: '#e2e8f0', color: '#64748b' }}>
-              {label}
-            </button>
-          ))}
-          <div className="flex items-center gap-1.5 border rounded-lg px-2 py-1"
-            style={range === 'custom' ? { borderColor: BRAND, background: '#e6f0fa' } : { borderColor: '#e2e8f0' }}>
-            <input type="date" value={cFrom} max={cTo} onChange={(e) => setCFrom(e.target.value)}
-              className="text-sm bg-transparent outline-none text-slate-700" />
-            <span className="text-slate-300">–</span>
-            <input type="date" value={cTo} min={cFrom} onChange={(e) => setCTo(e.target.value)}
-              className="text-sm bg-transparent outline-none text-slate-700" />
-            <button onClick={applyCustom} className="text-xs font-semibold rounded-md px-2 py-1 text-white" style={{ background: BRAND }}>
-              Áp dụng
-            </button>
+          <div className="w-44">
+            <Dropdown value={range} onChange={setRange} placeholder="Thời gian" options={RANGE_OPTS} allowClear={false} />
           </div>
+          {range === 'custom' && (
+            <div className="flex items-center gap-1.5 border rounded-lg px-2 py-1" style={{ borderColor: BRAND, background: '#e6f0fa' }}>
+              <input type="date" value={cFrom} max={cTo} onChange={(e) => setCFrom(e.target.value)}
+                className="text-sm bg-transparent outline-none text-slate-700" />
+              <span className="text-slate-300">–</span>
+              <input type="date" value={cTo} min={cFrom} onChange={(e) => setCTo(e.target.value)}
+                className="text-sm bg-transparent outline-none text-slate-700" />
+              <button onClick={applyCustom} className="text-xs font-semibold rounded-md px-2 py-1 text-white" style={{ background: BRAND }}>
+                Áp dụng
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

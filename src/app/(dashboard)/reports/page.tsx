@@ -6,7 +6,8 @@ import { loadSourceCatalog } from '@/lib/source-catalog';
 import { getTenant } from '@/lib/tenant';
 import type { UserRole } from '@/types/database';
 import type { ReportLead } from '@/lib/reports';
-import ReportsView, { type RangeKey } from './ReportsView';
+import ReportsView from './ReportsView';
+import { resolveRange, isRangeKey } from '@/lib/report-range';
 import { roleToReportLevel, isMarketingRole } from './report-level';
 
 export const dynamic = 'force-dynamic';
@@ -32,30 +33,8 @@ interface RawLead {
   assignee: { full_name: string } | null;
 }
 
-const DAY = 86400000;
 const iso = (ms: number) => new Date(ms).toISOString();
 const ymd = (ms: number) => new Date(ms).toISOString().slice(0, 10);
-
-/** Quy đổi bộ chọn thời gian → [fromMs, toMs]. Mặc định: tháng này. */
-function resolveRange(range: RangeKey, from?: string, to?: string): { fromMs: number; toMs: number } {
-  const now = Date.now();
-  const d = new Date(now);
-  const y = d.getUTCFullYear();
-  const m = d.getUTCMonth();
-  if (range === 'last_month') {
-    return { fromMs: Date.UTC(y, m - 1, 1), toMs: Date.UTC(y, m, 1) - 1 };
-  }
-  if (range === '30d') {
-    return { fromMs: Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - 29 * DAY, toMs: now };
-  }
-  if (range === 'custom' && from && to) {
-    const f = Date.parse(`${from}T00:00:00Z`);
-    const t = Date.parse(`${to}T23:59:59Z`);
-    if (!Number.isNaN(f) && !Number.isNaN(t) && f <= t) return { fromMs: f, toMs: t };
-  }
-  // this_month (mặc định)
-  return { fromMs: Date.UTC(y, m, 1), toMs: now };
-}
 
 export default async function ReportsPage({
   searchParams,
@@ -70,10 +49,8 @@ export default async function ReportsPage({
   const { data: me } = await supabase.from('users').select('role, company_id').eq('id', user.id).maybeSingle();
   if (!me?.role || !CAN_VIEW_REPORTS.has(me.role as UserRole)) redirect('/leads');
 
-  const range = (['this_month', 'last_month', '30d', 'custom'].includes(sp.range ?? '')
-    ? sp.range
-    : 'this_month') as RangeKey;
-  const { fromMs, toMs } = resolveRange(range, sp.from, sp.to);
+  const range = isRangeKey(sp.range) ? sp.range : 'this_month';
+  const { fromMs, toMs } = resolveRange(range, Date.now(), sp.from, sp.to);
 
   // Hãng công ty đang mở (whitelist). Lead của hãng đã đóng bị loại khỏi báo cáo/KPI.
   const openBrandIds = await getOpenBrandIds(supabase, me?.company_id ?? null);
