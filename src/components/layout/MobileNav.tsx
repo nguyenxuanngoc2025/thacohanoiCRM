@@ -32,8 +32,16 @@ export interface MobileNavProps {
 export default function MobileNav({ userRole, userName, b10Enabled }: MobileNavProps) {
   const pathname = usePathname();
   const router = useRouter();
+  // Đang chạy trong app đã cài (standalone) → ẩn mục hướng dẫn "Cài đặt App" cho đỡ thừa.
+  const [installed, setInstalled] = useState(false);
+  useEffect(() => {
+    const nav = navigator as Navigator & { standalone?: boolean };
+    setInstalled(window.matchMedia('(display-mode: standalone)').matches || nav.standalone === true);
+  }, []);
   const items = NAV_ITEMS.filter((item) =>
-    item.roles.includes(userRole) && (!item.requiresB10 || b10Enabled),
+    item.roles.includes(userRole)
+    && (!item.requiresB10 || b10Enabled)
+    && !(installed && item.href === '/cai-dat-app'),
   );
   const [menuOpen, setMenuOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);

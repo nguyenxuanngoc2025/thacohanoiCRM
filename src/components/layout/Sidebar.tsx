@@ -82,8 +82,16 @@ export default function Sidebar({
   companyName = 'Thaco Auto Hà Nội', collapsed, onToggleCollapse, b10Enabled,
 }: SidebarProps) {
   const pathname = usePathname();
+  // Đang chạy trong app đã cài (standalone) → ẩn mục hướng dẫn "Cài đặt App" cho đỡ thừa.
+  const [installed, setInstalled] = useState(false);
+  useEffect(() => {
+    const nav = navigator as Navigator & { standalone?: boolean };
+    setInstalled(window.matchMedia('(display-mode: standalone)').matches || nav.standalone === true);
+  }, []);
   const mainItems = NAV_ITEMS.filter((item) =>
-    item.roles.includes(userRole) && (!item.requiresB10 || b10Enabled),
+    item.roles.includes(userRole)
+    && (!item.requiresB10 || b10Enabled)
+    && !(installed && item.href === '/cai-dat-app'),
   );
   const [hoverExpanded, setHoverExpanded] = useState(false);
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
