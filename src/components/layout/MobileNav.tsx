@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, Users, UserCheck, HeartHandshake, BarChart3,
-  Settings, LogOut, Key, User, MoreHorizontal, FileCheck2, GitBranch,
+  Settings, LogOut, Key, User, MoreHorizontal, FileCheck2, GitBranch, Download,
 } from 'lucide-react';
 import { NAV_ITEMS } from '@/lib/nav';
 import { logout } from '@/app/login/actions';
@@ -13,7 +13,7 @@ import { type UserRole } from '@/types/database';
 import { BRAND } from '@/lib/brand';
 
 const ICON_MAP: Record<string, React.ElementType> = {
-  LayoutDashboard, Users, UserCheck, HeartHandshake, BarChart3, Settings, FileCheck2, GitBranch,
+  LayoutDashboard, Users, UserCheck, HeartHandshake, BarChart3, Settings, FileCheck2, GitBranch, Download,
 };
 
 export interface MobileNavProps {

@@ -66,6 +66,8 @@ export const NAV_ITEMS: NavItem[] = [
   // Giám đốc Showroom tự cấu hình cây phân giao showroom mình (admin dùng /settings).
   { label: 'Cấu hình phân giao', href: '/phan-giao', icon: 'GitBranch', roles: ['gd_showroom'] },
   { label: 'Cài đặt', href: '/settings', icon: 'Settings', roles: ['admin', 'platform_owner'] },
+  // Hướng dẫn cài app (PWA) — mọi vai trò đều thấy.
+  { label: 'Cài đặt App', href: '/cai-dat-app', icon: 'Download', roles: ALL },
 ];
 
 // ─── Danh sách vai trò (đúng thứ tự sơ đồ tổ chức) ─────────────────────────────
