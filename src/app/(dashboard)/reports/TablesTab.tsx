@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
-import { ArrowUp, ArrowDown, Download, Check } from 'lucide-react';
+import React, { useMemo, useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { ArrowUp, ArrowDown, Download, SlidersHorizontal } from 'lucide-react';
 import {
   computeKpis, groupByDimension, crossDimension,
   DIMENSION_LABEL, type Dimension, type GroupRow, type ReportLead, type Pivot,
@@ -87,36 +88,22 @@ export default function TablesTab({ leads, showB10, dims, sourceCatalog }: { lea
           <Field label="Tách cột">
             <Dropdown value={colDim} onChange={setColDim} placeholder="Không tách" options={colOpts} />
           </Field>
-          <button onClick={handleExport}
-            className="ml-auto inline-flex items-center gap-1.5 text-sm font-semibold rounded-lg px-3 py-1.5 text-white shadow-sm"
-            style={{ background: BRAND }}>
-            <Download size={15} /> Xuất Excel
-          </button>
-        </div>
-        {!colDim && (
-          <div className="flex flex-wrap items-center gap-1.5 mt-2.5 pt-2.5 border-t border-slate-100">
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mr-1">Hiện cột</span>
-            {allMetrics.map((m) => {
-              const on = !hidden.has(m.key);
-              return (
-                <button key={m.key} onClick={() => toggle(m.key)}
-                  className="inline-flex items-center gap-1 text-xs rounded-full border px-2 py-0.5 transition-colors"
-                  style={on
-                    ? { borderColor: BRAND, background: '#e6f0fa', color: BRAND, fontWeight: 600 }
-                    : { borderColor: '#e2e8f0', background: '#fff', color: '#94a3b8' }}>
-                  {on && <Check size={11} />} {m.label}
-                </button>
-              );
-            })}
+          <div className="ml-auto flex items-center gap-2">
+            {!colDim && <ColumnMenu metrics={allMetrics} hidden={hidden} toggle={toggle} />}
+            <button onClick={handleExport}
+              className="inline-flex items-center gap-1.5 text-sm font-semibold rounded-lg px-3 py-1.5 text-white shadow-sm"
+              style={{ background: BRAND }}>
+              <Download size={15} /> Xuất Excel
+            </button>
           </div>
-        )}
+        </div>
       </div>
 
       <Panel
         title={colDim
           ? `${DIMENSION_LABEL[safeRowDim]} × ${DIMENSION_LABEL[colDim as Dimension]}`
           : `Bảng chỉ số theo ${DIMENSION_LABEL[safeRowDim].toLowerCase()}`}
-        desc={colDim ? 'Mỗi ô: số lead · số ký HĐ' : 'Bấm tiêu đề cột để sắp xếp · bật/tắt cột ở trên'}
+        desc={colDim ? 'Mỗi ô: số lead · số ký HĐ' : 'Bấm tiêu đề cột để sắp xếp · chọn cột ở nút Cột hiển thị'}
       >
         {leads.length === 0 ? (
           <div className="py-12 text-center text-slate-400 text-sm">Không có lead trong kỳ / bộ lọc.</div>
@@ -373,5 +360,53 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{label}</span>
       {children}
     </div>
+  );
+}
+
+/** Nút "Cột hiển thị" gộp toàn bộ chip bật/tắt cột vào 1 popup checkbox (giống Bảng quản trị). */
+function ColumnMenu({ metrics, hidden, toggle }: {
+  metrics: MetricCol[];
+  hidden: Set<MetricKey>;
+  toggle: (k: MetricKey) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+
+  const onToggle = () => {
+    if (open) { setOpen(false); return; }
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r) setPos({ left: Math.max(8, r.right - 240), top: r.bottom + 4 });
+    setOpen(true);
+  };
+
+  return (
+    <>
+      <button ref={btnRef} onClick={onToggle}
+        className="inline-flex items-center gap-1.5 text-sm text-slate-600 border border-slate-200 rounded-lg px-3 py-1.5 hover:bg-slate-50">
+        <SlidersHorizontal size={14} /> Cột hiển thị
+      </button>
+      {open && pos && createPortal(
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 9998 }} onClick={() => setOpen(false)} />
+          <div style={{
+            position: 'fixed', top: pos.top, left: pos.left, width: 240, zIndex: 9999,
+            maxHeight: '70vh', overflowY: 'auto',
+            background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.12)', padding: 8,
+          }}>
+            <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide px-2 py-1.5">Tùy chỉnh cột</div>
+            {metrics.map((m) => (
+              <label key={m.key}
+                className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer text-sm text-slate-700 transition-colors">
+                <input type="checkbox" checked={!hidden.has(m.key)} onChange={() => toggle(m.key)} className="accent-brand" />
+                <span className="flex-1">{m.label}</span>
+              </label>
+            ))}
+          </div>
+        </>,
+        document.body,
+      )}
+    </>
   );
 }
