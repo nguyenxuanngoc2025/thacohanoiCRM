@@ -2,7 +2,7 @@ import { ROLE_SCOPE_KIND } from '@/lib/nav';
 import { type UserRole } from '@/types/database';
 import { type ReportLevel, type Dimension } from '@/lib/reports';
 
-export type ReportTab = 'overview' | 'ranking' | 'management' | 'tables';
+export type ReportTab = 'overview' | 'ranking' | 'management' | 'tables' | 'mkt-planning';
 
 /** Vai trò → cấp báo cáo (dùng ROLE_SCOPE_KIND; 'assigned' = cá nhân TVBH). */
 export function roleToReportLevel(role: UserRole): ReportLevel {
