@@ -6,6 +6,7 @@ import { loadSourceCatalog } from '@/lib/source-catalog';
 import { getTenant } from '@/lib/tenant';
 import type { UserRole } from '@/types/database';
 import type { ReportLead } from '@/lib/reports';
+import type { ModelCatalogItem } from '@/lib/mkt-planning-report';
 import ReportsView from './ReportsView';
 import { resolveRange, isRangeKey } from '@/lib/report-range';
 import { roleToReportLevel } from './report-level';
@@ -116,6 +117,21 @@ export default async function ReportsPage({
     .map(mapLead)
     .filter((l) => !inactiveSrIds.has(String(l.showroom_id ?? '')));
 
+  // Danh mục Dòng xe (để hiện cả dòng 0 lead ở tab Báo cáo cho Marketing).
+  const { data: modelRows } = await supabase
+    .from('models')
+    .select('id, brand_id, name, sort_order, brand:brands(name)')
+    .eq('is_active', true)
+    .order('sort_order', { ascending: true });
+  const models: ModelCatalogItem[] = ((modelRows ?? []) as unknown as {
+    id: string; brand_id: string; name: string; sort_order: number | null; brand: { name: string } | null;
+  }[])
+    .filter((m) => !openBrandIds.length || openBrandIds.includes(m.brand_id))
+    .map((m) => ({ id: m.id, brand_id: m.brand_id, brand_name: m.brand?.name ?? '—', name: m.name, sort_order: m.sort_order ?? 0 }));
+
+  // Tab Báo cáo cho Marketing chỉ cho vai trò marketing + admin.
+  const showMktPlanning = (['admin', 'mkt_cty', 'digital_mkt', 'mkt_brand'] as UserRole[]).includes(me.role as UserRole);
+
   // Suy cấp báo cáo
   const reportLevel = roleToReportLevel(me.role as UserRole);
 
@@ -133,6 +149,8 @@ export default async function ReportsPage({
       toMs={toMs}
       showB10={showB10}
       reportLevel={reportLevel}
+      models={models}
+      showMktPlanning={showMktPlanning}
     />
   );
 }
