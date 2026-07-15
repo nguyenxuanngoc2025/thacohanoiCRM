@@ -3,10 +3,15 @@ import { effectiveStatus, type ReportLead } from './reports';
 export type PlanningChannel = 'Facebook' | 'Google' | 'Khác';
 export const PLANNING_CHANNELS: readonly PlanningChannel[] = ['Facebook', 'Google', 'Khác'];
 
-/** Nền tảng nguồn (đã resolve qua sourcePlatform) → kênh của bảng Kế hoạch. */
+/**
+ * Nền tảng nguồn (đã resolve qua sourcePlatform) → kênh của bảng Kế hoạch.
+ * So khớp KHÔNG phân biệt hoa/thường: sourcePlatform trả tên Nguồn ('Facebook'/'Google'),
+ * còn key thô ('facebook'/'google') vẫn khớp đúng.
+ */
 export function channelFromPlatform(platform: string | null): PlanningChannel {
-  if (platform === 'facebook') return 'Facebook';
-  if (platform === 'google') return 'Google';
+  const p = (platform ?? '').trim().toLowerCase();
+  if (p === 'facebook') return 'Facebook';
+  if (p === 'google') return 'Google';
   return 'Khác';
 }
 

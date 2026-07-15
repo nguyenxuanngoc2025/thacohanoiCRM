@@ -30,6 +30,11 @@ describe('channelFromPlatform', () => {
     expect(channelFromPlatform('zalo')).toBe('Khác');
     expect(channelFromPlatform(null)).toBe('Khác');
   });
+  it('khớp tên Nguồn viết hoa từ sourcePlatform (Facebook/Google) — chống hồi quy', () => {
+    expect(channelFromPlatform('Facebook')).toBe('Facebook');
+    expect(channelFromPlatform('Google')).toBe('Google');
+    expect(channelFromPlatform('Zalo OA')).toBe('Khác');
+  });
 });
 
 describe('buildMktPlanningReport', () => {
