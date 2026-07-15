@@ -3,7 +3,7 @@
 import React, { useMemo, useRef, useState, useDeferredValue } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
-import { Users, PhoneCall, TrendingUp, FileSignature, Clock, Percent, LayoutDashboard, Table2, BarChart2, GitBranch, ListFilter } from 'lucide-react';
+import { Users, PhoneCall, TrendingUp, FileSignature, Clock, Percent, LayoutDashboard, Table2, BarChart2, GitBranch, ListFilter, ClipboardList } from 'lucide-react';
 import { compareKpis, type ReportLead, type ReportLevel } from '@/lib/reports';
 import { type RangeKey } from '@/lib/report-range';
 import { sourcePlatform, type SourceCatalog } from '@/lib/source';
@@ -14,6 +14,8 @@ import OverviewTab from './OverviewTab';
 import TablesTab from './TablesTab';
 import RankingTab from './tabs/RankingTab';
 import ManagementTab from './tabs/ManagementTab';
+import MktPlanningTab from './tabs/MktPlanningTab';
+import { type ModelCatalogItem } from '@/lib/mkt-planning-report';
 
 const RANGE_OPTS: Opt[] = [
   { value: 'today', label: 'Hôm nay' },
@@ -29,6 +31,7 @@ const TAB_LABELS: Record<ReportTab, string> = {
   ranking: 'Xếp hạng',
   management: 'Bảng quản trị',
   tables: 'Bảng chi tiết',
+  'mkt-planning': 'Báo cáo cho Marketing',
 };
 
 const TAB_ICONS: Record<ReportTab, React.ReactNode> = {
@@ -36,10 +39,11 @@ const TAB_ICONS: Record<ReportTab, React.ReactNode> = {
   ranking: <BarChart2 size={15} />,
   management: <GitBranch size={15} />,
   tables: <Table2 size={15} />,
+  'mkt-planning': <ClipboardList size={15} />,
 };
 
 export default function ReportsView({
-  leads, prevLeads, sourceCatalog, range, from, to, fromMs, toMs, showB10, reportLevel,
+  leads, prevLeads, sourceCatalog, range, from, to, fromMs, toMs, showB10, reportLevel, models = [], showMktPlanning = false,
 }: {
   leads: ReportLead[];
   prevLeads: ReportLead[];
@@ -51,11 +55,13 @@ export default function ReportsView({
   toMs: number;
   showB10: boolean;
   reportLevel: ReportLevel;
+  models?: ModelCatalogItem[];
+  showMktPlanning?: boolean;
 }) {
   const router = useRouter();
   const nowMs = useMemo(() => Date.now(), []);
 
-  const tabs = tabsForLevel(reportLevel);
+  const tabs: ReportTab[] = [...tabsForLevel(reportLevel), ...(showMktPlanning ? (['mkt-planning'] as ReportTab[]) : [])];
   const [tab, setTab] = useState<ReportTab>(defaultTab(reportLevel));
   const [brand, setBrand] = useState('');
   const [model, setModel] = useState('');
@@ -132,6 +138,7 @@ export default function ReportsView({
     router.push(`/reports?range=${r}`);
   };
   const applyCustom = () => router.push(`/reports?range=custom&from=${cFrom}&to=${cTo}`);
+  const pickMonth = (f: string, t: string) => router.push(`/reports?range=custom&from=${f}&to=${t}`);
 
   // Label kỳ cho ManagementTab
   const periodLabel: string = useMemo(() => {
@@ -288,6 +295,9 @@ export default function ReportsView({
       )}
       {tab === 'tables' && (
         <TablesTab leads={tabLeads} showB10={showB10} dims={dimensionsForLevel(reportLevel)} sourceCatalog={sourceCatalog} />
+      )}
+      {tab === 'mkt-planning' && (
+        <MktPlanningTab leads={leads} models={models} sourceCatalog={sourceCatalog} from={from} to={to} onPickMonth={pickMonth} />
       )}
     </div>
   );
