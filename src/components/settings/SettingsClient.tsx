@@ -172,7 +172,7 @@ export default function SettingsClient({
           <AssignmentManager showrooms={showrooms} salesTeams={salesTeams} staff={staff} rules={assignmentRules} sla={slaConfig} companyId={companyId} roster={roster} />
         )}
         {active === 'health' && <SystemHealthPanel />}
-        {active === 'notifications' && <NotificationsManager channels={notifChannels} showrooms={showrooms} salesTeams={salesTeams} zaloBotSession={zaloBotSession} />}
+        {active === 'notifications' && <NotificationsManager channels={notifChannels} showrooms={showrooms} salesTeams={salesTeams} brands={brands} zaloBotSession={zaloBotSession} />}
         {active === 'audit' && <ActivityLog logs={recentLogs} staff={staff} />}
       </div>
     </div>

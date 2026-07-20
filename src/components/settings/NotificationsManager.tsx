@@ -3,7 +3,7 @@
 import React, { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Bell, Plus, Edit2, Trash2, X, Send, ChevronDown, Search } from 'lucide-react';
-import type { NotifChannelRow, ShowroomRow, SalesTeamRow } from './types';
+import type { NotifChannelRow, ShowroomRow, SalesTeamRow, BrandRow } from './types';
 import {
   PanelHeader, PrimaryBtn, GhostBtn, Field, TextInput, Select, Toggle, StatusPill, FlashBar, Panel, postAdmin,
 } from './ui';
@@ -22,11 +22,12 @@ const EVENT_LABELS: Record<string, string> = {
 const SALES_EVENTS = ['new_lead', 'overdue', 'daily_report'];
 const MGMT_EVENTS = ['daily_report', 'weekly_report', 'monthly_report'];
 
-type Scope = 'sales' | 'management';
+type Scope = 'sales' | 'management' | 'brand';
 
 export default function NotificationsManager(
-  { channels, showrooms, salesTeams, zaloBotSession }: {
+  { channels, showrooms, salesTeams, brands, zaloBotSession }: {
     channels: NotifChannelRow[]; showrooms: ShowroomRow[]; salesTeams: SalesTeamRow[];
+    brands: BrandRow[];
     zaloBotSession: { status: 'connected' | 'disconnected'; displayName: string | null; lastError: string | null };
   },
 ) {
@@ -53,6 +54,12 @@ export default function NotificationsManager(
     if (!ids || ids.length === 0) return 'Chưa gán phòng';
     const names = ids.map((id) => salesTeams.find((x) => x.id === id)?.name).filter(Boolean);
     return names.length ? names.join(', ') : 'Chưa gán phòng';
+  };
+  // Nhãn kênh brand: liệt kê tên các hãng phụ trách.
+  const brandsLabel = (ids: string[]) => {
+    if (!ids || ids.length === 0) return 'Chưa gán hãng';
+    const names = ids.map((id) => brands.find((b) => b.id === id)?.name).filter(Boolean);
+    return names.length ? `BLĐ hãng: ${names.join(', ')}` : 'Chưa gán hãng';
   };
 
   const [query, setQuery] = useState('');
@@ -81,12 +88,14 @@ export default function NotificationsManager(
       }))
       .filter((g) => g.sales.length + g.mgmt.length > 0);
     const companyMgmt = list.filter((c) => c.scope === 'management' && !c.showroom_id);
+    const companyBrand = list.filter((c) => c.scope === 'brand');
     const orphanSales = list.filter((c) => c.scope === 'sales' && !srOf(c));
-    return { byShowroom, companyMgmt, orphanSales };
+    return { byShowroom, companyMgmt, companyBrand, orphanSales };
   }, [channels, showrooms, salesTeams, q]);
 
   const isEmpty =
-    grouped.byShowroom.length === 0 && grouped.companyMgmt.length === 0 && grouped.orphanSales.length === 0;
+    grouped.byShowroom.length === 0 && grouped.companyMgmt.length === 0 &&
+    grouped.companyBrand.length === 0 && grouped.orphanSales.length === 0;
 
   const doDelete = async () => {
     if (!confirmDel) return;
@@ -124,7 +133,9 @@ export default function NotificationsManager(
             <span className="bg-slate-100 rounded px-1.5 py-0.5">
               {c.scope === 'management'
                 ? (c.showroom_id ? `BLĐ ${srName(c.showroom_id) ?? ''}` : 'BLĐ toàn công ty')
-                : teamsLabel(c.sales_team_ids ?? (c.sales_team_id ? [c.sales_team_id] : []))}
+                : c.scope === 'brand'
+                  ? brandsLabel(c.brand_ids ?? [])
+                  : teamsLabel(c.sales_team_ids ?? (c.sales_team_id ? [c.sales_team_id] : []))}
             </span>
             {c.target && <span className="font-mono">· {c.target}</span>}
           </div>
@@ -193,6 +204,8 @@ export default function NotificationsManager(
           )))}
           {grouped.companyMgmt.length > 0 &&
             section('company', 'Ban lãnh đạo — toàn công ty', grouped.companyMgmt.length, grouped.companyMgmt.map(row))}
+          {grouped.companyBrand.length > 0 &&
+            section('brand', 'Ban lãnh đạo — theo thương hiệu', grouped.companyBrand.length, grouped.companyBrand.map(row))}
           {grouped.orphanSales.length > 0 &&
             section('orphan', 'Chưa gán showroom', grouped.orphanSales.length, grouped.orphanSales.map(row))}
           {isEmpty && (
@@ -204,7 +217,7 @@ export default function NotificationsManager(
       </Panel>
 
       {edit && (
-        <NotifModal target={edit} showrooms={showrooms} salesTeams={salesTeams}
+        <NotifModal target={edit} showrooms={showrooms} salesTeams={salesTeams} brands={brands}
           srName={srName} teamLabel={teamLabel}
           onClose={() => setEdit(null)}
           onDone={(m) => { setEdit(null); flashMsg(m); router.refresh(); }} />
@@ -252,10 +265,11 @@ function IconBtn({ title, onClick, children }: { title: string; onClick: () => v
 }
 
 function NotifModal(
-  { target, showrooms, salesTeams, srName, teamLabel, onClose, onDone }: {
+  { target, showrooms, salesTeams, brands, srName, teamLabel, onClose, onDone }: {
     target: NotifChannelRow | 'new';
     showrooms: ShowroomRow[];
     salesTeams: SalesTeamRow[];
+    brands: BrandRow[];
     srName: (id: string | null) => string | null;
     teamLabel: (id: string | null) => string;
     onClose: () => void;
@@ -274,6 +288,7 @@ function NotifModal(
     init?.sales_team_ids?.length ? init.sales_team_ids : (init?.sales_team_id ? [init.sales_team_id] : []),
   );
   const [showroomId, setShowroomId] = useState<string>(init?.showroom_id ?? '');
+  const [brandIds, setBrandIds] = useState<string[]>(init?.brand_ids ?? []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -293,12 +308,15 @@ function NotifModal(
     setEvents((prev) => prev.includes(e) ? prev.filter((x) => x !== e) : [...prev, e]);
   const toggleTeam = (id: string) =>
     setSalesTeamIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  const toggleBrand = (id: string) =>
+    setBrandIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
 
   const submit = async () => {
     setError(null);
     if (!name.trim()) { setError('Nhập tên kênh.'); return; }
     if (events.length === 0) { setError('Chọn ít nhất 1 sự kiện.'); return; }
     if (scope === 'sales' && salesTeamIds.length === 0) { setError('Chọn ít nhất 1 phòng bán hàng.'); return; }
+    if (scope === 'brand' && brandIds.length === 0) { setError('Chọn ít nhất 1 thương hiệu.'); return; }
     setBusy(true);
     const r = await postAdmin('/api/admin/notification-channels', {
       op: isNew ? 'create' : 'update',
@@ -307,6 +325,7 @@ function NotifModal(
       scope,
       sales_team_ids: scope === 'sales' ? salesTeamIds : [],
       showroom_id: scope === 'management' ? (showroomId || null) : null,
+      brand_ids: scope === 'brand' ? brandIds : [],
     });
     setBusy(false);
     if (!r.ok) { setError(r.error ?? null); return; }
@@ -331,6 +350,7 @@ function NotifModal(
             <Select value={scope} onChange={(e) => changeScope(e.target.value as Scope)}>
               <option value="sales">Phòng bán hàng (lead + quá hạn + báo cáo ngày)</option>
               <option value="management">Ban lãnh đạo (báo cáo ngày/tuần/tháng)</option>
+              <option value="brand">Ban lãnh đạo thương hiệu (báo cáo ngày/tuần/tháng)</option>
             </Select>
           </Field>
           {scope === 'sales' && (
@@ -356,6 +376,23 @@ function NotifModal(
                 <option value="">Toàn công ty (BLĐ)</option>
                 {showrooms.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
               </Select>
+            </Field>
+          )}
+          {scope === 'brand' && (
+            <Field label="Thương hiệu phụ trách" hint="Chọn 1 hoặc nhiều hãng. Báo cáo tách riêng từng hãng, không pha lẫn.">
+              <div className="max-h-56 overflow-y-auto rounded-lg border border-slate-200 divide-y divide-slate-100">
+                {brands.length === 0 && <div className="px-3 py-2 text-sm text-slate-400">Chưa có thương hiệu.</div>}
+                {brands.map((b) => {
+                  const on = brandIds.includes(b.id);
+                  return (
+                    <label key={b.id} className="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-slate-50">
+                      <input type="checkbox" checked={on} onChange={() => toggleBrand(b.id)}
+                        className="w-4 h-4 rounded border-slate-300" style={{ accentColor: 'var(--color-brand)' }} />
+                      <span className="text-sm text-slate-700">{b.name}</span>
+                    </label>
+                  );
+                })}
+              </div>
             </Field>
           )}
           <Field label="Tên hiển thị"><TextInput value={name} onChange={(e) => setName(e.target.value)} placeholder="Group Phòng KIA 1" /></Field>

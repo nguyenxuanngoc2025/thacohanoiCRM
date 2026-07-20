@@ -113,11 +113,14 @@ export interface NotifChannelRow {
   is_active: boolean;
   // scope='sales' → kênh của 1 phòng bán hàng (sales_team_id). scope='management' → nhóm BLĐ
   // theo showroom (showroom_id) hoặc toàn công ty (showroom_id = null).
+  // scope='brand' → nhóm Ban lãnh đạo theo thương hiệu (brand_ids).
   showroom_id: string | null;
   sales_team_id: string | null;
-  // Danh sách phòng nhận thông báo (kênh scope='sales'). Mảng rỗng cho scope='management'.
+  // Danh sách phòng nhận thông báo (kênh scope='sales'). Mảng rỗng cho scope khác.
   sales_team_ids: string[];
-  scope: 'sales' | 'management';
+  // Danh sách thương hiệu phụ trách (kênh scope='brand'). Mảng rỗng cho scope khác.
+  brand_ids: string[];
+  scope: 'sales' | 'management' | 'brand';
 }
 
 export interface LeadLogRow {

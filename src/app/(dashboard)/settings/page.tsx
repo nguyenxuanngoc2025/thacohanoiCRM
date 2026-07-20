@@ -66,7 +66,7 @@ export default async function SettingsPage() {
     service.from('channel_account_showrooms').select('channel_account_id, showroom_id, share_pct').in('showroom_id', srFilter),
     service.from('assignment_rules').select('id, showroom_id, strategy, specific_user_id, is_active, priority').eq('company_id', companyId).order('priority', { ascending: false }),
     service.from('sla_config').select('id, round, first_response_hours, follow_up_hours, is_active').eq('company_id', companyId).order('round'),
-    service.from('notification_channels').select('id, channel, name, target, events, is_active, showroom_id, sales_team_id, sales_team_ids, scope').eq('company_id', companyId).order('created_at', { ascending: false }),
+    service.from('notification_channels').select('id, channel, name, target, events, is_active, showroom_id, sales_team_id, sales_team_ids, brand_ids, scope').eq('company_id', companyId).order('created_at', { ascending: false }),
     service.from('lead_logs').select('id, lead_id, user_id, type, content, old_status, new_status, created_at').in('user_id', userFilter).order('created_at', { ascending: false }).limit(50),
     service.from('leads').select('status').eq('company_id', companyId),
     service.from('sales_teams').select('id, showroom_id, brand_ids, name, head_user_id, is_default, sort_order, tvbh_assign_strategy, assign_share_pct').eq('company_id', companyId).order('sort_order'),
@@ -94,8 +94,10 @@ export default async function SettingsPage() {
   const showroomBrandRowsOpen = (showroomBrandRows ?? []).filter((r) => brandOpen((r as { brand_id: string }).brand_id));
   const openTeamIds = new Set(salesTeamRowsOpen.map((t) => String((t as { id: string }).id)));
   const notifChannelsOpen = (notifChannels ?? []).filter((c) => {
-    const ch = c as { scope: string; sales_team_id: string | null; sales_team_ids: string[] | null; showroom_id: string | null };
+    const ch = c as { scope: string; sales_team_id: string | null; sales_team_ids: string[] | null; showroom_id: string | null; brand_ids: string[] | null };
     if (ch.scope === 'management') return srActive(ch.showroom_id);
+    // Kênh BLĐ thương hiệu (brand): luôn hiện — không gắn showroom/phòng, lọc riêng theo brand_ids nếu cần.
+    if (ch.scope === 'brand') return true;
     const ids = ch.sales_team_ids ?? (ch.sales_team_id ? [ch.sales_team_id] : []);
     return ids.length === 0 || ids.some((id) => openTeamIds.has(String(id)));
   });
