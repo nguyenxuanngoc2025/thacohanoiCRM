@@ -292,6 +292,64 @@ function renderScopedStats(s: DailySrStats, brands: BrandBreakView[]): string[] 
   return lines;
 }
 
+// ————— BÁO CÁO KỲ DÀI (TUẦN / THÁNG): tập trung KẾT QUẢ, KHÔNG "quá hạn / chưa tuân thủ" —————
+// Kỳ đã kết thúc nên chỉ nhìn kết quả tích luỹ: tổng lead, tỷ lệ liên hệ, phễu chốt
+// (KHQT → Đàm phán → Ký HĐ), tỷ lệ chốt và SO SÁNH kỳ trước.
+
+// So sánh 1 chỉ số với kỳ trước: ↑ tăng, ↓ giảm, → không đổi.
+export function deltaStr(cur: number, prev: number): string {
+  const d = cur - prev;
+  if (d > 0) return `↑${d}`;
+  if (d < 0) return `↓${-d}`;
+  return '→0';
+}
+
+// Báo cáo TUẦN/THÁNG của 1 showroom (gửi nhóm BLĐ showroom). dateLabel/prevLabel đã gồm từ chỉ kỳ.
+export function renderPeriodSr(
+  showroom: string, dateLabel: string, prevLabel: string,
+  cur: DailySrStats, prev: DailySrStats, brands: BrandBreakView[],
+): string {
+  const winRate = pct(cur.KyHD, cur.total);
+  const prevWinRate = pct(prev.KyHD, prev.total);
+  const lines = [
+    `<b>BÁO CÁO ${dateLabel} — ${showroom}</b>`,
+    `Tổng lead: <b>${cur.total}</b> (${deltaStr(cur.total, prev.total)} so kỳ trước)`,
+    `Đã liên hệ: ${cur.contacted} (${pct(cur.contacted, cur.total)}%)`,
+    `Phễu chốt: KHQT ${cur.KHQT} → Đàm phán ${cur.GDTD} → Ký HĐ <b>${cur.KyHD}</b>`,
+    `Tỷ lệ chốt: <b>${winRate}%</b> · Đã loại: ${cur.Fail}`,
+  ];
+  if (brands.length > 0) {
+    lines.push('Chi tiết theo thương hiệu:');
+    for (const b of brands) {
+      lines.push(`· ${b.name}: ${b.stats.total} lead · Ký HĐ ${b.stats.KyHD} · chốt ${pct(b.stats.KyHD, b.stats.total)}%`);
+    }
+  }
+  lines.push(`—— Kỳ trước (${prevLabel}): ${prev.total} lead · Ký HĐ ${prev.KyHD} · chốt ${prevWinRate}%`);
+  return lines.join('\n');
+}
+
+export interface PeriodMgmtRow {
+  showroom: string;
+  cur: DailySrStats;
+  prev: DailySrStats;
+}
+
+// Bảng tổng hợp BLĐ toàn công ty cho kỳ TUẦN/THÁNG: dòng TỔNG (kèm so kỳ trước) + xếp hạng showroom theo Ký HĐ.
+export function renderPeriodMgmt(
+  dateLabel: string, prevLabel: string,
+  rows: PeriodMgmtRow[], curTotals: DailySrStats, prevTotals: DailySrStats,
+): string {
+  const winRate = pct(curTotals.KyHD, curTotals.total);
+  const head = `<b>BÁO CÁO ${dateLabel} — TỔNG HỢP BLĐ</b>`;
+  const totalLine = `TỔNG: <b>${curTotals.total}</b> lead (${deltaStr(curTotals.total, prevTotals.total)}) · Ký HĐ <b>${curTotals.KyHD}</b> (${deltaStr(curTotals.KyHD, prevTotals.KyHD)}) · Tỷ lệ chốt ${winRate}%`;
+  const contactLine = `Đã liên hệ ${curTotals.contacted} (${pct(curTotals.contacted, curTotals.total)}%) · KHQT ${curTotals.KHQT} · Đàm phán ${curTotals.GDTD}`;
+  const sorted = [...rows].sort((a, b) => b.cur.KyHD - a.cur.KyHD || b.cur.total - a.cur.total);
+  const body = sorted.map((r, i) =>
+    `${i + 1}. ${r.showroom}: ${r.cur.total} lead · Ký HĐ ${r.cur.KyHD} · chốt ${pct(r.cur.KyHD, r.cur.total)}%`);
+  const foot = `—— Kỳ trước (${prevLabel}): ${prevTotals.total} lead · Ký HĐ ${prevTotals.KyHD}`;
+  return [head, totalLine, contactLine, '———', 'Xếp hạng showroom (theo Ký HĐ):', ...body, foot].join('\n');
+}
+
 // Báo cáo ngày của 1 kênh Zalo nhiều phòng. Kênh 1 phòng → bỏ TỔNG QUAN, hiện thẳng 1 khối.
 export function renderChannelDaily(r: ChannelReportView): string {
   if (r.phongs.length === 1) {

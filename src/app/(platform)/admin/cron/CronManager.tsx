@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { Play, Power, CalendarClock, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Play, Power, CalendarClock, AlertTriangle, RefreshCw, Eye } from 'lucide-react';
 import { presetToCalendar, type Preset } from '@/lib/cron-admin';
+import { samplePeriodOfUnit } from '@/lib/report-sample';
 
 interface TimerView {
   unit: string;
@@ -39,6 +40,7 @@ export default function CronManager() {
   const [busyUnit, setBusyUnit] = useState('');
   const [confirm, setConfirm] = useState<{ t: TimerView; action: 'enable' | 'disable' | 'run' } | null>(null);
   const [reschedule, setReschedule] = useState<TimerView | null>(null);
+  const [preview, setPreview] = useState<TimerView | null>(null);
 
   const load = useCallback(async () => {
     setError('');
@@ -136,6 +138,11 @@ export default function CronManager() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5 justify-end">
+                          {samplePeriodOfUnit(t.unit) && (
+                            <IconBtn title="Xem nội dung mẫu" onClick={() => setPreview(t)}>
+                              <Eye size={15} />
+                            </IconBtn>
+                          )}
                           <IconBtn title="Chạy ngay" disabled={busyUnit === t.unit}
                             onClick={() => (t.dangerous ? setConfirm({ t, action: 'run' }) : doAction(t.unit, 'run'))}>
                             <Play size={15} />
@@ -185,6 +192,65 @@ export default function CronManager() {
           }}
         />
       )}
+      {preview && <PreviewModal timer={preview} onClose={() => setPreview(null)} />}
+    </div>
+  );
+}
+
+// Đổi marker <b>/<i> (định dạng tin Zalo) thành chữ đậm/nghiêng để xem cho dễ.
+function renderMarked(text: string): React.ReactNode {
+  return text.split('\n').map((line, li) => {
+    const parts: React.ReactNode[] = [];
+    const re = /<(b|i)>(.*?)<\/\1>/g;
+    let last = 0; let m: RegExpExecArray | null; let k = 0;
+    while ((m = re.exec(line)) !== null) {
+      if (m.index > last) parts.push(line.slice(last, m.index));
+      parts.push(m[1] === 'b'
+        ? <strong key={k++}>{m[2]}</strong>
+        : <em key={k++}>{m[2]}</em>);
+      last = m.index + m[0].length;
+    }
+    if (last < line.length) parts.push(line.slice(last));
+    return <div key={li}>{parts.length ? parts : '\u00A0'}</div>;
+  });
+}
+
+function PreviewModal({ timer, onClose }: { timer: TimerView; onClose: () => void }) {
+  const [sections, setSections] = useState<{ label: string; text: string }[] | null>(null);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    (async () => {
+      const res = await fetch(`/api/platform/cron/preview?unit=${encodeURIComponent(timer.unit)}`, { cache: 'no-store' });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) { setErr(json?.error ?? 'Không tải được nội dung mẫu.'); return; }
+      setSections(json.sections as { label: string; text: string }[]);
+    })();
+  }, [timer.unit]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl border border-slate-200 p-6 w-full max-w-lg max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <h3 className="font-semibold text-slate-900">Nội dung mẫu — {timer.title}</h3>
+        <p className="text-xs text-slate-400 mt-0.5 mb-4">
+          Tin minh hoạ bằng số liệu giả để bạn hình dung. Số thật sẽ được tính khi tới giờ chạy.
+        </p>
+        {err && <div className="text-sm text-rose-600">{err}</div>}
+        {!sections && !err && <div className="text-sm text-slate-400">Đang tải...</div>}
+        <div className="space-y-4">
+          {sections?.map((s, i) => (
+            <div key={i}>
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Gửi tới: {s.label}</div>
+              <div className="text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 leading-relaxed">
+                {renderMarked(s.text)}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="flex justify-end mt-5">
+          <button onClick={onClose} className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50">Đóng</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -217,6 +283,7 @@ function Legend() {
         </div>
       </div>
       <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-500 pt-1 border-t border-slate-100">
+        <span><Eye size={12} className="inline -mt-0.5 mr-1" />Xem nội dung mẫu (báo cáo)</span>
         <span><Play size={12} className="inline -mt-0.5 mr-1" />Chạy ngay một lần</span>
         <span><CalendarClock size={12} className="inline -mt-0.5 mr-1" />Đổi lịch chạy</span>
         <span><Power size={12} className="inline -mt-0.5 mr-1" />Bật hoặc tắt</span>

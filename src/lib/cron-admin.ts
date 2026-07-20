@@ -124,6 +124,31 @@ export function explainCron(name: string, systemdDescription = ''): string {
 }
 
 /**
+ * Thứ tự hiển thị HỢP LÝ trong nhóm CRM: gom theo luồng (thu lead → báo cáo →
+ * nhắc việc → canh gác → dự phòng); báo cáo xếp ngày → tuần → tháng. Timer ngoài
+ * danh sách (hạ tầng/OS) nhận khoá lớn → rơi xuống cuối, sắp theo tên.
+ */
+const CRON_ORDER = [
+  // Thu lead
+  'cron-poll-fb-messages', 'cron-poll-fb-comments', 'cron-google-sheets', 'cron-enrich-names',
+  // Báo cáo (ngày → tuần → tháng → sức khoẻ)
+  'cron-daily-report', 'cron-weekly-report', 'cron-monthly-report', 'cron-health-digest',
+  // Nhắc việc
+  'cron-reminders',
+  // Canh gác / hồi phục
+  'cron-watchdog', 'zca-bot-heal',
+  // Dự phòng
+  'leads-export',
+];
+
+/** Khoá sắp xếp cho 1 timer (nhỏ = lên trước). Không có trong danh sách → về cuối. */
+export function cronSortKey(unit: string): number {
+  const base = unit.replace(/\.timer$/, '');
+  const i = CRON_ORDER.indexOf(base);
+  return i < 0 ? CRON_ORDER.length : i;
+}
+
+/**
  * Tên hiển thị NGẮN, dễ đọc tiếng Việt cho từng timer (giữ nguyên thuật ngữ như
  * Facebook, Zalo, Supabase, SSL). CHỈ là nhãn — tên kỹ thuật (unit) không đổi.
  */

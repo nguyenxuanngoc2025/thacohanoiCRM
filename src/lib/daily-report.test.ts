@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildPeriodReport, buildChannelReport, type ReportLead } from './daily-report';
+import { buildPeriodReport, buildChannelReport, buildLongPeriodReport, type ReportLead } from './daily-report';
 import { renderChannelDaily } from './notify-templates';
 
 const L = (over: Partial<ReportLead>): ReportLead => ({
@@ -188,5 +188,62 @@ describe('daily-report', () => {
     expect(p1.brands.find((b) => b.name === 'KIA')!.stats.total).toBe(1);
     // TỔNG QUAN cũng gồm cả 2 hãng.
     expect(r.overview.brands.map((b) => b.name).sort()).toEqual(['KIA', 'Mazda']);
+  });
+});
+
+describe('buildLongPeriodReport (tuần/tháng — tập trung kết quả)', () => {
+  const now = new Date('2026-07-20T01:00:00Z');
+
+  it('perShowroom: phễu chốt + tỷ lệ chốt + so sánh kỳ trước, KHÔNG "quá hạn/chưa tuân thủ"', () => {
+    const current: ReportLead[] = [
+      L({ showroom_id: 'sr1', showroom_name: 'KIA HN', last_contact_at: '2026-07-14T09:00:00Z', status: 'KHQT' }),
+      L({ showroom_id: 'sr1', showroom_name: 'KIA HN', last_contact_at: '2026-07-15T09:00:00Z', status: 'KHĐ' }),
+      L({ showroom_id: 'sr1', showroom_name: 'KIA HN', status: null }),
+      L({ showroom_id: 'sr1', showroom_name: 'KIA HN', status: 'GDTD', last_contact_at: '2026-07-16T09:00:00Z' }),
+    ];
+    const previous: ReportLead[] = [
+      L({ showroom_id: 'sr1', showroom_name: 'KIA HN', status: 'KHĐ', last_contact_at: '2026-07-07T09:00:00Z' }),
+      L({ showroom_id: 'sr1', showroom_name: 'KIA HN', status: null }),
+    ];
+    const r = buildLongPeriodReport(current, previous, 'TUẦN 13/07–19/07', 'TUẦN 06/07–12/07', now);
+    expect(r.perShowroom).toHaveLength(1);
+    const sr = r.perShowroom[0];
+    expect(sr.stats.total).toBe(4);
+    expect(sr.stats.KyHD).toBe(1);
+    expect(sr.text).toContain('BÁO CÁO TUẦN 13/07–19/07 — KIA HN');
+    expect(sr.text).toContain('Phễu chốt: KHQT 1 → Đàm phán 1 → Ký HĐ');
+    expect(sr.text).toContain('Tỷ lệ chốt:');
+    // so sánh kỳ trước: tổng 4 vs 2 → ↑2
+    expect(sr.text).toContain('↑2 so kỳ trước');
+    expect(sr.text).toContain('Kỳ trước (TUẦN 06/07–12/07)');
+    // KHÔNG có nội dung báo cáo ngày
+    expect(sr.text).not.toContain('Quá hạn');
+    expect(sr.text).not.toContain('Chưa tuân thủ');
+  });
+
+  it('management: xếp hạng showroom theo Ký HĐ + so kỳ trước', () => {
+    const current: ReportLead[] = [
+      L({ showroom_id: 'sr1', showroom_name: 'KIA HN', status: 'KHĐ', last_contact_at: '2026-07-14T09:00:00Z' }),
+      L({ showroom_id: 'sr2', showroom_name: 'Mazda HN', status: 'KHĐ', last_contact_at: '2026-07-14T09:00:00Z' }),
+      L({ showroom_id: 'sr2', showroom_name: 'Mazda HN', status: 'KHĐ', last_contact_at: '2026-07-15T09:00:00Z' }),
+    ];
+    const r = buildLongPeriodReport(current, [], 'THÁNG 06/2026', 'THÁNG 05/2026', now);
+    expect(r.management).toContain('BÁO CÁO THÁNG 06/2026 — TỔNG HỢP BLĐ');
+    expect(r.management).toContain('Xếp hạng showroom (theo Ký HĐ):');
+    // Mazda 2 hợp đồng → hạng 1, KIA hạng 2
+    const idxMazda = r.management.indexOf('Mazda HN');
+    const idxKia = r.management.indexOf('KIA HN');
+    expect(idxMazda).toBeLessThan(idxKia);
+    expect(r.management).toContain('1. Mazda HN');
+    expect(r.management).toContain('Kỳ trước (THÁNG 05/2026)');
+  });
+
+  it('seed showroom 0 lead vẫn ra báo cáo', () => {
+    const r = buildLongPeriodReport([], [], 'TUẦN 13/07–19/07', 'TUẦN 06/07–12/07', now, {
+      showrooms: [{ id: 'sr9', name: 'Showroom Mới' }],
+    });
+    expect(r.perShowroom).toHaveLength(1);
+    expect(r.perShowroom[0].stats.total).toBe(0);
+    expect(r.perShowroom[0].text).toContain('Showroom Mới');
   });
 });

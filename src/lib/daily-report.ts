@@ -1,4 +1,7 @@
-import { renderDailySr, renderDailyMgmt, type DailySrStats, type MgmtRow, type NonCompliant } from './notify-templates';
+import {
+  renderDailySr, renderDailyMgmt, renderPeriodSr, renderPeriodMgmt,
+  type DailySrStats, type MgmtRow, type NonCompliant, type PeriodMgmtRow,
+} from './notify-templates';
 
 export interface ReportLead {
   showroom_id: string;
@@ -176,6 +179,60 @@ export function buildPeriodReport(leads: ReportLead[], dateLabel: string, now: D
     perShowroom,
     management: renderDailyMgmt(dateLabel, mgmtRows, { total: tTotal, contacted: tContacted, overdue: tOverdue }),
   };
+}
+
+// Cộng dồn mọi trường của 1 stats vào accumulator (dùng tính TỔNG toàn công ty).
+function sumInto(acc: DailySrStats, s: DailySrStats): void {
+  acc.total += s.total; acc.contacted += s.contacted; acc.pending += s.pending;
+  acc.overdue += s.overdue; acc.KHQT += s.KHQT; acc.GDTD += s.GDTD; acc.KyHD += s.KyHD; acc.Fail += s.Fail;
+}
+
+export interface LongPeriodReport {
+  // Báo cáo từng showroom (kèm so kỳ trước) → gửi nhóm BLĐ showroom.
+  perShowroom: ScopedReport[];
+  // Bảng tổng hợp toàn công ty (xếp hạng showroom + so kỳ trước) → gửi nhóm BLĐ công ty.
+  management: string;
+}
+
+/**
+ * Báo cáo KỲ DÀI (TUẦN / THÁNG) — tập trung KẾT QUẢ, KHÔNG "quá hạn/chưa tuân thủ".
+ * Nhận lead của kỳ HIỆN TẠI + kỳ TRƯỚC (cùng độ dài) để so sánh. Chỉ 2 cấp:
+ *  - perShowroom: kết quả từng showroom (tổng, tỷ lệ LH, phễu chốt, tỷ lệ chốt, chi tiết hãng, so kỳ trước).
+ *  - management: bảng tổng hợp công ty + xếp hạng showroom theo Ký HĐ.
+ * Nhóm bán hàng KHÔNG nhận báo cáo kỳ dài (chỉ nhận báo cáo ngày).
+ */
+export function buildLongPeriodReport(
+  current: ReportLead[], previous: ReportLead[],
+  dateLabel: string, prevLabel: string, now: Date, seed?: ReportSeed,
+): LongPeriodReport {
+  const cur = new Map<string, Bucket>();
+  const prev = new Map<string, Bucket>();
+  // Seed showroom đã cấu hình group → luôn ra báo cáo (kể cả 0 lead).
+  for (const s of seed?.showrooms ?? []) { cur.set(s.id, newBucket(s.name)); prev.set(s.id, newBucket(s.name)); }
+  for (const l of current) {
+    const g = cur.get(l.showroom_id) ?? newBucket(l.showroom_name);
+    accumulate(g, l, now); cur.set(l.showroom_id, g);
+  }
+  for (const l of previous) {
+    const g = prev.get(l.showroom_id) ?? newBucket(l.showroom_name);
+    accumulate(g, l, now); prev.set(l.showroom_id, g);
+  }
+
+  const perShowroom: ScopedReport[] = [];
+  const rows: PeriodMgmtRow[] = [];
+  const curTotals = emptyStats();
+  const prevTotals = emptyStats();
+  for (const [id, g] of cur) {
+    const p = prev.get(id) ?? newBucket(g.name);
+    perShowroom.push({
+      id, name: g.name, stats: g.stats,
+      text: renderPeriodSr(g.name, dateLabel, prevLabel, g.stats, p.stats, brandBreaks(g)),
+    });
+    rows.push({ showroom: g.name, cur: g.stats, prev: p.stats });
+    sumInto(curTotals, g.stats); sumInto(prevTotals, p.stats);
+  }
+
+  return { perShowroom, management: renderPeriodMgmt(dateLabel, prevLabel, rows, curTotals, prevTotals) };
 }
 
 // Danh sách chi tiết hãng của 1 bucket, sắp theo tên hãng cho ổn định.

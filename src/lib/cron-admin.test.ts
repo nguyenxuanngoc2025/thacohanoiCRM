@@ -10,6 +10,7 @@ import {
   unitStatusLight,
   explainCron,
   cronTitle,
+  cronSortKey,
 } from './cron-admin';
 
 const UNIT_FILES = `apt-daily.timer              enabled  enabled
@@ -29,6 +30,19 @@ describe('parseUnitFiles', () => {
     expect(disabled?.state).toBe('disabled');
     const staticT = rows.find((r) => r.unit === 'systemd-tmpfiles-clean.timer');
     expect(staticT?.state).toBe('static');
+  });
+});
+
+describe('cronSortKey', () => {
+  it('báo cáo xếp ngày < tuần < tháng', () => {
+    expect(cronSortKey('cron-daily-report.timer')).toBeLessThan(cronSortKey('cron-weekly-report.timer'));
+    expect(cronSortKey('cron-weekly-report.timer')).toBeLessThan(cronSortKey('cron-monthly-report.timer'));
+  });
+  it('thu lead lên trước báo cáo', () => {
+    expect(cronSortKey('cron-poll-fb-messages.timer')).toBeLessThan(cronSortKey('cron-daily-report.timer'));
+  });
+  it('timer ngoài danh sách về cuối', () => {
+    expect(cronSortKey('certbot.timer')).toBeGreaterThanOrEqual(cronSortKey('leads-export.timer'));
   });
 });
 

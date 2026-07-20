@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { checkCronSecret } from '@/lib/cron-auth';
-import { buildPeriodReport, buildChannelReport, type ReportLead } from '@/lib/daily-report';
+import { buildPeriodReport, buildChannelReport, buildLongPeriodReport, type ReportLead } from '@/lib/daily-report';
 import { getMutedTeamIdsGlobal, getInactiveShowroomIdsGlobal, isBrandClosed } from '@/lib/company-brands';
 
 export const dynamic = 'force-dynamic';
@@ -26,33 +26,48 @@ export async function POST(request: NextRequest) {
   // Đầu ngày HÔM NAY theo giờ VN (UTC+7) tính trên mốc UTC.
   const todayVn = new Date(now.getTime() + 7 * 3600000);
   todayVn.setUTCHours(0, 0, 0, 0);
+  const mm = (d: Date) => String(d.getUTCMonth() + 1).padStart(2, '0');
+  const monthLabel = (d: Date) => `THÁNG ${mm(d)}/${d.getUTCFullYear()}`;
 
-  // Mốc bắt đầu + nhãn kỳ.
-  let startVn: Date;
+  // Cửa sổ kỳ HIỆN TẠI [curStartVn, endVn) + kỳ TRƯỚC [prevStartVn, curStartVn) cùng độ dài (để so sánh).
+  // Báo cáo NGÀY: chỉ 1 kỳ, không cận trên (tới hiện tại), không so sánh.
+  // Báo cáo TUẦN: chạy 07:30 thứ 2 → báo cáo TUẦN VỪA XONG (7 ngày trước hôm nay: T2 tuần trước → CN).
+  // Báo cáo THÁNG: chạy 07:30 ngày 1 → báo cáo THÁNG VỪA XONG (tháng liền trước).
+  let curStartVn: Date;
+  let endVn: Date | null;
+  let prevStartVn: Date | null;
   let dateLabel: string;
+  let prevLabel = '';
   if (period === 'weekly') {
-    startVn = new Date(todayVn.getTime() - 6 * 86400000); // 7 ngày gần nhất (gồm hôm nay)
-    dateLabel = `TUẦN ${dm(startVn)}–${dm(todayVn)}`;
+    curStartVn = new Date(todayVn.getTime() - 7 * 86400000);
+    endVn = todayVn;
+    prevStartVn = new Date(todayVn.getTime() - 14 * 86400000);
+    dateLabel = `TUẦN ${dm(curStartVn)}–${dm(new Date(endVn.getTime() - 86400000))}`;
+    prevLabel = `TUẦN ${dm(prevStartVn)}–${dm(new Date(curStartVn.getTime() - 86400000))}`;
   } else if (period === 'monthly') {
-    // Timer chạy ngày 28-31; chỉ phát báo cáo vào ĐÚNG ngày cuối tháng (hôm sau sang tháng khác).
-    const tomorrow = new Date(todayVn.getTime() + 86400000);
-    if (tomorrow.getUTCMonth() === todayVn.getUTCMonth()) {
-      return NextResponse.json({ ok: true, period, sent: 0, skipped: 'not_month_end' });
-    }
-    startVn = new Date(Date.UTC(todayVn.getUTCFullYear(), todayVn.getUTCMonth(), 1));
-    dateLabel = `THÁNG ${String(todayVn.getUTCMonth() + 1).padStart(2, '0')}/${todayVn.getUTCFullYear()}`;
+    curStartVn = new Date(Date.UTC(todayVn.getUTCFullYear(), todayVn.getUTCMonth() - 1, 1));
+    endVn = new Date(Date.UTC(todayVn.getUTCFullYear(), todayVn.getUTCMonth(), 1));
+    prevStartVn = new Date(Date.UTC(todayVn.getUTCFullYear(), todayVn.getUTCMonth() - 2, 1));
+    dateLabel = monthLabel(curStartVn);
+    prevLabel = monthLabel(prevStartVn);
   } else {
-    startVn = todayVn;
+    curStartVn = todayVn;
+    endVn = null;
+    prevStartVn = null;
     dateLabel = `NGÀY ${dm(todayVn)}`;
   }
-  const startUtc = new Date(startVn.getTime() - 7 * 3600000).toISOString();
+  const toUtcIso = (vn: Date) => new Date(vn.getTime() - 7 * 3600000).toISOString();
+  const queryStartUtc = toUtcIso(prevStartVn ?? curStartVn);
+  const curStartUtcMs = new Date(toUtcIso(curStartVn)).getTime();
 
-  // Lead TẠO trong kỳ
-  const { data: leads, error } = await db
+  // Lead TẠO trong kỳ (gồm cả kỳ trước để so sánh với báo cáo tuần/tháng).
+  let query = db
     .from('leads')
-    .select('company_id, brand_id, showroom_id, sales_team_id, status, last_contact_at, next_contact_at, showrooms(name), sales_teams(name), brands(name), users!assigned_to(full_name)')
-    .gte('created_at', startUtc)
+    .select('company_id, brand_id, showroom_id, sales_team_id, status, created_at, last_contact_at, next_contact_at, showrooms(name), sales_teams(name), brands(name), users!assigned_to(full_name)')
+    .gte('created_at', queryStartUtc)
     .not('showroom_id', 'is', null);
+  if (endVn) query = query.lt('created_at', toUtcIso(endVn));
+  const { data: leads, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   // Hãng đang TẮT: loại số liệu khỏi báo cáo (R5) + loại phòng khỏi seed (không tạo báo cáo rỗng).
@@ -73,7 +88,7 @@ export async function POST(request: NextRequest) {
     return !isBrandClosed(openByCompany.get(cid) ?? [], (l.brand_id as string | null) ?? null);
   });
 
-  const mapped: ReportLead[] = openLeads.map((l) => {
+  const toReportLead = (l: (typeof openLeads)[number]): ReportLead => {
     const j = l as unknown as { showrooms: { name: string } | null; sales_teams: { name: string } | null; brands: { name: string } | null; users: { full_name: string } | null };
     return {
       showroom_id: l.showroom_id as string,
@@ -87,7 +102,14 @@ export async function POST(request: NextRequest) {
       status: l.status ?? null,
       assignee_name: j.users?.full_name ?? null,
     };
-  });
+  };
+  // Tách lead kỳ hiện tại / kỳ trước theo mốc created_at (kỳ trước chỉ dùng để so sánh tuần/tháng).
+  const mapped: ReportLead[] = openLeads
+    .filter((l) => new Date(String(l.created_at)).getTime() >= curStartUtcMs)
+    .map(toReportLead);
+  const mappedPrev: ReportLead[] = openLeads
+    .filter((l) => new Date(String(l.created_at)).getTime() < curStartUtcMs)
+    .map(toReportLead);
 
   const { data: channels } = await db
     .from('notification_channels')
@@ -120,10 +142,11 @@ export async function POST(request: NextRequest) {
     ? await db.from('showrooms').select('id, name').in('id', showroomSeedIds)
     : { data: [] as { id: string; name: string }[] };
 
-  const report = buildPeriodReport(mapped, dateLabel, now, {
-    teams: [],
-    showrooms: (srRows ?? []).map((s) => ({ id: s.id, name: s.name })),
-  });
+  const showroomSeed = (srRows ?? []).map((s) => ({ id: s.id, name: s.name }));
+  // NGÀY: bố cục theo dõi vận hành (quá hạn, chưa tuân thủ). TUẦN/THÁNG: tập trung kết quả + so kỳ trước.
+  const report = period === 'daily'
+    ? buildPeriodReport(mapped, dateLabel, now, { teams: [], showrooms: showroomSeed })
+    : buildLongPeriodReport(mapped, mappedPrev, dateLabel, prevLabel, now, { showrooms: showroomSeed });
 
   const inserts: Record<string, unknown>[] = [];
 

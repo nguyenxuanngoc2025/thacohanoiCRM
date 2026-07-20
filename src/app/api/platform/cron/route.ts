@@ -3,7 +3,7 @@ import { requirePlatformOwner } from '@/lib/platform-guard';
 import { writeAudit } from '@/lib/platform-audit';
 import {
   parseUnitFiles, parseUnitShow, parseTimersCalendar,
-  classifyTimer, buildOverrideContent, unitStatusLight, explainCron, cronTitle, formatVnTime,
+  classifyTimer, buildOverrideContent, unitStatusLight, explainCron, cronTitle, formatVnTime, cronSortKey,
 } from '@/lib/cron-admin';
 import {
   listTimers, showTimer, showService, enableTimer, disableTimer,
@@ -72,6 +72,8 @@ export async function GET() {
   try {
     const rows = parseUnitFiles(await listTimers());
     const timers = await Promise.all(rows.map((r) => buildTimerView(r.unit, r.state)));
+    // Sắp theo luồng nghiệp vụ (thu lead → báo cáo ngày/tuần/tháng → …); còn lại theo tên.
+    timers.sort((a, b) => cronSortKey(a.unit) - cronSortKey(b.unit) || a.unit.localeCompare(b.unit));
     return NextResponse.json({ timers });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
