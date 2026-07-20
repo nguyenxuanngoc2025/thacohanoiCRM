@@ -1,8 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { requireAdmin } from '@/lib/admin-guard';
 import { createServiceClient } from '@/lib/supabase/server';
-import { buildPeriodReport, buildChannelReport, type ReportLead } from '@/lib/daily-report';
-import { renderChannelDaily } from '@/lib/notify-templates';
+import { buildPeriodReport, buildChannelReport, buildBrandReport, type ReportLead } from '@/lib/daily-report';
+import { renderChannelDaily, renderBrandReport } from '@/lib/notify-templates';
 import { getOpenBrandIds, isBrandClosed, getInactiveShowroomIds, isShowroomInactive } from '@/lib/company-brands';
 
 const VALID_EVENTS = ['new_lead', 'overdue', 'daily_report', 'weekly_report', 'monthly_report'];
@@ -12,7 +12,7 @@ const VALID_EVENTS = ['new_lead', 'overdue', 'daily_report', 'weekly_report', 'm
 async function buildTestReportText(
   service: ReturnType<typeof createServiceClient>,
   companyId: string,
-  ch: { scope: string | null; showroom_id: string | null; sales_team_ids: string[]; name: string | null }
+  ch: { scope: string | null; showroom_id: string | null; sales_team_ids: string[]; brand_ids: string[]; name: string | null }
 ): Promise<string> {
   const now = new Date();
   const todayVn = new Date(now.getTime() + 7 * 3600000);
@@ -72,6 +72,13 @@ async function buildTestReportText(
     const modelBreakBrandIds = new Set((mbRows ?? []).map((b) => String(b.id)));
     const cr = buildChannelReport(mapped, dateLabel, now, { headerName: ch.name ?? 'Showroom', teams, brands }, modelBreakBrandIds);
     body = renderChannelDaily(cr);
+  } else if (ch.scope === 'brand' && ch.brand_ids.length > 0) {
+    const { data: bRows } = await service.from('brands').select('id, name').in('id', ch.brand_ids);
+    const brandNameById = new Map((bRows ?? []).map((b) => [String(b.id), b.name]));
+    // mapped đã .eq('company_id', companyId) ở query → chỉ cần lọc theo brand_ids.
+    const brandLeads = mapped.filter((l) => l.brand_id != null && ch.brand_ids.includes(l.brand_id));
+    const seed = { headerName: ch.name ?? 'BLĐ thương hiệu', brands: ch.brand_ids.map((id) => ({ id, name: brandNameById.get(id) ?? 'Thương hiệu' })) };
+    body = renderBrandReport(buildBrandReport(brandLeads, dateLabel, now, seed));
   } else if (ch.scope === 'management' && ch.showroom_id) {
     const seedSr = (await service.from('showrooms').select('id, name').eq('id', ch.showroom_id).maybeSingle()).data;
     const report = buildPeriodReport(mapped, dateLabel, now, {
@@ -112,7 +119,7 @@ export async function POST(request: NextRequest) {
     if (op === 'test') {
       const { data: ch, error: chErr } = await service
         .from('notification_channels')
-        .select('id, channel, target, name, scope, showroom_id, sales_team_id, sales_team_ids')
+        .select('id, channel, target, name, scope, showroom_id, sales_team_id, sales_team_ids, brand_ids')
         .eq('id', body.id)
         .eq('company_id', companyId)
         .maybeSingle();
@@ -122,6 +129,7 @@ export async function POST(request: NextRequest) {
       const text = await buildTestReportText(service, companyId, {
         scope: ch.scope, showroom_id: ch.showroom_id,
         sales_team_ids: (ch.sales_team_ids as string[] | null) ?? (ch.sales_team_id ? [ch.sales_team_id] : []),
+        brand_ids: (ch.brand_ids as string[] | null) ?? [],
         name: ch.name,
       });
       const { error } = await service.from('notifications').insert({
@@ -140,7 +148,7 @@ export async function POST(request: NextRequest) {
     const events = Array.isArray(body.events)
       ? body.events.filter((e: string) => VALID_EVENTS.includes(e))
       : ['new_lead'];
-    const scope = body.scope === 'management' ? 'management' : 'sales';
+    const scope = body.scope === 'management' ? 'management' : body.scope === 'brand' ? 'brand' : 'sales';
     // Cô lập đa công ty: showroom / phòng bán hàng phải thuộc CÙNG công ty với admin.
     if (scope === 'management' && body.showroom_id) {
       const { data: sr } = await service.from('showrooms')
@@ -164,6 +172,20 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Có phòng không thuộc công ty của bạn.' }, { status: 403 });
       }
     }
+    // scope='brand': nhận danh sách hãng. Mỗi hãng phải thuộc công ty caller (company_brands) → cô lập tenant.
+    let brandIds: string[] = [];
+    if (scope === 'brand') {
+      const raw: unknown[] = Array.isArray(body.brand_ids) ? body.brand_ids : [];
+      brandIds = [...new Set(raw.map((x) => String(x)).filter(Boolean))];
+      if (brandIds.length === 0) {
+        return NextResponse.json({ error: 'Chọn ít nhất 1 thương hiệu.' }, { status: 400 });
+      }
+      const openBrands = await getOpenBrandIds(service, companyId);
+      const openSet = new Set(openBrands.map(String));
+      if (brandIds.some((id) => !openSet.has(id))) {
+        return NextResponse.json({ error: 'Có thương hiệu không thuộc công ty của bạn.' }, { status: 403 });
+      }
+    }
     const row = {
       channel,
       name,
@@ -175,6 +197,7 @@ export async function POST(request: NextRequest) {
       sales_team_ids: scope === 'sales' ? salesTeamIds : [],
       sales_team_id: scope === 'sales' ? (salesTeamIds[0] ?? null) : null,
       showroom_id: scope === 'management' ? (body.showroom_id || null) : null,
+      brand_ids: scope === 'brand' ? brandIds : [],
     };
 
     if (op === 'update') {
