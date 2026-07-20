@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { checkCronSecret } from '@/lib/cron-auth';
-import { buildPeriodReport, buildChannelReport, buildChannelPeriodReport, buildLongPeriodReport, type ReportLead } from '@/lib/daily-report';
+import { buildPeriodReport, buildChannelReport, buildChannelPeriodReport, buildLongPeriodReport, buildBrandReport, type ReportLead } from '@/lib/daily-report';
 import { getMutedTeamIdsGlobal, getInactiveShowroomIdsGlobal, isBrandClosed } from '@/lib/company-brands';
 
 export const dynamic = 'force-dynamic';
@@ -97,6 +97,7 @@ export async function POST(request: NextRequest) {
       team_name: j.sales_teams?.name ?? null,
       brand_id: (l.brand_id as string | null) ?? null,
       brand_name: j.brands?.name ?? null,
+      company_id: (l.company_id as string | null) ?? null,
       model_id: (l.model_id as string | null) ?? null,
       model_name: j.models?.name ?? null,
       last_contact_at: l.last_contact_at ?? null,
@@ -115,7 +116,7 @@ export async function POST(request: NextRequest) {
 
   const { data: channels } = await db
     .from('notification_channels')
-    .select('id, channel, target, name, events, showroom_id, sales_team_id, sales_team_ids, scope')
+    .select('id, channel, target, name, events, showroom_id, sales_team_id, sales_team_ids, scope, company_id, brand_ids')
     .eq('is_active', true);
 
   const has = (c: { events: string[] | null }) => (c.events ?? []).includes(event);
@@ -186,6 +187,27 @@ export async function POST(request: NextRequest) {
   for (const c of companyTargets) {
     inserts.push({ channel: c.channel, channel_id: c.id, status: 'pending',
       payload: { event, target: c.target, text: report.management } });
+  }
+
+  // Nhóm BLĐ thương hiệu (scope='brand'): mỗi hãng phụ trách 1 khối. Cô lập tenant:
+  // LUÔN lọc company_id của kênh KÈM brand_id (brands là master toàn cục — bài học bug 0033).
+  const brandChans = (channels ?? []).filter((c) => has(c) && c.scope === 'brand');
+  if (brandChans.length > 0) {
+    const { renderBrandReport } = await import('@/lib/notify-templates');
+    const brandSeedIds = [...new Set(brandChans.flatMap((c) => (c.brand_ids as string[] | null) ?? []))];
+    const { data: bRows } = brandSeedIds.length
+      ? await db.from('brands').select('id, name').in('id', brandSeedIds)
+      : { data: [] as { id: string; name: string }[] };
+    const brandNameById = new Map((bRows ?? []).map((b) => [String(b.id), b.name]));
+    for (const c of brandChans) {
+      const bids = (c.brand_ids as string[] | null) ?? [];
+      if (bids.length === 0) continue;
+      const brandLeads = mapped.filter((l) =>
+        l.company_id === c.company_id && l.brand_id != null && bids.includes(l.brand_id));
+      const seed = { headerName: c.name ?? 'BLĐ thương hiệu', brands: bids.map((id) => ({ id, name: brandNameById.get(id) ?? 'Thương hiệu' })) };
+      const text = renderBrandReport(buildBrandReport(brandLeads, dateLabel, now, seed));
+      inserts.push({ channel: c.channel, channel_id: c.id, status: 'pending', payload: { event, target: c.target, text } });
+    }
   }
 
   if (inserts.length > 0) await db.from('notifications').insert(inserts);

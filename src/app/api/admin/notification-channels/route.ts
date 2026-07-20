@@ -46,6 +46,7 @@ async function buildTestReportText(
       team_name: j.sales_teams?.name ?? null,
       brand_id: (l.brand_id as string | null) ?? null,
       brand_name: j.brands?.name ?? null,
+      company_id: (l.company_id as string | null) ?? null,
       model_id: (l.model_id as string | null) ?? null,
       model_name: j.models?.name ?? null,
       last_contact_at: l.last_contact_at ?? null,
