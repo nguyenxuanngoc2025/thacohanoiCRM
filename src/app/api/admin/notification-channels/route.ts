@@ -67,7 +67,9 @@ async function buildTestReportText(
       ? await service.from('brands').select('id, name').in('id', seedBrandIds)
       : { data: [] as { id: string; name: string }[] };
     const brands = (brandRows ?? []).map((b) => ({ id: b.id, name: b.name }));
-    const cr = buildChannelReport(mapped, dateLabel, now, { headerName: ch.name ?? 'Showroom', teams, brands });
+    const { data: mbRows } = await service.from('brands').select('id').eq('report_by_model', true);
+    const modelBreakBrandIds = new Set((mbRows ?? []).map((b) => String(b.id)));
+    const cr = buildChannelReport(mapped, dateLabel, now, { headerName: ch.name ?? 'Showroom', teams, brands }, modelBreakBrandIds);
     body = renderChannelDaily(cr);
   } else if (ch.scope === 'management' && ch.showroom_id) {
     const seedSr = (await service.from('showrooms').select('id, name').eq('id', ch.showroom_id).maybeSingle()).data;

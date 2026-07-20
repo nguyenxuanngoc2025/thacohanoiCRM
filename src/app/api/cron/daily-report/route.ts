@@ -138,6 +138,10 @@ export async function POST(request: NextRequest) {
     : { data: [] as { id: string; name: string }[] };
   const brandList = (brandRows ?? []).map((b) => ({ id: b.id, name: b.name }));
 
+  // Thương hiệu tách chi tiết theo DÒNG XE (cờ report_by_model). brands là master toàn cục.
+  const { data: mbRows } = await db.from('brands').select('id').eq('report_by_model', true);
+  const modelBreakBrandIds = new Set((mbRows ?? []).map((b) => String(b.id)));
+
   // Seed showroom: BLĐ theo showroom đã cấu hình group cho kỳ này → luôn có báo cáo (0 lead vẫn gửi).
   const showroomSeedIds = [...new Set((channels ?? []).filter((c) => has(c) && c.scope === 'management' && c.showroom_id && !inactiveSrIds.has(c.showroom_id as string)).map((c) => c.showroom_id as string))];
   const { data: srRows } = showroomSeedIds.length
@@ -148,7 +152,7 @@ export async function POST(request: NextRequest) {
   // NGÀY: bố cục theo dõi vận hành (quá hạn, chưa tuân thủ). TUẦN/THÁNG: tập trung kết quả + so kỳ trước.
   const report = period === 'daily'
     ? buildPeriodReport(mapped, dateLabel, now, { teams: [], showrooms: showroomSeed })
-    : buildLongPeriodReport(mapped, mappedPrev, dateLabel, prevLabel, now, { showrooms: showroomSeed });
+    : buildLongPeriodReport(mapped, mappedPrev, dateLabel, prevLabel, now, { showrooms: showroomSeed }, modelBreakBrandIds);
 
   const inserts: Record<string, unknown>[] = [];
 
@@ -162,8 +166,8 @@ export async function POST(request: NextRequest) {
     const teams = ids.map((id) => ({ id, name: teamNameById.get(id) ?? 'Phòng', brand_ids: teamBrandIds.get(id) ?? [] }));
     const seed = { headerName: c.name ?? 'Showroom', teams, brands: brandList };
     const text = period === 'daily'
-      ? renderChannelDaily(buildChannelReport(mapped, dateLabel, now, seed))
-      : renderChannelPeriod(buildChannelPeriodReport(mapped, mappedPrev, dateLabel, prevLabel, now, seed));
+      ? renderChannelDaily(buildChannelReport(mapped, dateLabel, now, seed, modelBreakBrandIds))
+      : renderChannelPeriod(buildChannelPeriodReport(mapped, mappedPrev, dateLabel, prevLabel, now, seed, modelBreakBrandIds));
     inserts.push({ channel: c.channel, channel_id: c.id, status: 'pending',
       payload: { event, target: c.target, text } });
   }
