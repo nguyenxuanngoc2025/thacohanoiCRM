@@ -430,4 +430,21 @@ describe('renderer — tiêu đề chi tiết theo dòng xe vs thương hiệu',
     const r = buildLongPeriodReport(current, [], 'TUẦN 13/07–19/07', 'TUẦN 06/07–12/07', now, undefined, new Set([TB]));
     expect(r.perShowroom[0].text).toContain('Chi tiết theo dòng xe:');
   });
+
+  it('buildLongPeriodReport: showroom LẪN hãng cờ + hãng thường → fallback THƯƠNG HIỆU, KHÔNG trộn dòng xe', () => {
+    const KIA = 'b-kia';
+    const current: ReportLead[] = [
+      L({ showroom_id: 'sr1', showroom_name: 'SR lẫn hãng', brand_id: TB, brand_name: 'Tải Bus', model_id: 'm-van', model_name: 'Tải Van', status: 'KHĐ', last_contact_at: '2026-07-14T09:00:00Z' }),
+      L({ showroom_id: 'sr1', showroom_name: 'SR lẫn hãng', brand_id: KIA, brand_name: 'KIA', status: 'KHQT', last_contact_at: '2026-07-14T10:00:00Z' }),
+    ];
+    const r = buildLongPeriodReport(current, [], 'TUẦN 13/07–19/07', 'TUẦN 06/07–12/07', now, undefined, new Set([TB]));
+    const text = r.perShowroom[0].text;
+    // Lẫn hãng → không được gom theo dòng xe (tránh trộn "Tải Van" với "KIA" dưới 1 tiêu đề).
+    expect(text).toContain('Chi tiết theo thương hiệu:');
+    expect(text).not.toContain('Chi tiết theo dòng xe:');
+    // Chi tiết hiện theo TÊN HÃNG, không hiện tên dòng xe.
+    expect(text).toContain('Tải Bus');
+    expect(text).toContain('KIA');
+    expect(text).not.toContain('Tải Van');
+  });
 });

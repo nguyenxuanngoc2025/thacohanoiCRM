@@ -111,16 +111,16 @@ function addStats(s: DailySrStats, l: ReportLead, now: Date): void {
 }
 
 // Cộng dồn 1 lead vào bucket + sub-bucket chi tiết. now để xác định quá hạn.
-// modelBreakBrandIds: thương hiệu thuộc tập này → gom chi tiết theo DÒNG XE thay vì theo thương hiệu.
-function accumulate(g: Bucket, l: ReportLead, now: Date, modelBreakBrandIds: Set<string> = new Set()): void {
+// Cách gom chi tiết theo cờ g.byModel do CALLER quyết định TRƯỚC (nhất quán cả bucket):
+// byModel=true → gom theo DÒNG XE; false → gom theo THƯƠNG HIỆU.
+function accumulate(g: Bucket, l: ReportLead, now: Date): void {
   addStats(g.stats, l, now);
   const contacted = l.last_contact_at != null;
   if (!contacted && l.next_contact_at && new Date(l.next_contact_at).getTime() <= now.getTime()) {
     const who = l.assignee_name?.trim() || 'Chưa phân';
     g.overdueByAssignee.set(who, (g.overdueByAssignee.get(who) ?? 0) + 1);
   }
-  if (l.brand_id && modelBreakBrandIds.has(l.brand_id)) {
-    g.byModel = true;
+  if (g.byModel) {
     const key = `m:${l.model_id ?? 'none'}`;
     const bb = g.byBrand.get(key) ?? { name: l.model_name?.trim() || 'Chưa xác định', stats: emptyStats() };
     addStats(bb.stats, l, now);
@@ -136,6 +136,22 @@ function nonCompliantOf(g: Bucket): NonCompliant[] {
   return [...g.overdueByAssignee.entries()]
     .map(([name, overdue]) => ({ name, overdue }))
     .sort((a, b) => b.overdue - a.overdue);
+}
+
+// Showroom nào gom chi tiết theo DÒNG XE: có ≥1 lead thuộc thương hiệu cờ report_by_model
+// VÀ không có lead thương hiệu nào ngoài tập cờ (mirror "isModelTeam" cấp phòng). Showroom
+// lẫn hãng cờ + hãng thường → theo THƯƠNG HIỆU (fallback an toàn, không trộn 2 kiểu).
+function modelShowroomIds(leads: ReportLead[], modelBreakBrandIds: Set<string>): Set<string> {
+  const hasFlagged = new Set<string>();
+  const hasOther = new Set<string>();
+  for (const l of leads) {
+    if (!l.brand_id) continue;
+    if (modelBreakBrandIds.has(l.brand_id)) hasFlagged.add(l.showroom_id);
+    else hasOther.add(l.showroom_id);
+  }
+  const res = new Set<string>();
+  for (const id of hasFlagged) if (!hasOther.has(id)) res.add(id);
+  return res;
 }
 
 /**
@@ -219,17 +235,25 @@ export function buildLongPeriodReport(
   dateLabel: string, prevLabel: string, now: Date, seed?: ReportSeed,
   modelBreakBrandIds: Set<string> = new Set(),
 ): LongPeriodReport {
+  // Showroom "theo dòng xe": MỌI lead có hãng đều thuộc tập cờ (không lẫn hãng khác) —
+  // quyết định TRƯỚC để mục chi tiết đồng nhất, tránh trộn dòng xe + thương hiệu khi lẫn hãng.
+  const modelSr = modelShowroomIds([...current, ...previous], modelBreakBrandIds);
+  const mkSr = (id: string, name: string): Bucket => {
+    const g = newBucket(name);
+    g.byModel = modelSr.has(id);
+    return g;
+  };
   const cur = new Map<string, Bucket>();
   const prev = new Map<string, Bucket>();
   // Seed showroom đã cấu hình group → luôn ra báo cáo (kể cả 0 lead).
-  for (const s of seed?.showrooms ?? []) { cur.set(s.id, newBucket(s.name)); prev.set(s.id, newBucket(s.name)); }
+  for (const s of seed?.showrooms ?? []) { cur.set(s.id, mkSr(s.id, s.name)); prev.set(s.id, mkSr(s.id, s.name)); }
   for (const l of current) {
-    const g = cur.get(l.showroom_id) ?? newBucket(l.showroom_name);
-    accumulate(g, l, now, modelBreakBrandIds); cur.set(l.showroom_id, g);
+    const g = cur.get(l.showroom_id) ?? mkSr(l.showroom_id, l.showroom_name);
+    accumulate(g, l, now); cur.set(l.showroom_id, g);
   }
   for (const l of previous) {
-    const g = prev.get(l.showroom_id) ?? newBucket(l.showroom_name);
-    accumulate(g, l, now, modelBreakBrandIds); prev.set(l.showroom_id, g);
+    const g = prev.get(l.showroom_id) ?? mkSr(l.showroom_id, l.showroom_name);
+    accumulate(g, l, now); prev.set(l.showroom_id, g);
   }
 
   const perShowroom: ScopedReport[] = [];
@@ -293,9 +317,9 @@ export function buildChannelReport(
 
   for (const l of leads) {
     if (!l.sales_team_id || !teamIds.has(l.sales_team_id)) continue;
-    accumulate(overview, l, now, modelBreakBrandIds);
+    accumulate(overview, l, now);
     const tb = teamBuckets.get(l.sales_team_id) ?? newBucket(l.team_name?.trim() || l.showroom_name);
-    accumulate(tb, l, now, modelBreakBrandIds);
+    accumulate(tb, l, now);
     teamBuckets.set(l.sales_team_id, tb);
   }
 
@@ -361,13 +385,13 @@ export function buildChannelPeriodReport(
 
   for (const l of current) {
     if (!l.sales_team_id || !teamIds.has(l.sales_team_id)) continue;
-    accumulate(overviewCur, l, now, modelBreakBrandIds);
-    accumulate(curBuckets.get(l.sales_team_id)!, l, now, modelBreakBrandIds);
+    accumulate(overviewCur, l, now);
+    accumulate(curBuckets.get(l.sales_team_id)!, l, now);
   }
   for (const l of previous) {
     if (!l.sales_team_id || !teamIds.has(l.sales_team_id)) continue;
-    accumulate(overviewPrev, l, now, modelBreakBrandIds);
-    accumulate(prevBuckets.get(l.sales_team_id)!, l, now, modelBreakBrandIds);
+    accumulate(overviewPrev, l, now);
+    accumulate(prevBuckets.get(l.sales_team_id)!, l, now);
   }
 
   return {
