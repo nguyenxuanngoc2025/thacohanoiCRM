@@ -281,3 +281,64 @@ export function buildChannelReport(
     })),
   };
 }
+
+export interface ChannelPeriodPhong {
+  name: string;
+  cur: DailySrStats;
+  prev: DailySrStats;
+  brands: BrandBreak[];
+}
+
+export interface ChannelPeriodReport {
+  dateLabel: string;
+  prevLabel: string;
+  headerName: string;
+  overview: { cur: DailySrStats; prev: DailySrStats; brands: BrandBreak[] };
+  phongs: ChannelPeriodPhong[];
+}
+
+/**
+ * Báo cáo KỲ DÀI (TUẦN / THÁNG) cấp KÊNH nhóm bán hàng — tập trung KẾT QUẢ, KHÔNG "quá hạn".
+ * Nhận lead kỳ hiện tại + kỳ trước (cùng độ dài) để so sánh. Chỉ gom lead có sales_team_id
+ * thuộc seed.teams. Phòng trong seed nhưng 0 lead vẫn xuất hiện (báo cáo số 0).
+ */
+export function buildChannelPeriodReport(
+  current: ReportLead[], previous: ReportLead[],
+  dateLabel: string, prevLabel: string, now: Date, seed: ChannelReportSeed,
+): ChannelPeriodReport {
+  const teamIds = new Set(seed.teams.map((t) => t.id));
+  const brandName = new Map((seed.brands ?? []).map((b) => [b.id, b.name]));
+  const overviewCur = newBucket(seed.headerName);
+  const overviewPrev = newBucket(seed.headerName);
+  const curBuckets = new Map<string, Bucket>();
+  const prevBuckets = new Map<string, Bucket>();
+  for (const t of seed.teams) {
+    const cb = newBucket(t.name);
+    for (const bid of t.brand_ids ?? []) {
+      seedBrand(cb, bid, brandName.get(bid) ?? 'Khác');
+      seedBrand(overviewCur, bid, brandName.get(bid) ?? 'Khác');
+    }
+    curBuckets.set(t.id, cb);
+    prevBuckets.set(t.id, newBucket(t.name));
+  }
+
+  for (const l of current) {
+    if (!l.sales_team_id || !teamIds.has(l.sales_team_id)) continue;
+    accumulate(overviewCur, l, now);
+    accumulate(curBuckets.get(l.sales_team_id)!, l, now);
+  }
+  for (const l of previous) {
+    if (!l.sales_team_id || !teamIds.has(l.sales_team_id)) continue;
+    accumulate(overviewPrev, l, now);
+    accumulate(prevBuckets.get(l.sales_team_id)!, l, now);
+  }
+
+  return {
+    dateLabel, prevLabel, headerName: seed.headerName,
+    overview: { cur: overviewCur.stats, prev: overviewPrev.stats, brands: brandBreaks(overviewCur) },
+    phongs: seed.teams.map((t) => {
+      const cb = curBuckets.get(t.id)!;
+      return { name: cb.name, cur: cb.stats, prev: prevBuckets.get(t.id)!.stats, brands: brandBreaks(cb) };
+    }),
+  };
+}

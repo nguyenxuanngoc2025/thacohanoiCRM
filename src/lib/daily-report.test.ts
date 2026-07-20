@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { buildPeriodReport, buildChannelReport, buildLongPeriodReport, type ReportLead } from './daily-report';
-import { renderChannelDaily } from './notify-templates';
+import { buildPeriodReport, buildChannelReport, buildLongPeriodReport, buildChannelPeriodReport, type ReportLead } from './daily-report';
+import { renderChannelDaily, renderChannelPeriod } from './notify-templates';
 
 const L = (over: Partial<ReportLead>): ReportLead => ({
   showroom_id: 'sr1', showroom_name: 'KIA HN',
@@ -245,5 +245,81 @@ describe('buildLongPeriodReport (tuần/tháng — tập trung kết quả)', ()
     expect(r.perShowroom).toHaveLength(1);
     expect(r.perShowroom[0].stats.total).toBe(0);
     expect(r.perShowroom[0].text).toContain('Showroom Mới');
+  });
+});
+
+describe('buildChannelPeriodReport (kênh nhóm bán hàng — tuần/tháng kết quả)', () => {
+  const now = new Date('2026-07-20T01:00:00Z');
+
+  it('TỔNG QUAN = cộng dồn phòng + tách hãng, mỗi phòng kèm cur/prev', () => {
+    const current: ReportLead[] = [
+      L({ sales_team_id: 't1', team_name: 'Phòng 1', brand_id: 'kia', brand_name: 'KIA', status: 'KHĐ', last_contact_at: '2026-07-14T09:00:00Z' }),
+      L({ sales_team_id: 't1', team_name: 'Phòng 1', brand_id: 'maz', brand_name: 'Mazda', status: 'KHQT', last_contact_at: '2026-07-15T09:00:00Z' }),
+      L({ sales_team_id: 't2', team_name: 'Phòng 2', brand_id: 'kia', brand_name: 'KIA', status: 'GDTD', last_contact_at: '2026-07-16T09:00:00Z' }),
+    ];
+    const previous: ReportLead[] = [
+      L({ sales_team_id: 't1', team_name: 'Phòng 1', brand_id: 'kia', brand_name: 'KIA', status: null }),
+    ];
+    const r = buildChannelPeriodReport(current, previous, 'TUẦN 13/07–19/07', 'TUẦN 06/07–12/07', now, {
+      headerName: 'Showroom PVD',
+      teams: [{ id: 't1', name: 'Phòng 1' }, { id: 't2', name: 'Phòng 2' }],
+    });
+    expect(r.headerName).toBe('Showroom PVD');
+    expect(r.overview.cur.total).toBe(3);
+    expect(r.overview.prev.total).toBe(1);
+    expect(r.overview.cur.KyHD).toBe(1);
+    expect(r.overview.brands.map((b) => b.name).sort()).toEqual(['KIA', 'Mazda']);
+    expect(r.phongs).toHaveLength(2);
+    const p1 = r.phongs.find((p) => p.name === 'Phòng 1')!;
+    expect(p1.cur.total).toBe(2);
+    expect(p1.prev.total).toBe(1);
+    const p2 = r.phongs.find((p) => p.name === 'Phòng 2')!;
+    expect(p2.cur.total).toBe(1);
+    expect(p2.prev.total).toBe(0);
+  });
+
+  it('chỉ gom lead trong tập phòng của kênh; phòng seed 0 lead vẫn hiện', () => {
+    const current: ReportLead[] = [
+      L({ sales_team_id: 't1', team_name: 'Phòng 1', status: 'KHĐ', last_contact_at: '2026-07-14T09:00:00Z' }),
+      L({ sales_team_id: 'tX', team_name: 'Ngoài kênh', status: 'KHĐ', last_contact_at: '2026-07-14T09:00:00Z' }),
+    ];
+    const r = buildChannelPeriodReport(current, [], 'TUẦN 13/07–19/07', 'TUẦN 06/07–12/07', now, {
+      headerName: 'SR', teams: [{ id: 't1', name: 'Phòng 1' }, { id: 't2', name: 'Phòng 2' }],
+    });
+    expect(r.overview.cur.total).toBe(1);
+    expect(r.phongs).toHaveLength(2);
+    expect(r.phongs.find((p) => p.name === 'Phòng 2')!.cur.total).toBe(0);
+  });
+
+  it('renderChannelPeriod: nhiều phòng → TỔNG QUAN + từng phòng, có phễu + so kỳ trước, KHÔNG quá hạn', () => {
+    const current: ReportLead[] = [
+      L({ sales_team_id: 't1', team_name: 'Phòng 1', status: 'KHĐ', last_contact_at: '2026-07-14T09:00:00Z' }),
+      L({ sales_team_id: 't2', team_name: 'Phòng 2', status: 'KHQT', last_contact_at: '2026-07-15T09:00:00Z' }),
+    ];
+    const r = buildChannelPeriodReport(current, [], 'TUẦN 13/07–19/07', 'TUẦN 06/07–12/07', now, {
+      headerName: 'SR PVD', teams: [{ id: 't1', name: 'Phòng 1' }, { id: 't2', name: 'Phòng 2' }],
+    });
+    const text = renderChannelPeriod(r);
+    expect(text).toContain('BÁO CÁO TUẦN 13/07–19/07 — SR PVD');
+    expect(text).toContain('<b>TỔNG QUAN</b>');
+    expect(text).toContain('<b>PHÒNG Phòng 1</b>');
+    expect(text).toContain('Phễu chốt: KHQT');
+    expect(text).toContain('Tỷ lệ chốt:');
+    expect(text).toContain('Kỳ trước (TUẦN 06/07–12/07)');
+    expect(text).not.toContain('Quá hạn');
+    expect(text).not.toContain('Chưa tuân thủ');
+  });
+
+  it('renderChannelPeriod: kênh 1 phòng → bỏ TỔNG QUAN, hiện thẳng 1 khối', () => {
+    const current: ReportLead[] = [
+      L({ sales_team_id: 't1', team_name: 'Phòng Tải Bus', status: 'KHĐ', last_contact_at: '2026-07-14T09:00:00Z' }),
+    ];
+    const r = buildChannelPeriodReport(current, [], 'TUẦN 13/07–19/07', 'TUẦN 06/07–12/07', now, {
+      headerName: 'Nhóm Tải Bus', teams: [{ id: 't1', name: 'Phòng Tải Bus' }],
+    });
+    const text = renderChannelPeriod(r);
+    expect(text).toContain('BÁO CÁO TUẦN 13/07–19/07 — Phòng Tải Bus');
+    expect(text).not.toContain('TỔNG QUAN');
+    expect(text).toContain('Kỳ trước (TUẦN 06/07–12/07)');
   });
 });

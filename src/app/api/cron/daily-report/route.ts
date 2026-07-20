@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { checkCronSecret } from '@/lib/cron-auth';
-import { buildPeriodReport, buildChannelReport, buildLongPeriodReport, type ReportLead } from '@/lib/daily-report';
+import { buildPeriodReport, buildChannelReport, buildChannelPeriodReport, buildLongPeriodReport, type ReportLead } from '@/lib/daily-report';
 import { getMutedTeamIdsGlobal, getInactiveShowroomIdsGlobal, isBrandClosed } from '@/lib/company-brands';
 
 export const dynamic = 'force-dynamic';
@@ -150,18 +150,20 @@ export async function POST(request: NextRequest) {
 
   const inserts: Record<string, unknown>[] = [];
 
-  // Nhóm bán hàng: CHỈ nhận báo cáo NGÀY. Mỗi KÊNH dựng báo cáo cấp-kênh theo tập phòng của nó.
-  if (period === 'daily') {
-    for (const c of salesChans) {
-      const ids = ((c.sales_team_ids as string[] | null) ?? (c.sales_team_id ? [c.sales_team_id as string] : []))
-        .filter((id) => !mutedTeamIds.has(id));
-      if (ids.length === 0) continue;
-      const teams = ids.map((id) => ({ id, name: teamNameById.get(id) ?? 'Phòng', brand_ids: teamBrandIds.get(id) ?? [] }));
-      const cr = buildChannelReport(mapped, dateLabel, now, { headerName: c.name ?? 'Showroom', teams, brands: brandList });
-      const { renderChannelDaily } = await import('@/lib/notify-templates');
-      inserts.push({ channel: c.channel, channel_id: c.id, status: 'pending',
-        payload: { event, target: c.target, text: renderChannelDaily(cr) } });
-    }
+  // Nhóm bán hàng nhận báo cáo cấp-kênh (theo tập phòng của kênh): NGÀY = bố cục vận hành
+  // (quá hạn), TUẦN/THÁNG = tập trung kết quả + so kỳ trước.
+  const { renderChannelDaily, renderChannelPeriod } = await import('@/lib/notify-templates');
+  for (const c of salesChans) {
+    const ids = ((c.sales_team_ids as string[] | null) ?? (c.sales_team_id ? [c.sales_team_id as string] : []))
+      .filter((id) => !mutedTeamIds.has(id));
+    if (ids.length === 0) continue;
+    const teams = ids.map((id) => ({ id, name: teamNameById.get(id) ?? 'Phòng', brand_ids: teamBrandIds.get(id) ?? [] }));
+    const seed = { headerName: c.name ?? 'Showroom', teams, brands: brandList };
+    const text = period === 'daily'
+      ? renderChannelDaily(buildChannelReport(mapped, dateLabel, now, seed))
+      : renderChannelPeriod(buildChannelPeriodReport(mapped, mappedPrev, dateLabel, prevLabel, now, seed));
+    inserts.push({ channel: c.channel, channel_id: c.id, status: 'pending',
+      payload: { event, target: c.target, text } });
   }
 
   // Nhóm BLĐ theo showroom: nhận ngày + tuần + tháng (theo event của kỳ).

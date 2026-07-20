@@ -304,15 +304,11 @@ export function deltaStr(cur: number, prev: number): string {
   return '→0';
 }
 
-// Báo cáo TUẦN/THÁNG của 1 showroom (gửi nhóm BLĐ showroom). dateLabel/prevLabel đã gồm từ chỉ kỳ.
-export function renderPeriodSr(
-  showroom: string, dateLabel: string, prevLabel: string,
-  cur: DailySrStats, prev: DailySrStats, brands: BrandBreakView[],
-): string {
+// Khối kết quả 1 phạm vi kỳ dài (showroom / phòng / tổng quan): tổng + so kỳ trước,
+// đã liên hệ, phễu chốt, tỷ lệ chốt, chi tiết hãng. KHÔNG "quá hạn / chưa tuân thủ".
+function renderPeriodScopedStats(cur: DailySrStats, prev: DailySrStats, brands: BrandBreakView[]): string[] {
   const winRate = pct(cur.KyHD, cur.total);
-  const prevWinRate = pct(prev.KyHD, prev.total);
   const lines = [
-    `<b>BÁO CÁO ${dateLabel} — ${showroom}</b>`,
     `Tổng lead: <b>${cur.total}</b> (${deltaStr(cur.total, prev.total)} so kỳ trước)`,
     `Đã liên hệ: ${cur.contacted} (${pct(cur.contacted, cur.total)}%)`,
     `Phễu chốt: KHQT ${cur.KHQT} → Đàm phán ${cur.GDTD} → Ký HĐ <b>${cur.KyHD}</b>`,
@@ -324,8 +320,66 @@ export function renderPeriodSr(
       lines.push(`· ${b.name}: ${b.stats.total} lead · Ký HĐ ${b.stats.KyHD} · chốt ${pct(b.stats.KyHD, b.stats.total)}%`);
     }
   }
-  lines.push(`—— Kỳ trước (${prevLabel}): ${prev.total} lead · Ký HĐ ${prev.KyHD} · chốt ${prevWinRate}%`);
-  return lines.join('\n');
+  return lines;
+}
+
+// Dòng chốt "Kỳ trước" — nhắc lại số kỳ liền trước để đối chiếu nhanh.
+function renderPrevFoot(prevLabel: string, prev: DailySrStats): string {
+  return `—— Kỳ trước (${prevLabel}): ${prev.total} lead · Ký HĐ ${prev.KyHD} · chốt ${pct(prev.KyHD, prev.total)}%`;
+}
+
+// Báo cáo TUẦN/THÁNG của 1 showroom (gửi nhóm BLĐ showroom). dateLabel/prevLabel đã gồm từ chỉ kỳ.
+export function renderPeriodSr(
+  showroom: string, dateLabel: string, prevLabel: string,
+  cur: DailySrStats, prev: DailySrStats, brands: BrandBreakView[],
+): string {
+  return [
+    `<b>BÁO CÁO ${dateLabel} — ${showroom}</b>`,
+    ...renderPeriodScopedStats(cur, prev, brands),
+    renderPrevFoot(prevLabel, prev),
+  ].join('\n');
+}
+
+export interface ChannelPeriodPhongView {
+  name: string;
+  cur: DailySrStats;
+  prev: DailySrStats;
+  brands: BrandBreakView[];
+}
+
+export interface ChannelPeriodView {
+  dateLabel: string;
+  prevLabel: string;
+  headerName: string;
+  overview: { cur: DailySrStats; prev: DailySrStats; brands: BrandBreakView[] };
+  phongs: ChannelPeriodPhongView[];
+}
+
+// Báo cáo TUẦN/THÁNG của 1 kênh Zalo nhóm bán hàng (nhiều phòng). Tập trung KẾT QUẢ + so kỳ trước.
+// Kênh 1 phòng → bỏ TỔNG QUAN, hiện thẳng 1 khối; nhiều phòng → TỔNG QUAN + từng phòng.
+export function renderChannelPeriod(r: ChannelPeriodView): string {
+  if (r.phongs.length === 1) {
+    const p = r.phongs[0];
+    return [
+      `<b>BÁO CÁO ${r.dateLabel} — ${p.name}</b>`,
+      ...renderPeriodScopedStats(p.cur, p.prev, p.brands),
+      renderPrevFoot(r.prevLabel, p.prev),
+    ].join('\n');
+  }
+  const parts: string[] = [
+    `<b>BÁO CÁO ${r.dateLabel} — ${r.headerName}</b>`,
+    '',
+    '<b>TỔNG QUAN</b>',
+    ...renderPeriodScopedStats(r.overview.cur, r.overview.prev, r.overview.brands),
+  ];
+  for (const p of r.phongs) {
+    parts.push('───────────────');
+    parts.push(`<b>PHÒNG ${p.name}</b>`);
+    parts.push(...renderPeriodScopedStats(p.cur, p.prev, p.brands));
+  }
+  parts.push('───────────────');
+  parts.push(renderPrevFoot(r.prevLabel, r.overview.prev));
+  return parts.join('\n');
 }
 
 export interface PeriodMgmtRow {

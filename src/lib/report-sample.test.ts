@@ -29,9 +29,10 @@ describe('buildSampleReport — tin NGÀY', () => {
 });
 
 describe('buildSampleReport — tin TUẦN/THÁNG', () => {
-  it('tuần: nhãn TUẦN, có phễu chốt + so kỳ trước, KHÔNG quá hạn', () => {
+  it('tuần: 3 khối (phòng bán hàng + BLĐ), nhãn TUẦN, có phễu chốt + so kỳ trước, KHÔNG quá hạn', () => {
     const s = buildSampleReport('weekly', NOW);
-    expect(s).toHaveLength(2);
+    expect(s).toHaveLength(3);
+    expect(s[0].label).toContain('phòng bán hàng');
     const all = s.map((x) => x.text).join('\n');
     expect(all).toContain('TUẦN 13/07–19/07');
     expect(all).toContain('Phễu chốt');

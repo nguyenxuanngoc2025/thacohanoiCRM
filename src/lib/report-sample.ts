@@ -4,8 +4,8 @@
  * hình thức tin Zalo mà KHÔNG cần chờ tới giờ chạy và KHÔNG đụng dữ liệu thật.
  * Thuần (không I/O) → dễ test, luôn ra kết quả ổn định.
  */
-import { buildPeriodReport, buildLongPeriodReport, buildChannelReport, type ReportLead } from './daily-report';
-import { renderChannelDaily } from './notify-templates';
+import { buildPeriodReport, buildLongPeriodReport, buildChannelReport, buildChannelPeriodReport, type ReportLead } from './daily-report';
+import { renderChannelDaily, renderChannelPeriod } from './notify-templates';
 
 export type SamplePeriod = 'daily' | 'weekly' | 'monthly';
 
@@ -100,8 +100,14 @@ export function buildSampleReport(period: SamplePeriod, now: Date): SampleSectio
     dateLabel = `THÁNG ${p2(curStart.getUTCMonth() + 1)}/${curStart.getUTCFullYear()}`;
     prevLabel = `THÁNG ${p2(prevStart.getUTCMonth() + 1)}/${prevStart.getUTCFullYear()}`;
   }
+  const chan = buildChannelPeriodReport(cur, prev, dateLabel, prevLabel, now, {
+    headerName: 'Phòng KIA–Mazda 1',
+    teams: [{ id: TEAM_A, name: 'Phòng KIA–Mazda 1', brand_ids: [B_KIA, B_MAZDA] }],
+    brands: brandsCatalog,
+  });
   const rep = buildLongPeriodReport(cur, prev, dateLabel, prevLabel, now, { showrooms: SHOWROOM_SEED });
   return [
+    { label: 'Nhóm Zalo phòng bán hàng', text: renderChannelPeriod(chan) },
     { label: 'Nhóm BLĐ showroom (Showroom Hà Nội 1)', text: rep.perShowroom[0]?.text ?? '' },
     { label: 'Nhóm BLĐ công ty (bảng tổng hợp)', text: rep.management },
   ];
