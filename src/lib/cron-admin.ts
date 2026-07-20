@@ -43,6 +43,28 @@ export function parseTimersCalendar(raw: string): string[] {
   return out;
 }
 
+/**
+ * Đổi mốc thời gian systemd (chuỗi UTC dạng "Mon 2026-07-20 03:30:00 UTC") sang
+ * giờ Việt Nam hiển thị "dd/MM/yyyy HH:mm". Trống / n/a / infinity → chuỗi rỗng.
+ * Máy chủ chạy UTC nên phần số trong chuỗi được coi là UTC rồi quy về Asia/Ho_Chi_Minh.
+ */
+export function formatVnTime(systemdTs: string): string {
+  const s = (systemdTs ?? '').trim();
+  if (!s || s === 'n/a' || /infinity/i.test(s)) return '';
+  const m = s.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})/);
+  if (!m) return s;
+  const [, y, mo, d, h, mi, sec] = m;
+  const dt = new Date(Date.UTC(+y, +mo - 1, +d, +h, +mi, +sec));
+  if (Number.isNaN(dt.getTime())) return s;
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(dt);
+  const g = (t: string) => parts.find((x) => x.type === t)?.value ?? '';
+  return `${g('day')}/${g('month')}/${g('year')} ${g('hour')}:${g('minute')}`;
+}
+
 const OS_TIMERS = [
   'apt-daily', 'apt-listchanges', 'dpkg-db-backup', 'e2scrub', 'exim4', 'fstrim',
   'man-db', 'systemd-tmpfiles-clean', 'logrotate',

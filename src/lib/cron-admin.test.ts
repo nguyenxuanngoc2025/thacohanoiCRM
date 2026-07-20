@@ -3,6 +3,7 @@ import {
   parseUnitFiles,
   parseUnitShow,
   parseTimersCalendar,
+  formatVnTime,
   classifyTimer,
   presetToCalendar,
   buildOverrideContent,
@@ -58,6 +59,20 @@ TimersCalendar={ OnCalendar=*-*-* 06:00:00 Asia/Ho_Chi_Minh ; next_elapse=Mon 20
 
   it('timer không có lịch → mảng rỗng', () => {
     expect(parseTimersCalendar('NextElapseUSecRealtime=')).toEqual([]);
+  });
+});
+
+describe('formatVnTime', () => {
+  it('đổi mốc UTC systemd sang giờ Việt Nam (dd/MM/yyyy HH:mm)', () => {
+    // 03:30 UTC + 7 = 10:30 giờ VN cùng ngày
+    expect(formatVnTime('Mon 2026-07-20 03:30:00 UTC')).toBe('20/07/2026 10:30');
+  });
+  it('qua nửa đêm: 20:00 UTC → 03:00 hôm sau giờ VN', () => {
+    expect(formatVnTime('Sun 2026-07-19 20:00:00 UTC')).toBe('20/07/2026 03:00');
+  });
+  it('trống / n/a → chuỗi rỗng', () => {
+    expect(formatVnTime('')).toBe('');
+    expect(formatVnTime('n/a')).toBe('');
   });
 });
 

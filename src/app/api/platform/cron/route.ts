@@ -3,7 +3,7 @@ import { requirePlatformOwner } from '@/lib/platform-guard';
 import { writeAudit } from '@/lib/platform-audit';
 import {
   parseUnitFiles, parseUnitShow, parseTimersCalendar,
-  classifyTimer, buildOverrideContent, unitStatusLight, explainCron, cronTitle,
+  classifyTimer, buildOverrideContent, unitStatusLight, explainCron, cronTitle, formatVnTime,
 } from '@/lib/cron-admin';
 import {
   listTimers, showTimer, showService, enableTimer, disableTimer,
@@ -59,8 +59,8 @@ async function buildTimerView(unit: string, state: string): Promise<TimerView> {
       lastResult,
     }),
     calendars: parseTimersCalendar(timerRaw),
-    nextRun: t.NextElapseUSecRealtime ?? '',
-    lastRun: t.LastTriggerUSec ?? '',
+    nextRun: formatVnTime(t.NextElapseUSecRealtime ?? ''),
+    lastRun: formatVnTime(t.LastTriggerUSec ?? ''),
     lastResult,
   };
 }
