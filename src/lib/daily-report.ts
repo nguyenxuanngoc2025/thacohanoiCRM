@@ -54,13 +54,14 @@ export interface ChannelPhong {
   name: string;
   stats: DailySrStats;
   brands: BrandBreak[];
+  byModel: boolean;
   nonCompliant: NonCompliant[];
 }
 
 export interface ChannelReport {
   dateLabel: string;
   headerName: string;
-  overview: { stats: DailySrStats; brands: BrandBreak[] };
+  overview: { stats: DailySrStats; brands: BrandBreak[]; byModel: boolean };
   phongs: ChannelPhong[];
 }
 
@@ -81,10 +82,12 @@ interface Bucket {
   stats: DailySrStats;
   overdueByAssignee: Map<string, number>;
   byBrand: Map<string, { name: string; stats: DailySrStats }>;
+  // true = nhóm chi tiết gom theo DÒNG XE (thương hiệu có cờ report_by_model); false = theo thương hiệu.
+  byModel: boolean;
 }
 
 function newBucket(name: string): Bucket {
-  return { name, stats: emptyStats(), overdueByAssignee: new Map<string, number>(), byBrand: new Map() };
+  return { name, stats: emptyStats(), overdueByAssignee: new Map<string, number>(), byBrand: new Map(), byModel: false };
 }
 
 // Tạo trước 1 hãng trong bucket (stats 0) để chi tiết hãng luôn hiện dù chưa có lead.
@@ -107,15 +110,22 @@ function addStats(s: DailySrStats, l: ReportLead, now: Date): void {
   else if (l.status === 'Fail') s.Fail += 1;
 }
 
-// Cộng dồn 1 lead vào bucket (showroom hoặc team) + sub-bucket theo hãng. now để xác định quá hạn.
-function accumulate(g: Bucket, l: ReportLead, now: Date): void {
+// Cộng dồn 1 lead vào bucket + sub-bucket chi tiết. now để xác định quá hạn.
+// modelBreakBrandIds: thương hiệu thuộc tập này → gom chi tiết theo DÒNG XE thay vì theo thương hiệu.
+function accumulate(g: Bucket, l: ReportLead, now: Date, modelBreakBrandIds: Set<string> = new Set()): void {
   addStats(g.stats, l, now);
   const contacted = l.last_contact_at != null;
   if (!contacted && l.next_contact_at && new Date(l.next_contact_at).getTime() <= now.getTime()) {
     const who = l.assignee_name?.trim() || 'Chưa phân';
     g.overdueByAssignee.set(who, (g.overdueByAssignee.get(who) ?? 0) + 1);
   }
-  if (l.brand_id) {
+  if (l.brand_id && modelBreakBrandIds.has(l.brand_id)) {
+    g.byModel = true;
+    const key = `m:${l.model_id ?? 'none'}`;
+    const bb = g.byBrand.get(key) ?? { name: l.model_name?.trim() || 'Chưa xác định', stats: emptyStats() };
+    addStats(bb.stats, l, now);
+    g.byBrand.set(key, bb);
+  } else if (l.brand_id) {
     const bb = g.byBrand.get(l.brand_id) ?? { name: l.brand_name?.trim() || 'Khác', stats: emptyStats() };
     addStats(bb.stats, l, now);
     g.byBrand.set(l.brand_id, bb);
@@ -238,11 +248,14 @@ export function buildLongPeriodReport(
   return { perShowroom, management: renderPeriodMgmt(dateLabel, prevLabel, rows, curTotals, prevTotals) };
 }
 
-// Danh sách chi tiết hãng của 1 bucket, sắp theo tên hãng cho ổn định.
+// Danh sách chi tiết của 1 bucket. Theo dòng xe (byModel) → sắp tổng giảm dần rồi theo tên;
+// theo thương hiệu → sắp theo tên (như cũ).
 function brandBreaks(g: Bucket): BrandBreak[] {
-  return [...g.byBrand.values()]
-    .map((b) => ({ name: b.name, stats: b.stats }))
-    .sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+  const arr = [...g.byBrand.values()].map((b) => ({ name: b.name, stats: b.stats }));
+  if (g.byModel) {
+    return arr.sort((a, b) => b.stats.total - a.stats.total || a.name.localeCompare(b.name, 'vi'));
+  }
+  return arr.sort((a, b) => a.name.localeCompare(b.name, 'vi'));
 }
 
 /**
@@ -252,35 +265,45 @@ function brandBreaks(g: Bucket): BrandBreak[] {
  */
 export function buildChannelReport(
   leads: ReportLead[], dateLabel: string, now: Date, seed: ChannelReportSeed,
+  modelBreakBrandIds: Set<string> = new Set(),
 ): ChannelReport {
   const teamIds = new Set(seed.teams.map((t) => t.id));
   const brandName = new Map((seed.brands ?? []).map((b) => [b.id, b.name]));
   const overview = newBucket(seed.headerName);
   const teamBuckets = new Map<string, Bucket>();
+  // Phòng "theo dòng xe" khi MỌI hãng của phòng đều có cờ report_by_model (phòng Tải Bus chuyên biệt).
+  const isModelTeam = (t: { brand_ids?: string[] }) =>
+    (t.brand_ids ?? []).length > 0 && (t.brand_ids ?? []).every((bid) => modelBreakBrandIds.has(bid));
+  overview.byModel = seed.teams.length > 0 && seed.teams.every(isModelTeam);
   for (const t of seed.teams) {
     const tb = newBucket(t.name);
-    // Seed sẵn hãng phòng bán (0 lead) → chi tiết hãng LUÔN xuất hiện.
-    for (const bid of t.brand_ids ?? []) {
-      seedBrand(tb, bid, brandName.get(bid) ?? 'Khác');
-      seedBrand(overview, bid, brandName.get(bid) ?? 'Khác');
+    if (isModelTeam(t)) {
+      // Dòng xe KHÔNG seed toàn danh mục → chỉ hiện dòng xe thực có lead + "Chưa xác định".
+      tb.byModel = true;
+    } else {
+      // Seed sẵn hãng phòng bán (0 lead) → chi tiết hãng LUÔN xuất hiện.
+      for (const bid of t.brand_ids ?? []) {
+        seedBrand(tb, bid, brandName.get(bid) ?? 'Khác');
+        seedBrand(overview, bid, brandName.get(bid) ?? 'Khác');
+      }
     }
     teamBuckets.set(t.id, tb);
   }
 
   for (const l of leads) {
     if (!l.sales_team_id || !teamIds.has(l.sales_team_id)) continue;
-    accumulate(overview, l, now);
+    accumulate(overview, l, now, modelBreakBrandIds);
     const tb = teamBuckets.get(l.sales_team_id) ?? newBucket(l.team_name?.trim() || l.showroom_name);
-    accumulate(tb, l, now);
+    accumulate(tb, l, now, modelBreakBrandIds);
     teamBuckets.set(l.sales_team_id, tb);
   }
 
   return {
     dateLabel,
     headerName: seed.headerName,
-    overview: { stats: overview.stats, brands: brandBreaks(overview) },
+    overview: { stats: overview.stats, brands: brandBreaks(overview), byModel: overview.byModel },
     phongs: [...teamBuckets.values()].map((b) => ({
-      name: b.name, stats: b.stats, brands: brandBreaks(b), nonCompliant: nonCompliantOf(b),
+      name: b.name, stats: b.stats, brands: brandBreaks(b), byModel: b.byModel, nonCompliant: nonCompliantOf(b),
     })),
   };
 }
@@ -290,13 +313,14 @@ export interface ChannelPeriodPhong {
   cur: DailySrStats;
   prev: DailySrStats;
   brands: BrandBreak[];
+  byModel: boolean;
 }
 
 export interface ChannelPeriodReport {
   dateLabel: string;
   prevLabel: string;
   headerName: string;
-  overview: { cur: DailySrStats; prev: DailySrStats; brands: BrandBreak[] };
+  overview: { cur: DailySrStats; prev: DailySrStats; brands: BrandBreak[]; byModel: boolean };
   phongs: ChannelPeriodPhong[];
 }
 
@@ -308,6 +332,7 @@ export interface ChannelPeriodReport {
 export function buildChannelPeriodReport(
   current: ReportLead[], previous: ReportLead[],
   dateLabel: string, prevLabel: string, now: Date, seed: ChannelReportSeed,
+  modelBreakBrandIds: Set<string> = new Set(),
 ): ChannelPeriodReport {
   const teamIds = new Set(seed.teams.map((t) => t.id));
   const brandName = new Map((seed.brands ?? []).map((b) => [b.id, b.name]));
@@ -315,11 +340,19 @@ export function buildChannelPeriodReport(
   const overviewPrev = newBucket(seed.headerName);
   const curBuckets = new Map<string, Bucket>();
   const prevBuckets = new Map<string, Bucket>();
+  const isModelTeam = (t: { brand_ids?: string[] }) =>
+    (t.brand_ids ?? []).length > 0 && (t.brand_ids ?? []).every((bid) => modelBreakBrandIds.has(bid));
+  overviewCur.byModel = seed.teams.length > 0 && seed.teams.every(isModelTeam);
   for (const t of seed.teams) {
     const cb = newBucket(t.name);
-    for (const bid of t.brand_ids ?? []) {
-      seedBrand(cb, bid, brandName.get(bid) ?? 'Khác');
-      seedBrand(overviewCur, bid, brandName.get(bid) ?? 'Khác');
+    if (isModelTeam(t)) {
+      // Dòng xe KHÔNG seed toàn danh mục → chỉ hiện dòng xe thực có lead + "Chưa xác định".
+      cb.byModel = true;
+    } else {
+      for (const bid of t.brand_ids ?? []) {
+        seedBrand(cb, bid, brandName.get(bid) ?? 'Khác');
+        seedBrand(overviewCur, bid, brandName.get(bid) ?? 'Khác');
+      }
     }
     curBuckets.set(t.id, cb);
     prevBuckets.set(t.id, newBucket(t.name));
@@ -327,21 +360,21 @@ export function buildChannelPeriodReport(
 
   for (const l of current) {
     if (!l.sales_team_id || !teamIds.has(l.sales_team_id)) continue;
-    accumulate(overviewCur, l, now);
-    accumulate(curBuckets.get(l.sales_team_id)!, l, now);
+    accumulate(overviewCur, l, now, modelBreakBrandIds);
+    accumulate(curBuckets.get(l.sales_team_id)!, l, now, modelBreakBrandIds);
   }
   for (const l of previous) {
     if (!l.sales_team_id || !teamIds.has(l.sales_team_id)) continue;
-    accumulate(overviewPrev, l, now);
-    accumulate(prevBuckets.get(l.sales_team_id)!, l, now);
+    accumulate(overviewPrev, l, now, modelBreakBrandIds);
+    accumulate(prevBuckets.get(l.sales_team_id)!, l, now, modelBreakBrandIds);
   }
 
   return {
     dateLabel, prevLabel, headerName: seed.headerName,
-    overview: { cur: overviewCur.stats, prev: overviewPrev.stats, brands: brandBreaks(overviewCur) },
+    overview: { cur: overviewCur.stats, prev: overviewPrev.stats, brands: brandBreaks(overviewCur), byModel: overviewCur.byModel },
     phongs: seed.teams.map((t) => {
       const cb = curBuckets.get(t.id)!;
-      return { name: cb.name, cur: cb.stats, prev: prevBuckets.get(t.id)!.stats, brands: brandBreaks(cb) };
+      return { name: cb.name, cur: cb.stats, prev: prevBuckets.get(t.id)!.stats, brands: brandBreaks(cb), byModel: cb.byModel };
     }),
   };
 }
