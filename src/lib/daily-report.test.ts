@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildPeriodReport, buildChannelReport, buildLongPeriodReport, buildChannelPeriodReport, type ReportLead } from './daily-report';
+import { buildPeriodReport, buildChannelReport, buildLongPeriodReport, buildChannelPeriodReport, buildBrandReport, type ReportLead } from './daily-report';
 import { renderChannelDaily, renderChannelPeriod } from './notify-templates';
 
 const L = (over: Partial<ReportLead>): ReportLead => ({
@@ -7,6 +7,7 @@ const L = (over: Partial<ReportLead>): ReportLead => ({
   sales_team_id: null, team_name: null,
   brand_id: null, brand_name: null,
   model_id: null, model_name: null,
+  company_id: null,
   last_contact_at: null, next_contact_at: null, status: null, assignee_name: null, ...over,
 });
 
@@ -446,5 +447,59 @@ describe('renderer — tiêu đề chi tiết theo dòng xe vs thương hiệu',
     expect(text).toContain('Tải Bus');
     expect(text).toContain('KIA');
     expect(text).not.toContain('Tải Van');
+  });
+});
+
+describe('buildBrandReport', () => {
+  const now = new Date('2026-07-20T10:00:00Z');
+  const seedKM = { headerName: 'BLĐ KIA-Mazda', brands: [{ id: 'kia', name: 'KIA' }, { id: 'mz', name: 'Mazda' }] };
+
+  it('1 hãng: tổng đúng + gom theo dòng xe/showroom, sắp theo tổng giảm dần', () => {
+    const leads = [
+      L({ brand_id: 'kia', model_id: 'm1', model_name: 'Seltos', showroom_id: 's1', showroom_name: 'SR A', last_contact_at: '2026-07-20T09:00:00Z', status: 'KHQT' }),
+      L({ brand_id: 'kia', model_id: 'm2', model_name: 'Sonet', showroom_id: 's1', showroom_name: 'SR A' }),
+      L({ brand_id: 'kia', model_id: 'm2', model_name: 'Sonet', showroom_id: 's2', showroom_name: 'SR B' }),
+    ];
+    const r = buildBrandReport(leads, 'NGÀY 20/07', now, { headerName: 'H', brands: [{ id: 'kia', name: 'KIA' }] });
+    expect(r.blocks).toHaveLength(1);
+    const b = r.blocks[0];
+    expect(b.brandName).toBe('KIA');
+    expect(b.stats.total).toBe(3);
+    expect(b.stats.contacted).toBe(1);
+    expect(b.stats.KHQT).toBe(1);
+    expect(b.models.map((m) => m.name)).toEqual(['Sonet', 'Seltos']);
+    expect(b.showrooms.map((s) => s.name)).toEqual(['SR A', 'SR B']);
+  });
+
+  it('nhiều hãng: mỗi khối chỉ lead hãng đó', () => {
+    const leads = [
+      L({ brand_id: 'kia', model_id: 'm1', model_name: 'Seltos', showroom_id: 's1' }),
+      L({ brand_id: 'mz', model_id: 'm3', model_name: 'CX-5', showroom_id: 's1' }),
+      L({ brand_id: 'mz', model_id: 'm3', model_name: 'CX-5', showroom_id: 's1' }),
+    ];
+    const r = buildBrandReport(leads, 'NGÀY 20/07', now, seedKM);
+    expect(r.blocks.map((b) => b.brandName)).toEqual(['KIA', 'Mazda']);
+    expect(r.blocks[0].stats.total).toBe(1);
+    expect(r.blocks[1].stats.total).toBe(2);
+  });
+
+  it('lead thiếu dòng xe → nhóm "Chưa xác định"', () => {
+    const leads = [L({ brand_id: 'kia', model_id: null, model_name: null, showroom_id: 's1' })];
+    const r = buildBrandReport(leads, 'NGÀY 20/07', now, { headerName: 'H', brands: [{ id: 'kia', name: 'KIA' }] });
+    expect(r.blocks[0].models[0].name).toBe('Chưa xác định');
+  });
+
+  it('seed hãng 0 lead → vẫn có khối stats 0, model/showroom rỗng', () => {
+    const r = buildBrandReport([], 'NGÀY 20/07', now, seedKM);
+    expect(r.blocks).toHaveLength(2);
+    expect(r.blocks[0].stats.total).toBe(0);
+    expect(r.blocks[0].models).toEqual([]);
+    expect(r.blocks[0].showrooms).toEqual([]);
+  });
+
+  it('lead ngoài tập seed bị bỏ qua (cô lập)', () => {
+    const leads = [L({ brand_id: 'other', model_id: 'x', showroom_id: 's1' })];
+    const r = buildBrandReport(leads, 'NGÀY 20/07', now, { headerName: 'H', brands: [{ id: 'kia', name: 'KIA' }] });
+    expect(r.blocks[0].stats.total).toBe(0);
   });
 });

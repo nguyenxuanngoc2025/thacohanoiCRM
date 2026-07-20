@@ -12,6 +12,8 @@ export interface ReportLead {
   // Thương hiệu của lead (từ kênh) — để tách chi tiết theo hãng trong báo cáo.
   brand_id: string | null;
   brand_name: string | null;
+  // Công ty của lead — để cô lập đa tenant khi định tuyến báo cáo brand (brands là master toàn cục).
+  company_id: string | null;
   // Dòng xe của lead (auto-dò lúc nạp) — để tách chi tiết theo dòng xe cho thương hiệu có cờ report_by_model.
   model_id: string | null;
   model_name: string | null;
@@ -48,6 +50,20 @@ export interface ReportSeed {
 export interface BrandBreak {
   name: string;
   stats: DailySrStats;
+}
+
+export interface BrandBlock {
+  brandId: string;
+  brandName: string;
+  stats: DailySrStats;
+  models: BrandBreak[];     // theo dòng xe (name + stats)
+  showrooms: BrandBreak[];  // theo showroom (name + stats)
+}
+
+export interface BrandReport {
+  dateLabel: string;   // "NGÀY 20/07" | "TUẦN .." | "THÁNG .."
+  headerName: string;  // tên nhóm (kênh)
+  blocks: BrandBlock[]; // 1 khối / thương hiệu, theo thứ tự seed
 }
 
 export interface ChannelPhong {
@@ -402,4 +418,47 @@ export function buildChannelPeriodReport(
       return { name: cb.name, cur: cb.stats, prev: prevBuckets.get(t.id)!.stats, brands: brandBreaks(cb), byModel: cb.byModel };
     }),
   };
+}
+
+// Báo cáo cho nhóm BLĐ thương hiệu — DÙNG CHUNG cho cả 3 kỳ (chỉ khác dateLabel; caller đã
+// lọc lead theo kỳ + company + brand_ids TRƯỚC khi truyền vào). KHÔNG so sánh kỳ trước.
+// seed.brands = danh sách hãng phụ trách {id,name} → hãng 0 lead vẫn hiện khối (stats 0).
+export function buildBrandReport(
+  leads: ReportLead[],
+  dateLabel: string,
+  now: Date,
+  seed: { headerName: string; brands: { id: string; name: string }[] },
+): BrandReport {
+  interface Acc {
+    brandId: string;
+    brandName: string;
+    stats: DailySrStats;
+    models: Map<string, { name: string; stats: DailySrStats }>;
+    showrooms: Map<string, { name: string; stats: DailySrStats }>;
+  }
+  const byBrand = new Map<string, Acc>();
+  for (const b of seed.brands) {
+    byBrand.set(b.id, { brandId: b.id, brandName: b.name, stats: emptyStats(), models: new Map(), showrooms: new Map() });
+  }
+  for (const l of leads) {
+    if (!l.brand_id) continue;
+    const acc = byBrand.get(l.brand_id);
+    if (!acc) continue; // lead ngoài tập hãng phụ trách → bỏ qua (cô lập)
+    addStats(acc.stats, l, now);
+    const mKey = `m:${l.model_id ?? 'none'}`;
+    const mSub = acc.models.get(mKey) ?? { name: l.model_name?.trim() || 'Chưa xác định', stats: emptyStats() };
+    addStats(mSub.stats, l, now);
+    acc.models.set(mKey, mSub);
+    const sKey = `s:${l.showroom_id}`;
+    const sSub = acc.showrooms.get(sKey) ?? { name: l.showroom_name?.trim() || 'Showroom', stats: emptyStats() };
+    addStats(sSub.stats, l, now);
+    acc.showrooms.set(sKey, sSub);
+  }
+  const sortBreaks = (m: Map<string, { name: string; stats: DailySrStats }>): BrandBreak[] =>
+    [...m.values()].sort((a, b) => b.stats.total - a.stats.total || a.name.localeCompare(b.name));
+  const blocks: BrandBlock[] = seed.brands.map((b) => {
+    const acc = byBrand.get(b.id)!;
+    return { brandId: acc.brandId, brandName: acc.brandName, stats: acc.stats, models: sortBreaks(acc.models), showrooms: sortBreaks(acc.showrooms) };
+  });
+  return { dateLabel, headerName: seed.headerName, blocks };
 }
