@@ -23,6 +23,7 @@ function mk(p: Partial<ReportLead>): ReportLead {
     showroom_id: SR_A, showroom_name: 'Showroom Hà Nội 1',
     sales_team_id: TEAM_A, team_name: 'Phòng KIA–Mazda 1',
     brand_id: B_KIA, brand_name: 'KIA',
+    model_id: null, model_name: null,
     last_contact_at: null, next_contact_at: null, status: null, assignee_name: null,
     ...p,
   };

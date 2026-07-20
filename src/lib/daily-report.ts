@@ -12,6 +12,9 @@ export interface ReportLead {
   // Thương hiệu của lead (từ kênh) — để tách chi tiết theo hãng trong báo cáo.
   brand_id: string | null;
   brand_name: string | null;
+  // Dòng xe của lead (auto-dò lúc nạp) — để tách chi tiết theo dòng xe cho thương hiệu có cờ report_by_model.
+  model_id: string | null;
+  model_name: string | null;
   last_contact_at: string | null;
   next_contact_at: string | null;
   status: string | null;

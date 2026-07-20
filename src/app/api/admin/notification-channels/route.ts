@@ -26,7 +26,7 @@ async function buildTestReportText(
 
   const { data: leads } = await service
     .from('leads')
-    .select('company_id, brand_id, showroom_id, sales_team_id, status, last_contact_at, next_contact_at, showrooms(name), sales_teams(name), brands(name), users!assigned_to(full_name)')
+    .select('company_id, brand_id, showroom_id, sales_team_id, status, last_contact_at, next_contact_at, showrooms(name), sales_teams(name), brands(name), model_id, models(name), users!assigned_to(full_name)')
     .eq('company_id', companyId)
     .gte('created_at', startUtc)
     .not('showroom_id', 'is', null);
@@ -38,7 +38,7 @@ async function buildTestReportText(
     !isShowroomInactive(inactiveSr, (l.showroom_id as string | null) ?? null)
   );
   const mapped: ReportLead[] = open.map((l) => {
-    const j = l as unknown as { showrooms: { name: string } | null; sales_teams: { name: string } | null; brands: { name: string } | null; users: { full_name: string } | null };
+    const j = l as unknown as { showrooms: { name: string } | null; sales_teams: { name: string } | null; brands: { name: string } | null; models: { name: string } | null; users: { full_name: string } | null };
     return {
       showroom_id: l.showroom_id as string,
       showroom_name: j.showrooms?.name ?? 'Showroom',
@@ -46,6 +46,8 @@ async function buildTestReportText(
       team_name: j.sales_teams?.name ?? null,
       brand_id: (l.brand_id as string | null) ?? null,
       brand_name: j.brands?.name ?? null,
+      model_id: (l.model_id as string | null) ?? null,
+      model_name: j.models?.name ?? null,
       last_contact_at: l.last_contact_at ?? null,
       next_contact_at: l.next_contact_at ?? null,
       status: l.status ?? null,

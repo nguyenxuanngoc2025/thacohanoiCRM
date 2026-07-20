@@ -6,6 +6,7 @@ const L = (over: Partial<ReportLead>): ReportLead => ({
   showroom_id: 'sr1', showroom_name: 'KIA HN',
   sales_team_id: null, team_name: null,
   brand_id: null, brand_name: null,
+  model_id: null, model_name: null,
   last_contact_at: null, next_contact_at: null, status: null, assignee_name: null, ...over,
 });
 
