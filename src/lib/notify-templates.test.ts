@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { renderNewLead, renderLeadAssigned, renderLeadsAssignedSummary, renderRosterMissing, renderOverdue, renderCallbackReminder, renderDailySr, renderDailyMgmt, maskPhone, renderChannelDaily, type ChannelReportView } from './notify-templates';
+import { renderNewLead, renderLeadAssigned, renderLeadsAssignedSummary, renderRosterMissing, renderOverdue, renderCallbackReminder, renderDailySr, renderDailyMgmt, maskPhone, renderChannelDaily, renderBrandReport, type ChannelReportView } from './notify-templates';
 
 const stats = (o: Partial<{ total: number; contacted: number; pending: number; overdue: number; KHQT: number; GDTD: number; KyHD: number; Fail: number }> = {}) =>
   ({ total: 0, contacted: 0, pending: 0, overdue: 0, KHQT: 0, GDTD: 0, KyHD: 0, Fail: 0, ...o });
@@ -269,5 +269,42 @@ describe('notify-templates', () => {
     expect(t).toContain('Mazda HN');
     expect(t).toContain('25%');
     expect(t).toContain('[cần chú ý]');
+  });
+});
+
+describe('renderBrandReport', () => {
+  const view = {
+    dateLabel: 'NGÀY 20/07',
+    headerName: 'BLĐ KIA-Mazda',
+    blocks: [
+      {
+        brandName: 'KIA',
+        stats: stats({ total: 3, contacted: 1, pending: 2, overdue: 1, KHQT: 1 }),
+        models: [{ name: 'Sonet', stats: stats({ total: 2 }) }],
+        showrooms: [{ name: 'SR A', stats: stats({ total: 2 }) }],
+      },
+      {
+        brandName: 'Mazda',
+        stats: stats({ total: 0 }),
+        models: [],
+        showrooms: [],
+      },
+    ],
+  };
+
+  it('tiêu đề khối + 2 mục theo dòng xe/showroom', () => {
+    const t = renderBrandReport(view);
+    expect(t).toContain('<b>BÁO CÁO NGÀY 20/07 — BLĐ KIA-Mazda · KIA</b>');
+    expect(t).toContain('Tổng lead: 3');
+    expect(t).toContain('Theo dòng xe:');
+    expect(t).toContain('· Sonet — Tổng 2');
+    expect(t).toContain('Theo showroom:');
+    expect(t).toContain('· SR A — Tổng 2');
+  });
+
+  it('hãng 0 lead: vẫn có khối + "chưa có" cho danh sách rỗng', () => {
+    const t = renderBrandReport(view);
+    expect(t).toContain('<b>BÁO CÁO NGÀY 20/07 — BLĐ KIA-Mazda · Mazda</b>');
+    expect(t).toContain('· chưa có');
   });
 });

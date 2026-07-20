@@ -406,6 +406,38 @@ export function renderPeriodMgmt(
   return [head, totalLine, contactLine, '———', 'Xếp hạng showroom (theo Ký HĐ):', ...body, foot].join('\n');
 }
 
+export interface BrandBlockView {
+  brandName: string;
+  stats: DailySrStats;
+  models: BrandBreakView[];
+  showrooms: BrandBreakView[];
+}
+
+export interface BrandReportView {
+  dateLabel: string;
+  headerName: string;
+  blocks: BrandBlockView[];
+}
+
+// Báo cáo nhóm BLĐ thương hiệu: mỗi hãng 1 khối, nối bằng dòng trống. KHÔNG so kỳ trước.
+// Danh sách rỗng → in tiêu đề + "· chưa có" để nhất quán (không để trống khó hiểu).
+export function renderBrandReport(r: BrandReportView): string {
+  const blocks = r.blocks.map((b) => {
+    const s = b.stats;
+    const lines = [
+      `<b>BÁO CÁO ${r.dateLabel} — ${r.headerName} · ${b.brandName}</b>`,
+      `Tổng lead: ${s.total} · Đã LH: ${s.contacted} (${pct(s.contacted, s.total)}%) · Chưa LH: ${s.pending} · Quá hạn: ${s.overdue}`,
+      `Phân loại: KHQT ${s.KHQT} · GDTD ${s.GDTD} · Ký HĐ ${s.KyHD} · Loại ${s.Fail}`,
+      'Theo dòng xe:',
+      ...(b.models.length ? b.models.map(renderBrandLine) : ['· chưa có']),
+      'Theo showroom:',
+      ...(b.showrooms.length ? b.showrooms.map(renderBrandLine) : ['· chưa có']),
+    ];
+    return lines.join('\n');
+  });
+  return blocks.join('\n\n');
+}
+
 // Báo cáo ngày của 1 kênh Zalo nhiều phòng. Kênh 1 phòng → bỏ TỔNG QUAN, hiện thẳng 1 khối.
 export function renderChannelDaily(r: ChannelReportView): string {
   if (r.phongs.length === 1) {
