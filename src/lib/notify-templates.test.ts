@@ -15,15 +15,16 @@ describe('renderChannelDaily', () => {
           { name: 'KIA', stats: stats({ total: 2, contacted: 1 }) },
           { name: 'Mazda', stats: stats({ total: 1, contacted: 1 }) },
         ],
+        byModel: false,
       },
       phongs: [
         { name: 'Phòng 1', stats: stats({ total: 2 }), brands: [
           { name: 'KIA', stats: stats({ total: 1 }) },
           { name: 'Mazda', stats: stats({ total: 1 }) },
-        ], nonCompliant: [] },
+        ], byModel: false, nonCompliant: [] },
         { name: 'Phòng 2', stats: stats({ total: 1 }), brands: [
           { name: 'KIA', stats: stats({ total: 1 }) },
-        ], nonCompliant: [] },
+        ], byModel: false, nonCompliant: [] },
       ],
     };
     const t = renderChannelDaily(view);
@@ -38,8 +39,8 @@ describe('renderChannelDaily', () => {
   it('kênh 1 phòng: bỏ TỔNG QUAN, hiện thẳng 1 khối', () => {
     const view: ChannelReportView = {
       dateLabel: 'NGÀY 11/07', headerName: 'SR',
-      overview: { stats: stats({ total: 1 }), brands: [] },
-      phongs: [{ name: 'Phòng Duy Nhất', stats: stats({ total: 1, contacted: 1 }), brands: [], nonCompliant: [] }],
+      overview: { stats: stats({ total: 1 }), brands: [], byModel: false },
+      phongs: [{ name: 'Phòng Duy Nhất', stats: stats({ total: 1, contacted: 1 }), brands: [], byModel: false, nonCompliant: [] }],
     };
     const t = renderChannelDaily(view);
     expect(t).toContain('BÁO CÁO NGÀY 11/07 — Phòng Duy Nhất');
@@ -49,10 +50,10 @@ describe('renderChannelDaily', () => {
   it('1 hãng: vẫn hiện chi tiết theo thương hiệu (không rút gọn)', () => {
     const view: ChannelReportView = {
       dateLabel: 'NGÀY 11/07', headerName: 'SR',
-      overview: { stats: stats({ total: 1 }), brands: [] },
+      overview: { stats: stats({ total: 1 }), brands: [], byModel: false },
       phongs: [{ name: 'P1', stats: stats({ total: 0 }), brands: [
         { name: 'KIA', stats: stats({ total: 0 }) },
-      ], nonCompliant: [] }],
+      ], byModel: false, nonCompliant: [] }],
     };
     const t = renderChannelDaily(view);
     expect(t).toContain('Chi tiết theo thương hiệu:');

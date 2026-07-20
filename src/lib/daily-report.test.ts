@@ -381,3 +381,53 @@ describe('buildChannelPeriodReport — tách theo dòng xe (report_by_model)', (
     expect(r.overview.byModel).toBe(true);
   });
 });
+
+describe('renderer — tiêu đề chi tiết theo dòng xe vs thương hiệu', () => {
+  const now = new Date('2026-07-20T01:00:00Z');
+  const TB = 'tai-bus';
+
+  it('renderChannelDaily: kênh byModel → "Chi tiết theo dòng xe:", KHÔNG "theo thương hiệu:"', () => {
+    const leads: ReportLead[] = [
+      L({ sales_team_id: 't1', team_name: 'Phòng Tải Bus', brand_id: TB, brand_name: 'Tải Bus', model_id: 'm-van', model_name: 'Tải Van', last_contact_at: '2026-07-14T09:00:00Z' }),
+    ];
+    const r = buildChannelReport(leads, 'NGÀY 20/07', now, {
+      headerName: 'Nhóm Tải Bus', teams: [{ id: 't1', name: 'Phòng Tải Bus', brand_ids: [TB] }], brands: [{ id: TB, name: 'Tải Bus' }],
+    }, new Set([TB]));
+    const text = renderChannelDaily(r);
+    expect(text).toContain('Chi tiết theo dòng xe:');
+    expect(text).not.toContain('Chi tiết theo thương hiệu:');
+    expect(text).toContain('· Tải Van —');
+  });
+
+  it('renderChannelDaily: kênh thường → giữ "Chi tiết theo thương hiệu:"', () => {
+    const leads: ReportLead[] = [
+      L({ sales_team_id: 't1', team_name: 'Phòng 1', brand_id: 'kia', brand_name: 'KIA', last_contact_at: '2026-07-14T09:00:00Z' }),
+    ];
+    const r = buildChannelReport(leads, 'NGÀY 20/07', now, {
+      headerName: 'SR', teams: [{ id: 't1', name: 'Phòng 1', brand_ids: ['kia'] }], brands: [{ id: 'kia', name: 'KIA' }],
+    });
+    const text = renderChannelDaily(r);
+    expect(text).toContain('Chi tiết theo thương hiệu:');
+    expect(text).not.toContain('Chi tiết theo dòng xe:');
+  });
+
+  it('renderChannelPeriod: kênh byModel → "Chi tiết theo dòng xe:"', () => {
+    const current: ReportLead[] = [
+      L({ sales_team_id: 't1', team_name: 'Phòng Tải Bus', brand_id: TB, brand_name: 'Tải Bus', model_id: 'm-van', model_name: 'Tải Van', status: 'KHĐ', last_contact_at: '2026-07-14T09:00:00Z' }),
+    ];
+    const r = buildChannelPeriodReport(current, [], 'TUẦN 13/07–19/07', 'TUẦN 06/07–12/07', now, {
+      headerName: 'Nhóm Tải Bus', teams: [{ id: 't1', name: 'Phòng Tải Bus', brand_ids: [TB] }], brands: [{ id: TB, name: 'Tải Bus' }],
+    }, new Set([TB]));
+    const text = renderChannelPeriod(r);
+    expect(text).toContain('Chi tiết theo dòng xe:');
+    expect(text).not.toContain('Chi tiết theo thương hiệu:');
+  });
+
+  it('buildLongPeriodReport: showroom byModel → perShowroom render "Chi tiết theo dòng xe:"', () => {
+    const current: ReportLead[] = [
+      L({ showroom_id: 'sr1', showroom_name: 'SR Tải Bus', brand_id: TB, brand_name: 'Tải Bus', model_id: 'm-van', model_name: 'Tải Van', status: 'KHĐ', last_contact_at: '2026-07-14T09:00:00Z' }),
+    ];
+    const r = buildLongPeriodReport(current, [], 'TUẦN 13/07–19/07', 'TUẦN 06/07–12/07', now, undefined, new Set([TB]));
+    expect(r.perShowroom[0].text).toContain('Chi tiết theo dòng xe:');
+  });
+});

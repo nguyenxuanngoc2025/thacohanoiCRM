@@ -262,13 +262,14 @@ export interface ChannelPhongView {
   name: string;
   stats: DailySrStats;
   brands: BrandBreakView[];
+  byModel: boolean;
   nonCompliant: NonCompliant[];
 }
 
 export interface ChannelReportView {
   dateLabel: string;
   headerName: string;
-  overview: { stats: DailySrStats; brands: BrandBreakView[] };
+  overview: { stats: DailySrStats; brands: BrandBreakView[]; byModel: boolean };
   phongs: ChannelPhongView[];
 }
 
@@ -280,13 +281,13 @@ function renderBrandLine(b: BrandBreakView): string {
 
 // Khối 1 phạm vi (tổng quan / 1 phòng): dòng tổng + phân loại + LUÔN chi tiết hãng.
 // Chi tiết hãng bắt buộc hiện cho MỌI hãng phòng bán (kể cả 0 lead) — seed từ brand_ids.
-function renderScopedStats(s: DailySrStats, brands: BrandBreakView[]): string[] {
+function renderScopedStats(s: DailySrStats, brands: BrandBreakView[], byModel = false): string[] {
   const lines = [
     `Tổng lead: ${s.total} · Đã LH: ${s.contacted} (${pct(s.contacted, s.total)}%) · Chưa LH: ${s.pending} · Quá hạn: ${s.overdue}`,
     `Phân loại: KHQT ${s.KHQT} · GDTD ${s.GDTD} · Ký HĐ ${s.KyHD} · Loại ${s.Fail}`,
   ];
   if (brands.length > 0) {
-    lines.push('Chi tiết theo thương hiệu:');
+    lines.push(byModel ? 'Chi tiết theo dòng xe:' : 'Chi tiết theo thương hiệu:');
     for (const b of brands) lines.push(renderBrandLine(b));
   }
   return lines;
@@ -306,7 +307,7 @@ export function deltaStr(cur: number, prev: number): string {
 
 // Khối kết quả 1 phạm vi kỳ dài (showroom / phòng / tổng quan): tổng + so kỳ trước,
 // đã liên hệ, phễu chốt, tỷ lệ chốt, chi tiết hãng. KHÔNG "quá hạn / chưa tuân thủ".
-function renderPeriodScopedStats(cur: DailySrStats, prev: DailySrStats, brands: BrandBreakView[]): string[] {
+function renderPeriodScopedStats(cur: DailySrStats, prev: DailySrStats, brands: BrandBreakView[], byModel = false): string[] {
   const winRate = pct(cur.KyHD, cur.total);
   const lines = [
     `Tổng lead: <b>${cur.total}</b> (${deltaStr(cur.total, prev.total)} so kỳ trước)`,
@@ -315,7 +316,7 @@ function renderPeriodScopedStats(cur: DailySrStats, prev: DailySrStats, brands: 
     `Tỷ lệ chốt: <b>${winRate}%</b> · Đã loại: ${cur.Fail}`,
   ];
   if (brands.length > 0) {
-    lines.push('Chi tiết theo thương hiệu:');
+    lines.push(byModel ? 'Chi tiết theo dòng xe:' : 'Chi tiết theo thương hiệu:');
     for (const b of brands) {
       lines.push(`· ${b.name}: ${b.stats.total} lead · Ký HĐ ${b.stats.KyHD} · chốt ${pct(b.stats.KyHD, b.stats.total)}%`);
     }
@@ -331,11 +332,11 @@ function renderPrevFoot(prevLabel: string, prev: DailySrStats): string {
 // Báo cáo TUẦN/THÁNG của 1 showroom (gửi nhóm BLĐ showroom). dateLabel/prevLabel đã gồm từ chỉ kỳ.
 export function renderPeriodSr(
   showroom: string, dateLabel: string, prevLabel: string,
-  cur: DailySrStats, prev: DailySrStats, brands: BrandBreakView[],
+  cur: DailySrStats, prev: DailySrStats, brands: BrandBreakView[], byModel = false,
 ): string {
   return [
     `<b>BÁO CÁO ${dateLabel} — ${showroom}</b>`,
-    ...renderPeriodScopedStats(cur, prev, brands),
+    ...renderPeriodScopedStats(cur, prev, brands, byModel),
     renderPrevFoot(prevLabel, prev),
   ].join('\n');
 }
@@ -345,13 +346,14 @@ export interface ChannelPeriodPhongView {
   cur: DailySrStats;
   prev: DailySrStats;
   brands: BrandBreakView[];
+  byModel: boolean;
 }
 
 export interface ChannelPeriodView {
   dateLabel: string;
   prevLabel: string;
   headerName: string;
-  overview: { cur: DailySrStats; prev: DailySrStats; brands: BrandBreakView[] };
+  overview: { cur: DailySrStats; prev: DailySrStats; brands: BrandBreakView[]; byModel: boolean };
   phongs: ChannelPeriodPhongView[];
 }
 
@@ -362,7 +364,7 @@ export function renderChannelPeriod(r: ChannelPeriodView): string {
     const p = r.phongs[0];
     return [
       `<b>BÁO CÁO ${r.dateLabel} — ${p.name}</b>`,
-      ...renderPeriodScopedStats(p.cur, p.prev, p.brands),
+      ...renderPeriodScopedStats(p.cur, p.prev, p.brands, p.byModel),
       renderPrevFoot(r.prevLabel, p.prev),
     ].join('\n');
   }
@@ -370,12 +372,12 @@ export function renderChannelPeriod(r: ChannelPeriodView): string {
     `<b>BÁO CÁO ${r.dateLabel} — ${r.headerName}</b>`,
     '',
     '<b>TỔNG QUAN</b>',
-    ...renderPeriodScopedStats(r.overview.cur, r.overview.prev, r.overview.brands),
+    ...renderPeriodScopedStats(r.overview.cur, r.overview.prev, r.overview.brands, r.overview.byModel),
   ];
   for (const p of r.phongs) {
     parts.push('───────────────');
     parts.push(`<b>PHÒNG ${p.name}</b>`);
-    parts.push(...renderPeriodScopedStats(p.cur, p.prev, p.brands));
+    parts.push(...renderPeriodScopedStats(p.cur, p.prev, p.brands, p.byModel));
   }
   parts.push('───────────────');
   parts.push(renderPrevFoot(r.prevLabel, r.overview.prev));
@@ -410,7 +412,7 @@ export function renderChannelDaily(r: ChannelReportView): string {
     const p = r.phongs[0];
     return [
       `BÁO CÁO ${r.dateLabel} — ${p.name}`,
-      ...renderScopedStats(p.stats, p.brands),
+      ...renderScopedStats(p.stats, p.brands, p.byModel),
       renderNonCompliant(p.nonCompliant),
     ].join('\n');
   }
@@ -418,12 +420,12 @@ export function renderChannelDaily(r: ChannelReportView): string {
     `BÁO CÁO ${r.dateLabel} — ${r.headerName}`,
     '',
     '<b>TỔNG QUAN</b>',
-    ...renderScopedStats(r.overview.stats, r.overview.brands),
+    ...renderScopedStats(r.overview.stats, r.overview.brands, r.overview.byModel),
   ];
   for (const p of r.phongs) {
     parts.push('───────────────');
     parts.push(`<b>PHÒNG ${p.name}</b>`);
-    parts.push(...renderScopedStats(p.stats, p.brands));
+    parts.push(...renderScopedStats(p.stats, p.brands, p.byModel));
     parts.push(renderNonCompliant(p.nonCompliant));
   }
   return parts.join('\n');

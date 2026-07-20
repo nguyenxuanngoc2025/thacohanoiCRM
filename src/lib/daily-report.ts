@@ -217,6 +217,7 @@ export interface LongPeriodReport {
 export function buildLongPeriodReport(
   current: ReportLead[], previous: ReportLead[],
   dateLabel: string, prevLabel: string, now: Date, seed?: ReportSeed,
+  modelBreakBrandIds: Set<string> = new Set(),
 ): LongPeriodReport {
   const cur = new Map<string, Bucket>();
   const prev = new Map<string, Bucket>();
@@ -224,11 +225,11 @@ export function buildLongPeriodReport(
   for (const s of seed?.showrooms ?? []) { cur.set(s.id, newBucket(s.name)); prev.set(s.id, newBucket(s.name)); }
   for (const l of current) {
     const g = cur.get(l.showroom_id) ?? newBucket(l.showroom_name);
-    accumulate(g, l, now); cur.set(l.showroom_id, g);
+    accumulate(g, l, now, modelBreakBrandIds); cur.set(l.showroom_id, g);
   }
   for (const l of previous) {
     const g = prev.get(l.showroom_id) ?? newBucket(l.showroom_name);
-    accumulate(g, l, now); prev.set(l.showroom_id, g);
+    accumulate(g, l, now, modelBreakBrandIds); prev.set(l.showroom_id, g);
   }
 
   const perShowroom: ScopedReport[] = [];
@@ -239,7 +240,7 @@ export function buildLongPeriodReport(
     const p = prev.get(id) ?? newBucket(g.name);
     perShowroom.push({
       id, name: g.name, stats: g.stats,
-      text: renderPeriodSr(g.name, dateLabel, prevLabel, g.stats, p.stats, brandBreaks(g)),
+      text: renderPeriodSr(g.name, dateLabel, prevLabel, g.stats, p.stats, brandBreaks(g), g.byModel),
     });
     rows.push({ showroom: g.name, cur: g.stats, prev: p.stats });
     sumInto(curTotals, g.stats); sumInto(prevTotals, p.stats);
