@@ -74,8 +74,22 @@ export default function AssignView({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [strategy, setStrategy] = useState<Exclude<AssignStrategy, 'manual' | 'day_roster'>>('least_loaded');
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [brandFilter, setBrandFilter] = useState<string | null>(null);
 
   const flashMsg = (m: string) => { setFlash(m); setTimeout(() => setFlash(null), 4000); };
+
+  // Danh sách hãng có trong hàng chờ — để lọc cho tài khoản quản nhiều thương hiệu.
+  const brandOptions = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const l of leads) if (l.brand_id) m.set(l.brand_id, l.brand_name);
+    return [...m.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+  }, [leads]);
+  const showBrandFilter = brandOptions.length >= 2;
+  // Lead hiển thị theo bộ lọc hãng (chỉ ảnh hưởng danh sách; chia tự động vẫn xử lý toàn bộ).
+  const visibleLeads = useMemo(
+    () => (brandFilter ? leads.filter((l) => l.brand_id === brandFilter) : leads),
+    [leads, brandFilter],
+  );
 
   const maxLoad = useMemo(() => Math.max(1, ...tvbh.map((t) => t.open_count)), [tvbh]);
   const tvbhByTeam = useMemo(() => {
@@ -171,10 +185,15 @@ export default function AssignView({
         <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col min-h-0">
           <div className="shrink-0 flex flex-wrap items-center justify-between gap-3 p-5 pb-3 border-b border-slate-100">
             <div>
-              <h2 className="text-sm font-bold text-slate-900">Lead chưa giao ({leads.length})</h2>
+              <h2 className="text-sm font-bold text-slate-900">
+                Lead chưa giao ({visibleLeads.length}{brandFilter ? ` / ${leads.length}` : ''})
+              </h2>
               <p className="text-xs text-slate-400 mt-0.5">Chọn tư vấn/phòng cho từng lead, hoặc chia tự động theo kiểu.</p>
             </div>
             <div className="flex items-center gap-2">
+              {showBrandFilter && (
+                <BrandPicker options={brandOptions} value={brandFilter} onChange={setBrandFilter} disabled={pending} />
+              )}
               <StrategyPicker value={strategy} onChange={setStrategy} disabled={pending} />
               <button
                 onClick={applyAuto}
@@ -187,13 +206,15 @@ export default function AssignView({
             </div>
           </div>
 
-          {leads.length === 0 ? (
-            <div className="px-5 py-12 text-center text-slate-400 text-sm">Tất cả lead đã có người phụ trách.</div>
+          {visibleLeads.length === 0 ? (
+            <div className="px-5 py-12 text-center text-slate-400 text-sm">
+              {leads.length === 0 ? 'Tất cả lead đã có người phụ trách.' : 'Không có lead thuộc thương hiệu đã chọn.'}
+            </div>
           ) : (
             <div className="flex-1 min-h-0 overflow-auto">
               {/* Mobile: thẻ */}
               <div className="lg:hidden divide-y divide-slate-100">
-                {leads.map((l) => (
+                {visibleLeads.map((l) => (
                   <div key={l.id} className="p-4 space-y-2.5">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -231,7 +252,7 @@ export default function AssignView({
                   </tr>
                 </thead>
                 <tbody>
-                  {leads.map((l) => (
+                  {visibleLeads.map((l) => (
                     <tr key={l.id} className="border-t border-slate-100">
                       <td className="px-5 py-2.5">
                         <div className="font-medium text-slate-800">{l.full_name ?? 'Khách lẻ'}</div>
@@ -328,6 +349,66 @@ function StrategyPicker({
                 className="block w-full text-left text-sm rounded-md px-2.5 py-1.5 hover:bg-slate-50"
                 style={{ color: value === s.value ? NAVY : '#475569', fontWeight: value === s.value ? 600 : 400 }}>
                 {s.label}
+              </button>
+            ))}
+          </div>
+        </ModalPortal>
+      )}
+    </>
+  );
+}
+
+/** Dropdown lọc thương hiệu — chỉ hiện với tài khoản quản nhiều hãng. */
+function BrandPicker({
+  options, value, onChange, disabled,
+}: {
+  options: { id: string; name: string }[];
+  value: string | null;
+  onChange: (v: string | null) => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const current = options.find((o) => o.id === value);
+
+  const toggle = () => {
+    if (open) { setOpen(false); return; }
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r) setPos({ top: r.bottom + 4, left: r.left, width: Math.max(r.width, 180) });
+    setOpen(true);
+  };
+  const pick = (v: string | null) => { setOpen(false); onChange(v); };
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        onClick={toggle}
+        disabled={disabled}
+        className="inline-flex items-center justify-between gap-1.5 text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white outline-none hover:border-brand disabled:opacity-50 min-w-[150px]"
+      >
+        <span className={current ? 'text-slate-700' : 'text-slate-500'}>{current?.name ?? 'Tất cả thương hiệu'}</span>
+        <ChevronDown size={13} className="opacity-60 shrink-0" />
+      </button>
+      {open && pos && (
+        <ModalPortal>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 9998 }} onClick={() => setOpen(false)} />
+          <div style={{
+            position: 'fixed', top: pos.top, left: pos.left, minWidth: pos.width, zIndex: 9999,
+            background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.12)', padding: 6, maxHeight: 320, overflowY: 'auto',
+          }}>
+            <button onClick={() => pick(null)}
+              className="block w-full text-left text-sm rounded-md px-2.5 py-1.5 hover:bg-slate-50"
+              style={{ color: value === null ? NAVY : '#475569', fontWeight: value === null ? 600 : 400 }}>
+              Tất cả thương hiệu
+            </button>
+            {options.map((o) => (
+              <button key={o.id} onClick={() => pick(o.id)}
+                className="block w-full text-left text-sm rounded-md px-2.5 py-1.5 hover:bg-slate-50"
+                style={{ color: value === o.id ? NAVY : '#475569', fontWeight: value === o.id ? 600 : 400 }}>
+                {o.name}
               </button>
             ))}
           </div>
