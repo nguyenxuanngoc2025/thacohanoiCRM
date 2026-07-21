@@ -5,7 +5,7 @@ import { type UserRole } from '@/types/database';
 
 /** Vai trò được xem trang Đối soát + import (xem được SĐT trên B10). */
 export const B10_IMPORT_ROLES = new Set<UserRole>([
-  'tp_phong', 'gd_showroom', 'gd_brand', 'gd_cty', 'admin',
+  'tp_phong', 'tn', 'gd_showroom', 'gd_brand', 'gd_cty', 'admin',
 ]);
 
 export type B10Context = {

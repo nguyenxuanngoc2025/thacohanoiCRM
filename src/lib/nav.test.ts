@@ -6,14 +6,15 @@ import {
 } from './nav';
 
 describe('danh mục vai trò', () => {
-  it('có đúng 12 vai trò, gồm digital_mkt, không còn tp_showroom', () => {
-    expect(ALL_ROLES).toHaveLength(12);
+  it('có đúng 13 vai trò, gồm digital_mkt + tn, không còn tp_showroom', () => {
+    expect(ALL_ROLES).toHaveLength(13);
     expect(ALL_ROLES).toContain('digital_mkt');
+    expect(ALL_ROLES).toContain('tn');
     expect(ALL_ROLES).not.toContain('tp_showroom');
   });
 
-  it('CREATABLE_ROLES ẩn platform_owner (còn 11)', () => {
-    expect(CREATABLE_ROLES).toHaveLength(11);
+  it('CREATABLE_ROLES ẩn platform_owner (còn 12)', () => {
+    expect(CREATABLE_ROLES).toHaveLength(12);
     expect(CREATABLE_ROLES).not.toContain('platform_owner');
   });
 
@@ -36,6 +37,12 @@ describe('danh mục vai trò', () => {
     for (const map of [ROLE_LABELS, ROLE_DESCRIPTIONS, ROLE_SCOPE, ROLE_CAN, ROLE_CANNOT, ROLE_NEEDS, ROLE_COLOR, ROLE_SCOPE_KIND]) {
       expect(Object.keys(map).sort()).toEqual(expected);
     }
+  });
+
+  it('tn (Trưởng nhóm bán hàng): phạm vi phòng, phân giao được, có báo cáo', () => {
+    expect(ROLE_SCOPE_KIND.tn).toBe('team');
+    expect(CAN_ASSIGN.has('tn')).toBe(true);
+    expect(CAN_VIEW_REPORTS.has('tn')).toBe(true);
   });
 
   it('vai trò cấp thương hiệu/showroom dùng phạm vi đa phần', () => {

@@ -643,7 +643,7 @@ export async function recommendAssignment(showroomId: string | null): Promise<As
     .from('users')
     .select('id, full_name, showroom_id')
     .eq('company_id', me.company_id)
-    .eq('role', 'tvbh')
+    .in('role', ['tvbh', 'tn'])
     .eq('is_active', true)
     .not('showroom_id', 'is', null);
 
@@ -731,7 +731,7 @@ export async function autoDistributeLeads(
   const { data: tvbhs } = await db
     .from('users')
     .select('id, sales_team_id, assign_share_pct')
-    .eq('role', 'tvbh')
+    .in('role', ['tvbh', 'tn'])
     .eq('is_active', true)
     .not('sales_team_id', 'is', null);
   if (!tvbhs || tvbhs.length === 0) return { ok: false, assigned: 0, skipped: 0, error: 'Chưa có tư vấn bán hàng nào.' };
@@ -836,7 +836,7 @@ export async function assignLeadToTeamAuto(
   const { data: tvbhs } = await db
     .from('users')
     .select('id, assign_share_pct')
-    .eq('role', 'tvbh')
+    .in('role', ['tvbh', 'tn'])
     .eq('is_active', true)
     .eq('sales_team_id', teamId);
   if (!tvbhs || tvbhs.length === 0) return { ok: false, error: 'Phòng chưa có tư vấn bán hàng.' };

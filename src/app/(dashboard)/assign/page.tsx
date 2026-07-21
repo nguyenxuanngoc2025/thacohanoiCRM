@@ -70,7 +70,7 @@ export default async function AssignPage() {
     supabase
       .from('users')
       .select('id, full_name, showroom_id, sales_team_id, assign_share_pct, showroom:showrooms!showroom_id(name), sales_team:sales_teams!sales_team_id(name)')
-      .eq('role', 'tvbh')
+      .in('role', ['tvbh', 'tn'])
       .eq('is_active', true)
       .order('full_name'),
     openLeadsQuery,
