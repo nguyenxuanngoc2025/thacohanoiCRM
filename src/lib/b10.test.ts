@@ -54,6 +54,28 @@ describe('normalizeB10Status', () => {
     expect(normalizeB10Status('testdrive')).toBe('GDTD');
     expect(normalizeB10Status('salesoffer')).toBe('GDTD');
   });
+
+  it('nhãn Tải Bus (COOL/WARM/HOT/BOOKING/FAIL) → định nghĩa của ta', () => {
+    // COOL = mới quan tâm → KHQT
+    expect(normalizeB10Status('COOL')).toBe('KHQT');
+    expect(normalizeB10Status('cool')).toBe('KHQT');
+    // WARM/HOT = đang theo dõi giao dịch → GDTD
+    expect(normalizeB10Status('WARM')).toBe('GDTD');
+    expect(normalizeB10Status('HOT')).toBe('GDTD');
+    // FAIL giữ nguyên
+    expect(normalizeB10Status('FAIL')).toBe('Fail');
+  });
+
+  it('BOOKING brand-aware: mặc định (KIA/Mazda DDMS) → GDTD; Tải Bus → KHĐ', () => {
+    // Mặc định / không có cờ → GDTD (giữ nguyên hành vi DDMS cũ)
+    expect(normalizeB10Status('Booking')).toBe('GDTD');
+    expect(normalizeB10Status('BOOKING', { bookingAsContract: false })).toBe('GDTD');
+    // Tải Bus: BOOKING = Ký hợp đồng → KHĐ
+    expect(normalizeB10Status('BOOKING', { bookingAsContract: true })).toBe('KHĐ');
+    expect(normalizeB10Status('booking', { bookingAsContract: true })).toBe('KHĐ');
+    // Cờ chỉ ảnh hưởng BOOKING, không đụng nhãn khác
+    expect(normalizeB10Status('HOT', { bookingAsContract: true })).toBe('GDTD');
+  });
 });
 
 // thêm vào cuối app/src/lib/b10.test.ts
@@ -84,6 +106,17 @@ describe('aggregateB10Archive', () => {
     const out = aggregateB10Archive(rows);
     expect(out).toHaveLength(1);
     expect(out[0].care_note).toBe('Đã tư vấn');
+  });
+
+  it('SĐT thuộc Tải Bus → BOOKING lưu kho là KHĐ; SĐT khác → GDTD', () => {
+    const rows: B10Row[] = [
+      { phone: '0900000001', status: 'BOOKING' }, // Tải Bus
+      { phone: '0900000002', status: 'BOOKING' }, // KIA/Mazda
+    ];
+    const taibus = new Set(['+84900000001']);
+    const out = aggregateB10Archive(rows, taibus);
+    expect(out.find((r) => r.phone === '+84900000001')!.b10_status).toBe('KHĐ');
+    expect(out.find((r) => r.phone === '+84900000002')!.b10_status).toBe('GDTD');
   });
 });
 
@@ -197,5 +230,20 @@ describe('reconcileB10 — tự nâng trạng thái chính (phương án A)', ()
     const r = reconcileB10([{ phone: '0900000001', status: 'đang xử lý' }], scoped, companyPhones);
     expect(r.updates.find((u) => u.id === 'l1')!.new_status).toBeNull();
     expect(r.summary.statusRaised).toBe(0);
+  });
+
+  it('lead Tải Bus (bookingAsContract) → BOOKING nâng thẳng lên KHĐ', () => {
+    const scoped: B10Lead[] = [{ id: 'l1', phone: '0900000001', b10_status: null, status: null, bookingAsContract: true }];
+    const r = reconcileB10([{ phone: '0900000001', status: 'BOOKING' }], scoped, companyPhones);
+    expect(r.updates.find((u) => u.id === 'l1')!.b10_status).toBe('KHĐ');
+    expect(r.updates.find((u) => u.id === 'l1')!.new_status).toBe('KHĐ');
+    expect(r.summary.statusRaised).toBe(1);
+  });
+
+  it('lead KIA/Mazda (không cờ) → BOOKING chỉ lên GDTD', () => {
+    const scoped: B10Lead[] = [{ id: 'l1', phone: '0900000001', b10_status: null, status: null }];
+    const r = reconcileB10([{ phone: '0900000001', status: 'BOOKING' }], scoped, companyPhones);
+    expect(r.updates.find((u) => u.id === 'l1')!.b10_status).toBe('GDTD');
+    expect(r.updates.find((u) => u.id === 'l1')!.new_status).toBe('GDTD');
   });
 });

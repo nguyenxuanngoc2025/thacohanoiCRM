@@ -26,10 +26,21 @@ export function bestB10Status(a: LeadStatus | null, b: LeadStatus | null): LeadS
  *   - Prospect (Khách hàng quan tâm)         → KHQT
  *   - Appointment / Test drive / Sales offer / Booking (Giao dịch theo dõi) → GDTD
  *   - Fail                                    → Fail
- * "KHĐ" (Ký hợp đồng) KHÔNG đến từ funnel — chỉ set qua luồng hợp đồng riêng,
- * nên trạng thái tối đa suy từ file B10 là GDTD.
+ * "KHĐ" (Ký hợp đồng) KHÔNG đến từ funnel DDMS — chỉ set qua luồng hợp đồng riêng,
+ * nên trạng thái tối đa suy từ file B10 (KIA/Mazda) là GDTD.
+ *
+ * Nhãn Tải Bus (COOL/WARM/HOT/BOOKING/FAIL) dùng bộ khác:
+ *   - COOL (mới quan tâm)               → KHQT
+ *   - WARM / HOT (đang theo dõi)        → GDTD
+ *   - BOOKING (đã chốt/ký)              → KHĐ  ← CHỈ khi `opts.bookingAsContract`
+ *   - FAIL                              → Fail
+ * `bookingAsContract` bật cho lead thương hiệu Tải Bus: BOOKING = Ký hợp đồng → KHĐ.
+ * Mặc định (KIA/Mazda) giữ booking → GDTD theo DDMS.
  */
-export function normalizeB10Status(raw: string | null): LeadStatus | null {
+export function normalizeB10Status(
+  raw: string | null,
+  opts?: { bookingAsContract?: boolean },
+): LeadStatus | null {
   if (!raw) return null;
   const v = raw.trim().toLowerCase().replace(/\s+/g, ' ');
   if (!v) return null;
@@ -48,7 +59,11 @@ export function normalizeB10Status(raw: string | null): LeadStatus | null {
     testdrive: 'GDTD',
     'sales offer': 'GDTD',
     salesoffer: 'GDTD',
-    booking: 'GDTD',
+    booking: opts?.bookingAsContract ? 'KHĐ' : 'GDTD',
+    // Nhãn Tải Bus
+    cool: 'KHQT',
+    warm: 'GDTD',
+    hot: 'GDTD',
   };
   // Thử khớp trực tiếp, rồi thử bỏ hết khoảng trắng (vd "salesoffer").
   return map[v] ?? map[v.replace(/\s+/g, '')] ?? null;
@@ -64,14 +79,15 @@ export interface B10ArchiveRecord { phone: string; b10_status: LeadStatus | null
  * - `b10_status`: trạng thái tốt nhất (không tụt hạng) giữa mọi dòng cùng SĐT.
  * - `care_note`: gộp ĐỦ mọi nội dung chăm sóc không rỗng, theo thứ tự file, bỏ trùng.
  * Bỏ qua dòng thiếu SĐT. Khác `reconcileB10`: KHÔNG cần biết lead — lưu toàn bộ để tra cứu sau.
+ * `taibusPhones`: tập SĐT chuẩn hoá `+84…` thuộc thương hiệu Tải Bus → BOOKING lưu là KHĐ.
  */
-export function aggregateB10Archive(rows: B10Row[]): B10ArchiveRecord[] {
+export function aggregateB10Archive(rows: B10Row[], taibusPhones?: Set<string>): B10ArchiveRecord[] {
   const status = new Map<string, LeadStatus | null>();
   const notes = new Map<string, string[]>();
   for (const row of rows) {
     const p = normalizePhone(row.phone);
     if (!p) continue;
-    const code = normalizeB10Status(row.status);
+    const code = normalizeB10Status(row.status, { bookingAsContract: taibusPhones?.has(p) ?? false });
     const cur = status.has(p) ? status.get(p)! : null;
     status.set(p, bestB10Status(cur, code));
     const note = (row.note ?? '').trim();
@@ -87,7 +103,8 @@ export function aggregateB10Archive(rows: B10Row[]): B10ArchiveRecord[] {
   });
 }
 // status = trạng thái chính TVBH đặt trong app (để quyết định có tự nâng hay không).
-export interface B10Lead { id: string; phone: string; b10_status: LeadStatus | null; status: LeadStatus | null }
+// bookingAsContract = lead thương hiệu Tải Bus → BOOKING trong file B10 nghĩa là Ký hợp đồng (KHĐ).
+export interface B10Lead { id: string; phone: string; b10_status: LeadStatus | null; status: LeadStatus | null; bookingAsContract?: boolean }
 // b10_care_note: null = không có nội dung mới để ghi (giữ nguyên giá trị cũ trong DB).
 // new_status: null = KHÔNG đổi trạng thái chính; có giá trị = nâng trạng thái chính lên mức này.
 export interface B10Update { id: string; b10_status: LeadStatus | null; b10_care_note: string | null; new_status: LeadStatus | null }
@@ -135,7 +152,7 @@ export function reconcileB10(
       continue;
     }
     leadById.set(lead.id, lead);
-    const code = normalizeB10Status(row.status);
+    const code = normalizeB10Status(row.status, { bookingAsContract: lead.bookingAsContract ?? false });
     if (row.status && row.status.trim() && code === null) unrecognized.add(row.status.trim());
     const current = merged.has(lead.id) ? merged.get(lead.id)! : lead.b10_status;
     merged.set(lead.id, bestB10Status(current, code));

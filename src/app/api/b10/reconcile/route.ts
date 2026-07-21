@@ -33,10 +33,14 @@ export async function POST(req: Request) {
     rows.map((r) => normalizePhone(r.phone)).filter((p): p is string => !!p),
   )];
 
+  // Thương hiệu Tải Bus (GLOBAL) — BOOKING trong file B10 nghĩa là Ký hợp đồng (KHĐ) cho lead hãng này.
+  const { data: taibusBrand } = await service.from('brands').select('id').ilike('name', 'Tải Bus').maybeSingle();
+  const taibusBrandId = taibusBrand?.id ?? null;
+
   // Lead trong PHẠM VI người import (RLS-scoped) — chỉ những lead này được sửa.
-  const { data: scopedRaw } = await supabase.from('leads').select('id, phone, b10_status, status, last_contact_at');
+  const { data: scopedRaw } = await supabase.from('leads').select('id, phone, b10_status, status, last_contact_at, brand_id');
   const scopedFull = ((scopedRaw ?? []) as {
-    id: string; phone: string; b10_status: B10Row['status']; status: B10Row['status']; last_contact_at: string | null;
+    id: string; phone: string; b10_status: B10Row['status']; status: B10Row['status']; last_contact_at: string | null; brand_id: string | null;
   }[]).filter((l) => {
     const k = normalizePhone(l.phone);
     return k != null && phones.includes(k);
@@ -45,14 +49,21 @@ export async function POST(req: Request) {
     id: l.id, phone: l.phone,
     b10_status: (l.b10_status as never) ?? null,
     status: (l.status as never) ?? null,
+    bookingAsContract: taibusBrandId != null && l.brand_id === taibusBrandId,
   }));
   // Mốc liên hệ hiện tại của từng lead — để quyết định có đánh dấu "đã liên hệ" khi nâng trạng thái.
   const contactedAt = new Map(scopedFull.map((l) => [l.id, l.last_contact_at]));
 
   // Toàn bộ SĐT công ty (bypass RLS) — phân biệt "ngoài phạm vi" vs "không tìm thấy".
-  const { data: companyRaw } = await service.from('leads').select('phone').eq('company_id', companyId);
+  const { data: companyRaw } = await service.from('leads').select('phone, brand_id').eq('company_id', companyId);
+  const companyRows = (companyRaw ?? []) as { phone: string; brand_id: string | null }[];
   const companyPhones = new Set(
-    ((companyRaw ?? []) as { phone: string }[])
+    companyRows.map((l) => normalizePhone(l.phone)).filter((p): p is string => !!p),
+  );
+  // SĐT thuộc thương hiệu Tải Bus — để kho B10 lưu BOOKING = KHĐ cho đúng hãng.
+  const taibusPhones = new Set(
+    companyRows
+      .filter((l) => taibusBrandId != null && l.brand_id === taibusBrandId)
       .map((l) => normalizePhone(l.phone))
       .filter((p): p is string => !!p),
   );
@@ -83,7 +94,7 @@ export async function POST(req: Request) {
 
   // Lưu TOÀN BỘ dòng file vào kho B10 (độc lập lead) để tra cứu khi có lead mới trùng SĐT.
   // Bản mới đè bản cũ theo (company_id, phone); first_seen_at giữ nguyên (không gửi khi upsert).
-  const archive = aggregateB10Archive(rows).map((r) => ({
+  const archive = aggregateB10Archive(rows, taibusPhones).map((r) => ({
     company_id: companyId, phone: r.phone, b10_status: r.b10_status, care_note: r.care_note, updated_at: now,
   }));
   if (archive.length > 0) {
