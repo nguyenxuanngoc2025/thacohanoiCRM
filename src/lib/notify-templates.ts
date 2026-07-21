@@ -6,6 +6,7 @@
 
 import { formatPhoneDisplay } from './phone';
 import { sourcePlatform, sourceLabel, type SourceCatalog } from './source';
+import { STATUS_LABEL, type LeadStatus } from './lead-status';
 
 // Che 3 số cuối SĐT khi gửi vào nhóm chung: chống TVBH xem trọn SĐT KH của TVBH khác.
 // TVBH phụ trách vẫn xem SĐT đầy đủ trong app (lead của mình).
@@ -77,6 +78,49 @@ export function renderNewLead(i: NewLeadInput): string {
       lines.push(`Nội dung B10: <i>${short}</i>`);
     }
   }
+  return lines.join('\n');
+}
+
+export interface ReturningLeadInput {
+  showroom: string;
+  // Tên phòng ĐANG chăm (fallback showroom) → tiêu đề tin.
+  team: string | null;
+  fullName: string | null;
+  phone: string;
+  // Kênh MỚI mà khách vừa hỏi lại (Facebook/Zalo…).
+  source: string | null;
+  // Nội dung khách hỏi lần này (nếu bắt được từ intent_text).
+  inquiry: string | null;
+  // TVBH đang chăm hiện tại (null = chưa phân giao).
+  assignee: string | null;
+  // Phân loại hiện tại của lead cũ (null = chưa phân loại).
+  status: LeadStatus | null;
+  catalog?: SourceCatalog;
+}
+
+// Tin "khách cũ hỏi lại" — bắn vào ĐÚNG nhóm phòng đang chăm khách đó khi có data mới trùng SĐT.
+// Mục đích: cảnh báo đây là KH cũ quay lại, nội dung gì, ai đang chăm, phân loại ra sao → không tạo lead mới.
+export function renderReturningLead(i: ReturningLeadInput): string {
+  const ten = i.fullName?.trim() || 'Khách lẻ';
+  const platform = sourcePlatform(i.source, i.catalog);
+  const detail = sourceLabel(i.source, i.catalog);
+  const nguon = detail !== '—' ? `${platform} · ${detail}` : platform;
+  const dangCham = i.assignee?.trim() ? `<b>${i.assignee.trim()}</b>` : '<b>CHƯA CÓ TVBH</b>';
+  const phanLoai = i.status ? STATUS_LABEL[i.status] : 'Chưa phân loại';
+  const scope = i.team?.trim() || i.showroom;
+  const lines = [
+    `<b>DATA KH CŨ HỎI LẠI — ${scope}</b>`,
+    `KH: <b>${ten}</b> · ${maskPhone(i.phone)}`,
+    `Kênh mới: ${nguon}`,
+  ];
+  const inq = i.inquiry?.trim();
+  if (inq) {
+    const short = inq.length > B10_NOTE_CAP ? inq.slice(0, B10_NOTE_CAP) + '…' : inq;
+    lines.push(`Nội dung hỏi: <i>${short}</i>`);
+  }
+  lines.push(`Đang chăm: ${dangCham}`);
+  lines.push(`Phân loại hiện tại: ${phanLoai}`);
+  lines.push('<i>Khách cũ quay lại — vào chăm sóc tiếp.</i>');
   return lines.join('\n');
 }
 

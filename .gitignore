@@ -5,3 +5,6 @@
 .env.local
 *.tsbuildinfo
 next-env.d.ts
+
+# Local one-time backups (PII) — không commit
+/backups/

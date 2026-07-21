@@ -48,34 +48,12 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
   const companyId0 = anchorSr?.company_id ?? null;
   if (!companyId0) return { ok: false, reason: 'no_showroom' };
 
-  // Chống trùng theo (company_id, phone, brand_id) — lead quản lý độc lập theo công ty:
-  // cùng SĐT + thương hiệu nhưng khác công ty là 2 lead riêng (KHÔNG coi là trùng).
-  const { data: existing } = await db
-    .from('leads')
-    .select('id, assigned_to')
-    .eq('company_id', companyId0)
-    .eq('phone', phone)
-    .eq('brand_id', channel.brand_id)
-    .maybeSingle();
-
-  if (existing) {
-    // Google Sheet quét lại TOÀN BỘ sheet mỗi lần (5 phút/lần) → mọi lead cũ đều "trùng" mỗi lượt.
-    // silent_dedup=true để KHÔNG ghi lead_logs từng lượt (tránh spam); chỉ đếm số trùng ở tầng đồng bộ.
-    if (!payload.silent_dedup) {
-      await db.from('lead_logs').insert({
-        lead_id: existing.id,
-        type: 'system',
-        content: `Lead trùng SĐT từ kênh ${payload.source ?? 'facebook'} — giữ nguyên TVBH đang chăm.`,
-      });
-    }
-    return { ok: true, leadId: existing.id, deduped: true };
-  }
-
   // Kênh chuẩn hoá (lowercase) — lưu vào cột source để biết nguồn lead.
   const channelKey = (payload.source ?? 'facebook').trim().toLowerCase() || 'facebook';
 
   // Dòng xe: ưu tiên model_id chỉ định sẵn (Google Sheet gán cố định/theo cột);
   // nếu không có thì tự dò theo từ khoá — scope theo brand của fanpage, chỉ điền khi trúng đúng 1 dòng.
+  // Dò TRƯỚC dedup để nhánh "khách cũ hỏi lại" cũng bù được dòng xe nếu lần này mới xác định ra.
   let modelId: string | null = null;
   let modelName: string | null = null;
   if (channel.brand_id && (payload.model_id || payload.intent_text)) {
@@ -92,6 +70,86 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
       modelId = detectModel({ brandId: channel.brand_id, text: payload.intent_text, models });
     }
     if (modelId) modelName = models.find((m) => m.id === modelId)?.name ?? null;
+  }
+
+  // Chống trùng theo (company_id, phone, brand_id) — lead quản lý độc lập theo công ty:
+  // cùng SĐT + thương hiệu nhưng khác công ty là 2 lead riêng (KHÔNG coi là trùng).
+  const { data: existing } = await db
+    .from('leads')
+    .select('id, assigned_to, sales_team_id, showroom_id, status, full_name, model_id')
+    .eq('company_id', companyId0)
+    .eq('phone', phone)
+    .eq('brand_id', channel.brand_id)
+    .maybeSingle();
+
+  if (existing) {
+    // KHÁCH CŨ HỎI LẠI: KHÔNG tạo dòng mới. Cập nhật vào dòng cũ (chỉ bù ô đang trống) + báo Zalo
+    // vào nhóm phòng ĐANG chăm. Giữ nguyên TVBH/showroom/phòng/phân loại (không lật quyết định TVBH).
+    const patch: Record<string, unknown> = {};
+    const newName = payload.full_name?.trim();
+    if (!existing.full_name?.trim() && newName && looksLikePersonName(newName)) patch.full_name = newName;
+    if (!existing.model_id && modelId) patch.model_id = modelId;
+    if (Object.keys(patch).length > 0) {
+      await db.from('leads').update(patch).eq('id', existing.id);
+    }
+
+    // Google Sheet quét lại TOÀN BỘ sheet mỗi lần (5 phút/lần) → mọi lead cũ đều "trùng" mỗi lượt.
+    // silent_dedup=true để KHÔNG ghi lead_logs + KHÔNG báo Zalo từng lượt (tránh spam);
+    // chỉ bù thông tin ở trên. Data thật thời gian thực (FB/Zalo/nhập tay) mới ghi log + báo.
+    if (!payload.silent_dedup) {
+      const inquiry = payload.intent_text?.trim();
+      await db.from('lead_logs').insert({
+        lead_id: existing.id,
+        type: 'system',
+        content: `Khách cũ hỏi lại qua ${payload.source ?? 'facebook'}${inquiry ? `: ${inquiry.slice(0, 300)}` : ''}.`,
+      });
+
+      // Báo Zalo nhóm phòng đang chăm: chỉ khi lead cũ ĐÃ có phòng, không bị chặn báo,
+      // hãng/showroom KHÔNG tắt (cùng cơ chế im lặng như lead mới).
+      if (!payload.suppress_notify && existing.sales_team_id) {
+        const { data: sr } = await db
+          .from('showrooms').select('company_id, is_active, name').eq('id', existing.showroom_id).maybeSingle();
+        const openBrandIds = sr ? await getOpenBrandIds(db, sr.company_id) : [];
+        const brandClosed = isBrandClosed(openBrandIds, channel.brand_id);
+        const showroomClosed = (sr as { is_active?: boolean } | null)?.is_active === false;
+        if (sr && !brandClosed && !showroomClosed) {
+          const { data: chs } = await db
+            .from('notification_channels')
+            .select('id, channel, target, events, sales_team_id, sales_team_ids, scope')
+            .eq('company_id', sr.company_id)
+            .eq('is_active', true);
+          const rTargets = (chs ?? []).filter((c) => {
+            const ids = (c.sales_team_ids as string[] | null) ?? (c.sales_team_id ? [c.sales_team_id as string] : []);
+            return (c.events ?? []).includes('new_lead') && c.scope === 'sales' && ids.includes(existing.sales_team_id!);
+          });
+          if (rTargets.length > 0) {
+            const teamName = (await db.from('sales_teams').select('name').eq('id', existing.sales_team_id).maybeSingle()).data?.name ?? null;
+            const assigneeName = existing.assigned_to
+              ? (await db.from('users').select('full_name').eq('id', existing.assigned_to).maybeSingle()).data?.full_name ?? null
+              : null;
+            const { renderReturningLead } = await import('@/lib/notify-templates');
+            const { loadSourceCatalog } = await import('@/lib/source-catalog');
+            const catalog = await loadSourceCatalog(db);
+            const text = renderReturningLead({
+              showroom: sr.name ?? 'Showroom',
+              team: teamName,
+              fullName: (patch.full_name as string) ?? existing.full_name ?? null,
+              phone,
+              source: payload.source ?? 'facebook',
+              inquiry: inquiry ?? null,
+              assignee: assigneeName,
+              status: existing.status ?? null,
+              catalog,
+            });
+            await db.from('notifications').insert(rTargets.map((c) => ({
+              lead_id: existing.id, channel: c.channel, channel_id: c.id, status: 'pending',
+              payload: { event: 'new_lead', leadId: existing.id, target: c.target, text },
+            })));
+          }
+        }
+      }
+    }
+    return { ok: true, leadId: existing.id, deduped: true };
   }
 
   // Phòng bán hàng (sales_teams) nhận lead của hãng fanpage này, trong các showroom ứng viên.

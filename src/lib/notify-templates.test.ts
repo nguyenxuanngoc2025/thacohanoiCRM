@@ -1,8 +1,35 @@
 import { describe, it, expect } from 'vitest';
-import { renderNewLead, renderLeadAssigned, renderLeadsAssignedSummary, renderRosterMissing, renderOverdue, renderCallbackReminder, renderDailySr, renderDailyMgmt, maskPhone, renderChannelDaily, renderBrandReport, type ChannelReportView } from './notify-templates';
+import { renderNewLead, renderReturningLead, renderLeadAssigned, renderLeadsAssignedSummary, renderRosterMissing, renderOverdue, renderCallbackReminder, renderDailySr, renderDailyMgmt, maskPhone, renderChannelDaily, renderBrandReport, type ChannelReportView } from './notify-templates';
 
 const stats = (o: Partial<{ total: number; contacted: number; pending: number; overdue: number; KHQT: number; GDTD: number; KyHD: number; Fail: number }> = {}) =>
   ({ total: 0, contacted: 0, pending: 0, overdue: 0, KHQT: 0, GDTD: 0, KyHD: 0, Fail: 0, ...o });
+
+describe('renderReturningLead', () => {
+  it('có TVBH + phân loại + nội dung hỏi', () => {
+    const t = renderReturningLead({
+      showroom: 'Giải Phóng', team: 'Phòng 1', fullName: 'Nam Huy', phone: '+84934447212',
+      source: 'facebook', inquiry: 'Hỏi giá lăn bánh Seltos', assignee: 'Nguyễn Thành Đạt', status: 'KHQT',
+    });
+    expect(t).toContain('DATA KH CŨ HỎI LẠI — Phòng 1');
+    expect(t).toContain('KH: <b>Nam Huy</b>');
+    expect(t).toContain('0934447***');
+    expect(t).toContain('Nội dung hỏi: <i>Hỏi giá lăn bánh Seltos</i>');
+    expect(t).toContain('Đang chăm: <b>Nguyễn Thành Đạt</b>');
+    expect(t).toContain('Phân loại hiện tại: Khách quan tâm');
+  });
+
+  it('chưa có TVBH + chưa phân loại + không có nội dung hỏi', () => {
+    const t = renderReturningLead({
+      showroom: 'Giải Phóng', team: null, fullName: null, phone: '+84934447212',
+      source: 'zalo', inquiry: null, assignee: null, status: null,
+    });
+    expect(t).toContain('DATA KH CŨ HỎI LẠI — Giải Phóng');
+    expect(t).toContain('KH: <b>Khách lẻ</b>');
+    expect(t).toContain('Đang chăm: <b>CHƯA CÓ TVBH</b>');
+    expect(t).toContain('Phân loại hiện tại: Chưa phân loại');
+    expect(t).not.toContain('Nội dung hỏi:');
+  });
+});
 
 describe('renderChannelDaily', () => {
   it('nhiều phòng: có TỔNG QUAN + từng PHÒNG + tách hãng khi >1 hãng', () => {
