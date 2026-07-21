@@ -7,6 +7,7 @@ import { reassignLead, autoDistributeLeads, assignLeadToTeamAuto } from '../lead
 import { formatPhoneDisplay } from '@/lib/phone';
 import { matchTeamsForLead, matchTeamsForManager } from '@/lib/assign-routing';
 import { type AssignStrategy } from '@/lib/assign';
+import { sourcePlatform } from '@/lib/source';
 import ModalPortal from '@/components/ui/ModalPortal';
 
 export interface UnassignedLead {
@@ -75,6 +76,7 @@ export default function AssignView({
   const [strategy, setStrategy] = useState<Exclude<AssignStrategy, 'manual' | 'day_roster'>>('least_loaded');
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [brandFilter, setBrandFilter] = useState<string | null>(null);
+  const [sourceFilter, setSourceFilter] = useState<string | null>(null);
 
   const flashMsg = (m: string) => { setFlash(m); setTimeout(() => setFlash(null), 4000); };
 
@@ -85,10 +87,21 @@ export default function AssignView({
     return [...m.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, 'vi'));
   }, [leads]);
   const showBrandFilter = brandOptions.length >= 2;
-  // Lead hiển thị theo bộ lọc hãng (chỉ ảnh hưởng danh sách; chia tự động vẫn xử lý toàn bộ).
+  // Danh sách nguồn (gom theo nền tảng: Facebook/Google/Zalo…) có trong hàng chờ.
+  const sourceOptions = useMemo(() => {
+    const s = new Set<string>();
+    for (const l of leads) { const p = sourcePlatform(l.source); if (p && p !== '—') s.add(p); }
+    return [...s].sort((a, b) => a.localeCompare(b, 'vi')).map((p) => ({ id: p, name: p }));
+  }, [leads]);
+  const showSourceFilter = sourceOptions.length >= 2;
+  // Lead hiển thị theo bộ lọc (chỉ ảnh hưởng danh sách; chia tự động vẫn xử lý toàn bộ).
+  const anyFilter = brandFilter !== null || sourceFilter !== null;
   const visibleLeads = useMemo(
-    () => (brandFilter ? leads.filter((l) => l.brand_id === brandFilter) : leads),
-    [leads, brandFilter],
+    () => leads.filter((l) =>
+      (brandFilter ? l.brand_id === brandFilter : true) &&
+      (sourceFilter ? sourcePlatform(l.source) === sourceFilter : true),
+    ),
+    [leads, brandFilter, sourceFilter],
   );
 
   const maxLoad = useMemo(() => Math.max(1, ...tvbh.map((t) => t.open_count)), [tvbh]);
@@ -186,13 +199,16 @@ export default function AssignView({
           <div className="shrink-0 flex flex-wrap items-center justify-between gap-3 p-5 pb-3 border-b border-slate-100">
             <div>
               <h2 className="text-sm font-bold text-slate-900">
-                Lead chưa giao ({visibleLeads.length}{brandFilter ? ` / ${leads.length}` : ''})
+                Lead chưa giao ({visibleLeads.length}{anyFilter ? ` / ${leads.length}` : ''})
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">Chọn tư vấn/phòng cho từng lead, hoặc chia tự động theo kiểu.</p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {showBrandFilter && (
-                <BrandPicker options={brandOptions} value={brandFilter} onChange={setBrandFilter} disabled={pending} />
+                <FilterPicker options={brandOptions} value={brandFilter} onChange={setBrandFilter} placeholder="Tất cả thương hiệu" disabled={pending} />
+              )}
+              {showSourceFilter && (
+                <FilterPicker options={sourceOptions} value={sourceFilter} onChange={setSourceFilter} placeholder="Tất cả nguồn" disabled={pending} />
               )}
               <StrategyPicker value={strategy} onChange={setStrategy} disabled={pending} />
               <button
@@ -208,7 +224,7 @@ export default function AssignView({
 
           {visibleLeads.length === 0 ? (
             <div className="px-5 py-12 text-center text-slate-400 text-sm">
-              {leads.length === 0 ? 'Tất cả lead đã có người phụ trách.' : 'Không có lead thuộc thương hiệu đã chọn.'}
+              {leads.length === 0 ? 'Tất cả lead đã có người phụ trách.' : 'Không có lead khớp bộ lọc đã chọn.'}
             </div>
           ) : (
             <div className="flex-1 min-h-0 overflow-auto">
@@ -358,13 +374,14 @@ function StrategyPicker({
   );
 }
 
-/** Dropdown lọc thương hiệu — chỉ hiện với tài khoản quản nhiều hãng. */
-function BrandPicker({
-  options, value, onChange, disabled,
+/** Dropdown lọc dùng chung (thương hiệu / nguồn) — chỉ hiện khi có ≥2 lựa chọn. */
+function FilterPicker({
+  options, value, onChange, placeholder, disabled,
 }: {
   options: { id: string; name: string }[];
   value: string | null;
   onChange: (v: string | null) => void;
+  placeholder: string;
   disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -388,7 +405,7 @@ function BrandPicker({
         disabled={disabled}
         className="inline-flex items-center justify-between gap-1.5 text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white outline-none hover:border-brand disabled:opacity-50 min-w-[150px]"
       >
-        <span className={current ? 'text-slate-700' : 'text-slate-500'}>{current?.name ?? 'Tất cả thương hiệu'}</span>
+        <span className={current ? 'text-slate-700' : 'text-slate-500'}>{current?.name ?? placeholder}</span>
         <ChevronDown size={13} className="opacity-60 shrink-0" />
       </button>
       {open && pos && (
@@ -402,7 +419,7 @@ function BrandPicker({
             <button onClick={() => pick(null)}
               className="block w-full text-left text-sm rounded-md px-2.5 py-1.5 hover:bg-slate-50"
               style={{ color: value === null ? NAVY : '#475569', fontWeight: value === null ? 600 : 400 }}>
-              Tất cả thương hiệu
+              {placeholder}
             </button>
             {options.map((o) => (
               <button key={o.id} onClick={() => pick(o.id)}
