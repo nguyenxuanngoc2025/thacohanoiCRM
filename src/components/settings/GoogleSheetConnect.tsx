@@ -1,6 +1,6 @@
 'use client';
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { Plus, Edit2, Trash2, X, BarChart3, Eye, RefreshCw } from 'lucide-react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { Plus, Edit2, Trash2, X, BarChart3, Eye, RefreshCw, Settings2, Check } from 'lucide-react';
 import type { ShowroomRow, BrandRow, ChannelRow, ModelRow } from './types';
 import { STATUS_LABEL } from '@/lib/lead-status';
 import { useDialogs } from '@/components/ui/dialogs';
@@ -26,6 +26,15 @@ type ModelMode = 'auto' | 'fixed' | 'column';
 
 interface PreviewData { headers: string[]; sample: string[][]; guess: { phoneCol: number | null; nameCol: number | null } }
 
+// Cấu hình ĐẦY ĐỦ của 1 tab — mỗi tab độc lập (thương hiệu/showroom/cột/nguồn/dòng xe/mốc thời gian).
+interface TabForm {
+  brandId: string; srIds: string[];
+  phoneCol: number | null; nameCol: number | null;
+  sourceMode: SourceMode; source: string; sourceCol: number | null;
+  modelMode: ModelMode; modelId: string; modelCol: number | null;
+  dateCol: number | null; since: string;
+}
+
 interface LastSync { at: string; rows: number; fresh: number; dup: number; skipped?: number; errors: string[] }
 interface StatsData {
   page_name: string | null;
@@ -48,6 +57,13 @@ const todayISO = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
+const emptyTabForm = (): TabForm => ({
+  brandId: '', srIds: [], phoneCol: null, nameCol: null,
+  sourceMode: 'fixed', source: DEFAULT_SHEET_SOURCE, sourceCol: null,
+  modelMode: 'auto', modelId: '', modelCol: null,
+  dateCol: null, since: todayISO(),
+});
+
 export default function GoogleSheetConnect({
   connected, showrooms, brands, models, sheets,
 }: {
@@ -61,23 +77,10 @@ export default function GoogleSheetConnect({
   const [label, setLabel] = useState(''); // tên/nhãn hiển thị do người dùng đặt (mặc định = tên file)
   const [tabs, setTabs] = useState<string[]>([]);
   const [selectedTabs, setSelectedTabs] = useState<string[]>([]);
-  const [preview, setPreview] = useState<PreviewData | null>(null);
-  const [previewTab, setPreviewTab] = useState<string | null>(null);
-  const [phoneCol, setPhoneCol] = useState<number | null>(null);
-  const [nameCol, setNameCol] = useState<number | null>(null);
-  const [brandId, setBrandId] = useState('');
-  const [srIds, setSrIds] = useState<string[]>([]);
-  // Nguồn lead
-  const [sourceMode, setSourceMode] = useState<SourceMode>('fixed');
-  const [tabSources, setTabSources] = useState<Record<string, string>>({});
-  const [sourceCol, setSourceCol] = useState<number | null>(null);
-  // Dòng xe
-  const [modelMode, setModelMode] = useState<ModelMode>('auto');
-  const [modelId, setModelId] = useState('');
-  const [modelCol, setModelCol] = useState<number | null>(null);
-  // Mốc thời gian: cột chứa thời gian + ngày bắt đầu lấy lead (chống nạp toàn bộ lead cũ).
-  const [dateCol, setDateCol] = useState<number | null>(null);
-  const [since, setSince] = useState<string>('');
+  // Mỗi tab một cấu hình riêng + preview riêng. openTab = tab đang mở bảng cấu hình.
+  const [tabForms, setTabForms] = useState<Record<string, TabForm>>({});
+  const [openTab, setOpenTab] = useState<string | null>(null);
+  const [previewByTab, setPreviewByTab] = useState<Record<string, PreviewData>>({});
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false); // popup demo xác nhận trước khi lưu
@@ -86,32 +89,16 @@ export default function GoogleSheetConnect({
   const [stats, setStats] = useState<StatsData | null>(null);
   const [statsBusy, setStatsBusy] = useState(false);
   const [statsMsg, setStatsMsg] = useState<string | null>(null);
+  const pickerWinRef = useRef<Window | null>(null);
 
-  // Dòng xe lọc theo thương hiệu đã chọn (dropdown dòng xe phụ thuộc brand).
-  const brandModels = useMemo(
-    () => models.filter((m) => m.brand_id === brandId && m.is_active),
-    [models, brandId],
-  );
+  const setTabField = useCallback(<K extends keyof TabForm>(tab: string, key: K, val: TabForm[K]) => {
+    setTabForms((cur) => ({ ...cur, [tab]: { ...(cur[tab] ?? emptyTabForm()), [key]: val } }));
+  }, []);
 
   const resetForm = () => {
     setEditingId(null); setPicked(null); setLabel(''); setTabs([]); setSelectedTabs([]);
-    setPreview(null); setPreviewTab(null); setPhoneCol(null); setNameCol(null);
-    setBrandId(''); setSrIds([]); setSourceMode('fixed'); setTabSources({});
-    setSourceCol(null); setModelMode('auto'); setModelId(''); setModelCol(null);
-    setDateCol(null); setSince(todayISO()); // mặc định: chỉ lấy lead từ hôm nay trở đi
+    setTabForms({}); setOpenTab(null); setPreviewByTab({});
     setConfirmOpen(false); setMsg(null);
-  };
-
-  const runPreview = async (spreadsheetId: string, tab: string, applyGuess = true) => {
-    setBusy(true); setMsg(null);
-    try {
-      const res = await fetch(`/api/integrations/google/preview?spreadsheetId=${encodeURIComponent(spreadsheetId)}&tab=${encodeURIComponent(tab)}`);
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? 'Lỗi đọc sheet');
-      setPreview(json);
-      setPreviewTab(tab);
-      if (applyGuess) { setPhoneCol(json.guess.phoneCol); setNameCol(json.guess.nameCol); }
-    } catch (e) { setMsg(e instanceof Error ? e.message : 'Lỗi'); } finally { setBusy(false); }
   };
 
   const fetchTabList = async (spreadsheetId: string): Promise<string[]> => {
@@ -121,46 +108,95 @@ export default function GoogleSheetConnect({
     return json.tabs ?? [];
   };
 
-  // Sau khi chọn file mới → liệt kê tab để tick chọn.
-  const loadTabs = async (spreadsheetId: string) => {
+  // Đọc preview 1 tab (nếu applyGuess & tab chưa có cột SĐT → điền cột gợi ý).
+  const runPreviewTab = async (spreadsheetId: string, tab: string, applyGuess: boolean) => {
     setBusy(true); setMsg(null);
-    setTabs([]); setSelectedTabs([]); setPreview(null); setPreviewTab(null); setTabSources({});
     try {
-      const list = await fetchTabList(spreadsheetId);
-      setTabs(list);
-      if (list.length === 1) { setSelectedTabs(list); void runPreview(spreadsheetId, list[0]); }
+      const res = await fetch(`/api/integrations/google/preview?spreadsheetId=${encodeURIComponent(spreadsheetId)}&tab=${encodeURIComponent(tab)}`);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? 'Lỗi đọc sheet');
+      setPreviewByTab((cur) => ({ ...cur, [tab]: json }));
+      if (applyGuess) {
+        setTabForms((cur) => {
+          const f = cur[tab] ?? emptyTabForm();
+          if (f.phoneCol != null) return cur; // giữ cột đã có (cấu hình đã lưu / người dùng đã chọn)
+          return { ...cur, [tab]: { ...f, phoneCol: json.guess.phoneCol, nameCol: json.guess.nameCol } };
+        });
+      }
     } catch (e) { setMsg(e instanceof Error ? e.message : 'Lỗi'); } finally { setBusy(false); }
   };
 
-  // Mở lại cấu hình sheet đã kết nối để chỉnh sửa — điền sẵn từ config + showroom đã lưu.
+  // Nạp preview cho nhiều tab (dùng cho "Xem demo" — cần dữ liệu mẫu mọi tab).
+  const loadPreviewsFor = async (spreadsheetId: string, titles: string[]) => {
+    for (const t of titles) {
+      try {
+        const res = await fetch(`/api/integrations/google/preview?spreadsheetId=${encodeURIComponent(spreadsheetId)}&tab=${encodeURIComponent(t)}`);
+        const json = await res.json();
+        if (res.ok) setPreviewByTab((cur) => ({ ...cur, [t]: json }));
+      } catch { /* bỏ qua tab lỗi */ }
+    }
+  };
+
+  // Chọn file MỚI (chưa từng kết nối) → liệt kê tab, để trống cấu hình từng tab.
+  const onPickNewFile = async (id: string, name: string) => {
+    setEditingId(null);
+    setPicked({ id, name });
+    setLabel(name);
+    setSelectedTabs([]); setTabForms({}); setOpenTab(null); setPreviewByTab({});
+    setBusy(true); setMsg(null);
+    try {
+      const list = await fetchTabList(id);
+      setTabs(list);
+      if (list.length === 1) {
+        setSelectedTabs(list);
+        setTabForms({ [list[0]]: emptyTabForm() });
+        setOpenTab(list[0]);
+        await runPreviewTab(id, list[0], true);
+      } else setBusy(false);
+    } catch (e) { setMsg(e instanceof Error ? e.message : 'Lỗi'); setBusy(false); }
+  };
+
+  // Mở lại cấu hình sheet đã kết nối để chỉnh — dựng tabForms từ config đã lưu (kế thừa cấp-dòng cho cấu hình cũ).
   const startEdit = async (sheet: ChannelRow) => {
     const cfg = sheet.config ?? {};
-    const cfgTabs = (cfg.tabs ?? (cfg.tab ? [{ title: cfg.tab, source: null }] : [])) as { title: string; source?: string | null }[];
-    const titles = cfgTabs.map((t) => t.title);
+    const rawTabs = (cfg.tabs && cfg.tabs.length > 0
+      ? cfg.tabs.map((t) => (typeof t === 'string' ? { title: t } : t))
+      : cfg.tab ? [{ title: cfg.tab }] : []) as unknown as Record<string, unknown>[];
+    const titles = rawTabs.map((t) => String(t.title ?? ''));
+    const num = (v: unknown): number | null => (v == null || v === '' ? null : Number(v));
+    const forms: Record<string, TabForm> = {};
+    for (const t of rawTabs) {
+      const title = String(t.title ?? '');
+      const smode = (t.source_mode ?? cfg.source_mode) === 'column' ? 'column' : 'fixed';
+      const mmodeRaw = (t.model_mode ?? cfg.model_mode) as string | undefined;
+      const mmode: ModelMode = mmodeRaw === 'fixed' ? 'fixed' : mmodeRaw === 'column' ? 'column' : 'auto';
+      forms[title] = {
+        brandId: String((t.brand_id ?? cfg.brand_id ?? sheet.brand_id ?? '') || ''),
+        srIds: (t.showroom_ids ?? cfg.showroom_ids ?? sheet.showroom_ids ?? []) as string[],
+        phoneCol: num(t.phone_col ?? cfg.phone_col),
+        nameCol: num(t.name_col ?? cfg.name_col),
+        sourceMode: smode as SourceMode,
+        source: String((t.source ?? DEFAULT_SHEET_SOURCE) || DEFAULT_SHEET_SOURCE),
+        sourceCol: num(t.source_col ?? cfg.source_col),
+        modelMode: mmode,
+        modelId: String((t.model_id ?? cfg.model_id ?? '') || ''),
+        modelCol: num(t.model_col ?? cfg.model_col),
+        dateCol: num(t.date_col ?? cfg.date_col),
+        since: String((t.since ?? cfg.since ?? '') || ''),
+      };
+    }
     setEditingId(sheet.id);
     setPicked({ id: sheet.page_id ?? '', name: sheet.page_name ?? sheet.page_id ?? '' });
     setLabel(sheet.page_name ?? sheet.page_id ?? '');
     setSelectedTabs(titles);
-    setTabSources(Object.fromEntries(cfgTabs.map((t) => [t.title, t.source ?? DEFAULT_SHEET_SOURCE])));
-    setPhoneCol(cfg.phone_col ?? null);
-    setNameCol(cfg.name_col ?? null);
-    setSourceMode(cfg.source_mode === 'column' ? 'column' : 'fixed');
-    setSourceCol(cfg.source_col ?? null);
-    setModelMode(cfg.model_mode === 'fixed' ? 'fixed' : cfg.model_mode === 'column' ? 'column' : 'auto');
-    setModelId(cfg.model_id ?? '');
-    setModelCol(cfg.model_col ?? null);
-    setDateCol(cfg.date_col ?? null);
-    setSince(cfg.since ?? ''); // sheet cũ chưa có mốc → để trống (giữ hành vi cũ, không lọc)
-    setBrandId(sheet.brand_id ?? '');
-    setSrIds(sheet.showroom_ids ?? []);
+    setTabForms(forms);
+    setOpenTab(null);
+    setPreviewByTab({});
     setMsg(null); setBusy(true);
     try {
       const list = await fetchTabList(sheet.page_id ?? '');
       setTabs(list);
-      const firstTab = titles[0] ?? list[0] ?? '';
-      if (firstTab) await runPreview(sheet.page_id ?? '', firstTab, false); // giữ cột đã lưu
-      else setBusy(false);
-    } catch (e) { setMsg(e instanceof Error ? e.message : 'Lỗi'); setBusy(false); }
+    } catch (e) { setMsg(e instanceof Error ? e.message : 'Lỗi'); } finally { setBusy(false); }
   };
 
   const del = async (sheet: ChannelRow) => {
@@ -209,89 +245,123 @@ export default function GoogleSheetConnect({
     } catch (e) { setStatsMsg(e instanceof Error ? e.message : 'Lỗi'); } finally { setStatsBusy(false); }
   };
 
-  // Xem demo 1 sheet đã kết nối: nạp lại cấu hình rồi mở popup map cột.
+  // Xem demo 1 sheet đã kết nối: nạp lại cấu hình + preview mọi tab rồi mở popup map cột.
   const showDemo = async (sheet: ChannelRow) => {
     await startEdit(sheet);
+    const cfg = sheet.config ?? {};
+    const titles = (cfg.tabs && cfg.tabs.length > 0
+      ? cfg.tabs.map((t) => (typeof t === 'string' ? t : t.title))
+      : cfg.tab ? [cfg.tab] : []) as string[];
+    await loadPreviewsFor(sheet.page_id ?? '', titles);
     setConfirmOpen(true);
   };
 
+  // Tick / bỏ tick 1 tab (đưa vào / gỡ khỏi danh sách lấy lead).
   const toggleTab = (tab: string) => {
     if (!picked) return;
-    const next = selectedTabs.includes(tab)
-      ? selectedTabs.filter((t) => t !== tab)
-      : [...selectedTabs, tab];
-    setSelectedTabs(next);
-    if (next.length === 0) { setPreview(null); setPreviewTab(null); }
-    else if (next[0] !== previewTab) void runPreview(picked.id, next[0], !editingId);
+    const on = selectedTabs.includes(tab);
+    if (on) {
+      setSelectedTabs((c) => c.filter((t) => t !== tab));
+      if (openTab === tab) setOpenTab(null);
+    } else {
+      setSelectedTabs((c) => [...c, tab]);
+      setTabForms((tf) => (tf[tab] ? tf : { ...tf, [tab]: emptyTabForm() }));
+    }
   };
 
-  const toggleShowroom = (id: string) => {
-    setSrIds((cur) => cur.includes(id) ? cur.filter((s) => s !== id) : [...cur, id]);
+  // Mở bảng cấu hình cho 1 tab đã chọn (tải preview nếu chưa có).
+  const openConfigTab = (tab: string) => {
+    if (!picked) return;
+    setOpenTab(tab);
+    if (!previewByTab[tab]) void runPreviewTab(picked.id, tab, true);
   };
 
-  // Mở cửa sổ chọn Google Sheet ở apex trung tâm (origin đã khai Google 1 lần). Popup tự
-  // xin quyền + Picker rồi gửi id file về qua postMessage (listener bên dưới nhận).
+  // Mở cửa sổ chọn Google Sheet ở apex trung tâm (origin đã khai Google 1 lần). Popup xin token
+  // ngắn hạn qua handshake (không bắt đăng nhập lại) rồi gửi id file về qua postMessage.
   const openPicker = useCallback(() => {
     setMsg(null);
     const url = `${PLATFORM_ORIGIN}/connect/google-picker?return=${encodeURIComponent(window.location.origin)}`;
     const win = window.open(url, 'gsheet-picker', 'width=900,height=650');
     if (!win) { setMsg('Trình duyệt chặn cửa sổ bật lên. Hãy cho phép pop-up rồi thử lại.'); return; }
+    pickerWinRef.current = win;
     setPicking(true);
   }, []);
 
-  // Nhận id file từ popup apex. Chỉ tin message đúng origin apex + đúng loại.
+  // Handshake với popup apex: (1) popup xin token → dùng phiên tenant đúc token ngắn hạn gửi lại
+  // (không đăng nhập Google lại); (2) popup gửi id file đã chọn — file đã kết nối thì mở sửa, else thêm mới.
   useEffect(() => {
-    const onMsg = (e: MessageEvent) => {
+    const onMsg = async (e: MessageEvent) => {
       if (e.origin !== PLATFORM_ORIGIN) return;
       const d = e.data as { type?: string; id?: string; name?: string };
-      if (d?.type !== 'gsheet-picked' || !d.id) return;
-      setPicking(false);
-      setEditingId(null);
-      setPicked({ id: d.id, name: d.name ?? d.id });
-      setLabel(d.name ?? d.id);
-      setBrandId(''); setSrIds([]); setSourceMode('fixed'); setTabSources({});
-      setSourceCol(null); setModelMode('auto'); setModelId(''); setModelCol(null);
-      void loadTabs(d.id);
+      if (d?.type === 'picker-ready') {
+        try {
+          const res = await fetch('/api/integrations/google/picker-token');
+          const json = await res.json();
+          const token = res.ok ? (json.token as string) : '';
+          pickerWinRef.current?.postMessage({ type: 'picker-token', token }, PLATFORM_ORIGIN);
+        } catch {
+          pickerWinRef.current?.postMessage({ type: 'picker-token', token: '' }, PLATFORM_ORIGIN);
+        }
+        return;
+      }
+      if (d?.type === 'gsheet-picked' && d.id) {
+        setPicking(false);
+        const existing = sheets.find((s) => s.page_id === d.id);
+        if (existing) void startEdit(existing);
+        else void onPickNewFile(d.id, d.name ?? d.id);
+      }
     };
     window.addEventListener('message', onMsg);
     return () => window.removeEventListener('message', onMsg);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sheets]);
 
-  // Kiểm tra hợp lệ rồi mở popup demo xác nhận (không lưu ngay — để soi map cột trước).
+  // Kiểm tra hợp lệ từng tab rồi mở popup demo xác nhận (không lưu ngay — soi map cột trước).
   const requestSave = () => {
-    if (!picked || phoneCol == null) { setMsg('Chọn cột Số điện thoại.'); return; }
+    if (!picked) { setMsg('Chưa chọn file.'); return; }
     if (selectedTabs.length === 0) { setMsg('Chọn ít nhất 1 tab.'); return; }
-    if (!brandId) { setMsg('Chọn thương hiệu.'); return; }
-    if (srIds.length === 0) { setMsg('Chọn ít nhất 1 showroom.'); return; }
-    if (sourceMode === 'column' && sourceCol == null) { setMsg('Chọn cột Nguồn.'); return; }
-    if (modelMode === 'fixed' && !modelId) { setMsg('Chọn dòng xe.'); return; }
-    if (modelMode === 'column' && modelCol == null) { setMsg('Chọn cột Dòng xe.'); return; }
+    for (const t of selectedTabs) {
+      const f = tabForms[t];
+      if (!f || f.phoneCol == null) { setMsg(`Tab "${t}": chọn cột Số điện thoại.`); return; }
+      if (!f.brandId) { setMsg(`Tab "${t}": chọn thương hiệu.`); return; }
+      if (f.srIds.length === 0) { setMsg(`Tab "${t}": chọn ít nhất 1 showroom.`); return; }
+      if (f.sourceMode === 'column' && f.sourceCol == null) { setMsg(`Tab "${t}": chọn cột Nguồn.`); return; }
+      if (f.modelMode === 'fixed' && !f.modelId) { setMsg(`Tab "${t}": chọn dòng xe.`); return; }
+      if (f.modelMode === 'column' && f.modelCol == null) { setMsg(`Tab "${t}": chọn cột Dòng xe.`); return; }
+    }
     setMsg(null); setConfirmOpen(true);
   };
 
   const doSave = async () => {
-    if (!picked || phoneCol == null) return;
+    if (!picked) return;
     setBusy(true); setMsg(null);
     try {
-      const tabsPayload = selectedTabs.map((t) => ({
-        title: t,
-        source: sourceMode === 'fixed' ? (tabSources[t] || DEFAULT_SHEET_SOURCE) : null,
-      }));
+      const tabsPayload = selectedTabs.map((t) => {
+        const f = tabForms[t] ?? emptyTabForm();
+        return {
+          title: t,
+          brand_id: f.brandId,
+          showroom_ids: f.srIds,
+          phone_col: f.phoneCol,
+          name_col: f.nameCol,
+          note_cols: [],
+          source_mode: f.sourceMode,
+          source: f.sourceMode === 'fixed' ? (f.source || DEFAULT_SHEET_SOURCE) : null,
+          source_col: f.sourceMode === 'column' ? f.sourceCol : null,
+          model_mode: f.modelMode,
+          model_id: f.modelMode === 'fixed' ? f.modelId : null,
+          model_col: f.modelMode === 'column' ? f.modelCol : null,
+          date_col: f.dateCol,
+          since: f.since || null,
+        };
+      });
       const res = await fetch('/api/admin/google-sheets', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           op: editingId ? 'update' : 'create',
           id: editingId ?? undefined,
           spreadsheet_id: picked.id, page_name: label.trim() || picked.name,
-          brand_id: brandId, showroom_ids: srIds,
           tabs: tabsPayload,
-          source_mode: sourceMode,
-          source_col: sourceMode === 'column' ? sourceCol : null,
-          model_mode: modelMode,
-          model_id: modelMode === 'fixed' ? modelId : null,
-          model_col: modelMode === 'column' ? modelCol : null,
-          date_col: dateCol, since: since || null,
-          phone_col: phoneCol, name_col: nameCol, note_cols: [],
         }),
       });
       const json = await res.json();
@@ -300,19 +370,27 @@ export default function GoogleSheetConnect({
     } catch (e) { setMsg(e instanceof Error ? e.message : 'Lỗi'); setBusy(false); setConfirmOpen(false); }
   };
 
-  // Một dòng dữ liệu mẫu → map vào các trường CRM (để demo kết nối đúng/sai).
-  const mapRow = (r: string[]) => {
-    const phone = phoneCol != null ? (r[phoneCol] ?? '') : '';
-    const name = nameCol != null ? (r[nameCol] ?? '') : '';
-    const source = sourceMode === 'column'
-      ? (sourceCol != null ? (r[sourceCol] ?? '') : '')
-      : sourceLabel(tabSources[previewTab ?? ''] || DEFAULT_SHEET_SOURCE);
+  // Map 1 dòng dữ liệu mẫu của 1 tab vào các trường CRM (demo).
+  const mapRowFor = (f: TabForm, r: string[]) => {
+    const phone = f.phoneCol != null ? (r[f.phoneCol] ?? '') : '';
+    const name = f.nameCol != null ? (r[f.nameCol] ?? '') : '';
+    const source = f.sourceMode === 'column'
+      ? (f.sourceCol != null ? (r[f.sourceCol] ?? '') : '')
+      : sourceLabel(f.source || DEFAULT_SHEET_SOURCE);
     let model = '(tự nhận diện)';
-    if (modelMode === 'fixed') model = brandModels.find((m) => m.id === modelId)?.name ?? '—';
-    else if (modelMode === 'column') model = modelCol != null ? (r[modelCol] ?? '') : '';
+    if (f.modelMode === 'fixed') model = models.find((m) => m.id === f.modelId)?.name ?? '—';
+    else if (f.modelMode === 'column') model = f.modelCol != null ? (r[f.modelCol] ?? '') : '';
     return { phone, name, source, model };
   };
-  const demoRows = (preview?.sample ?? []).slice(0, 3).map(mapRow).filter((d) => d.phone || d.name);
+
+  // Demo theo từng tab: mỗi tab lấy tối đa 2 dòng mẫu (dùng preview + cấu hình riêng của tab).
+  const demoByTab = selectedTabs.map((t) => {
+    const f = tabForms[t]; const pv = previewByTab[t];
+    const rows = f && pv
+      ? (pv.sample ?? []).slice(0, 2).map((r) => mapRowFor(f, r)).filter((row) => row.phone || row.name)
+      : [];
+    return { tab: t, rows };
+  });
 
   if (!connected) {
     return (
@@ -343,146 +421,69 @@ export default function GoogleSheetConnect({
       </div>
 
       {picked && tabs.length > 0 && (
-        <div className="rounded-xl border border-slate-200 p-4 space-y-2 bg-slate-50">
+        <div className="rounded-xl border border-slate-200 p-4 space-y-3 bg-slate-50">
           <div className="text-sm font-semibold text-slate-800">
             {editingId ? 'Sửa kết nối' : 'Chọn tab cần lấy lead'} — {picked.name}
           </div>
-          <p className="text-xs text-slate-500">File có {tabs.length} tab. Tick các tab muốn lấy lead (có thể chọn nhiều). Các tab dùng chung thương hiệu, showroom và cấu hình cột.</p>
-          <div className="flex flex-wrap gap-2">
-            {tabs.map((t) => {
-              const on = selectedTabs.includes(t);
-              return (
-                <button key={t} type="button" onClick={() => toggleTab(t)} disabled={busy}
-                  className={`rounded-lg border px-3 py-1.5 text-sm disabled:opacity-50 ${on ? 'border-brand bg-brand text-white' : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400'}`}>
-                  {t}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
+          <p className="text-xs text-slate-500">
+            File có {tabs.length} tab. Tick các tab muốn lấy lead, rồi bấm biểu tượng cấu hình để đặt
+            <b> riêng từng tab</b> (thương hiệu, showroom, cột, nguồn, dòng xe, mốc thời gian).
+          </p>
 
-      {preview && picked && selectedTabs.length > 0 && (
-        <div className="rounded-xl border border-slate-200 p-4 space-y-4 bg-slate-50">
-          <div>
-            <div className="text-sm font-semibold text-slate-800">Cấu hình nạp lead — {picked.name}</div>
-            <p className="text-xs text-slate-500 mt-0.5">Đọc cấu hình cột từ tab “{previewTab}”. Áp dụng cho tất cả {selectedTabs.length} tab đã chọn.</p>
-          </div>
-
-          {/* 0. Tên/nhãn hiển thị */}
+          {/* Tên/nhãn hiển thị */}
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1">Tên hiển thị</label>
             <input value={label} onChange={(e) => setLabel(e.target.value)}
               placeholder={picked.name}
-              className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm" />
+              className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm bg-white" />
             <p className="text-[11px] text-slate-400 mt-1">Đặt tên dễ nhớ cho kết nối này (vd “Lead Tải Bus HN”). Để trống = tên file Google.</p>
           </div>
 
-          {/* 1. Cột dữ liệu */}
-          <div className="grid grid-cols-2 gap-3">
-            <ColSelect label="Cột Số điện thoại" headers={preview.headers} value={phoneCol} onChange={setPhoneCol} />
-            <ColSelect label="Cột Họ tên" headers={preview.headers} value={nameCol} onChange={setNameCol} allowNone />
-          </div>
-
-          {/* 2. Thương hiệu */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">Thương hiệu</label>
-            <select value={brandId} onChange={(e) => { setBrandId(e.target.value); setModelId(''); }}
-              className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm">
-              <option value="">— chọn —</option>
-              {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-            </select>
-          </div>
-
-          {/* 3. Nguồn lead */}
-          <div className="space-y-2">
-            <label className="block text-xs font-semibold text-slate-600">Nguồn lead</label>
-            <Segmented value={sourceMode} onChange={(v) => setSourceMode(v as SourceMode)}
-              options={[{ value: 'fixed', label: 'Gán theo tab' }, { value: 'column', label: 'Lấy theo cột' }]} />
-            {sourceMode === 'fixed' ? (
-              <div className="space-y-1.5">
-                <p className="text-[11px] text-slate-400">Chọn nguồn data thật cho từng tab (Google Sheet chỉ là kênh trung chuyển). Mặc định = Facebook.</p>
-                {selectedTabs.map((t) => (
-                  <div key={t} className="flex items-center gap-2">
-                    <span className="text-xs text-slate-600 w-32 shrink-0 truncate" title={t}>{t}</span>
-                    <select value={tabSources[t] ?? DEFAULT_SHEET_SOURCE}
-                      onChange={(e) => setTabSources((cur) => ({ ...cur, [t]: e.target.value }))}
-                      className="flex-1 rounded-lg border border-slate-200 px-2 py-1.5 text-sm bg-white">
-                      {SOURCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                    </select>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <ColSelect label="Cột chứa Nguồn" headers={preview.headers} value={sourceCol} onChange={setSourceCol} />
-            )}
-          </div>
-
-          {/* 4. Dòng xe */}
-          <div className="space-y-2">
-            <label className="block text-xs font-semibold text-slate-600">Dòng xe</label>
-            <Segmented value={modelMode} onChange={(v) => setModelMode(v as ModelMode)}
-              options={[
-                { value: 'auto', label: 'Tự nhận diện' },
-                { value: 'fixed', label: '1 dòng cố định' },
-                { value: 'column', label: 'Lấy theo cột' },
-              ]} />
-            {modelMode === 'auto' && (
-              <p className="text-[11px] text-slate-400">Hệ thống tự dò dòng xe theo từ khoá (tên + ghi chú), chỉ điền khi trúng đúng 1 dòng.</p>
-            )}
-            {modelMode === 'fixed' && (
-              <div>
-                {!brandId
-                  ? <p className="text-[11px] text-amber-600">Chọn thương hiệu trước để chọn dòng xe.</p>
-                  : (
-                    <select value={modelId} onChange={(e) => setModelId(e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm bg-white">
-                      <option value="">— chọn dòng xe —</option>
-                      {brandModels.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-                    </select>
+          {/* Danh sách tab: tick chọn + nút cấu hình */}
+          <div className="flex flex-wrap gap-2">
+            {tabs.map((t) => {
+              const on = selectedTabs.includes(t);
+              const isOpen = openTab === t;
+              const f = tabForms[t];
+              const configured = !!f && f.phoneCol != null && !!f.brandId && f.srIds.length > 0;
+              return (
+                <div key={t}
+                  className={`flex items-center gap-1.5 rounded-lg border pl-1.5 pr-1 py-1 bg-white ${isOpen ? 'border-brand ring-1 ring-brand' : on ? 'border-brand' : 'border-slate-300'}`}>
+                  <button type="button" onClick={() => toggleTab(t)} disabled={busy}
+                    title={on ? 'Bỏ chọn tab' : 'Chọn tab'}
+                    className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${on ? 'bg-brand text-white' : 'border border-slate-300 text-transparent'}`}>
+                    <Check size={12} />
+                  </button>
+                  <span className={`text-sm ${on ? 'text-slate-800' : 'text-slate-400'}`}>{t}</span>
+                  {on && !configured && <span className="text-amber-500 text-xs" title="Chưa cấu hình xong">•</span>}
+                  {on && (
+                    <button type="button" onClick={() => openConfigTab(t)} disabled={busy}
+                      title="Cấu hình tab này"
+                      className={`w-6 h-6 rounded flex items-center justify-center shrink-0 ${isOpen ? 'bg-brand text-white' : 'text-slate-500 hover:bg-slate-100'}`}>
+                      <Settings2 size={13} />
+                    </button>
                   )}
-              </div>
-            )}
-            {modelMode === 'column' && (
-              <ColSelect label="Cột chứa Dòng xe" headers={preview.headers} value={modelCol} onChange={setModelCol} />
-            )}
+                </div>
+              );
+            })}
           </div>
 
-          {/* 5. Mốc thời gian — chống nạp toàn bộ lead cũ khi kết nối sheet đã tích luỹ lâu */}
-          <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50/60 p-3">
-            <label className="block text-xs font-semibold text-slate-700">Mốc thời gian (chỉ lấy lead mới)</label>
-            <p className="text-[11px] text-slate-500">
-              Sheet thường tích luỹ nhiều lead cũ. Chọn cột thời gian + ngày bắt đầu để hệ thống
-              CHỈ nạp lead từ mốc đó trở đi — tránh nổ hàng loạt thông báo lead cũ. Bỏ trống cột = nạp tất cả (không khuyến nghị).
-            </p>
-            <ColSelect label="Cột chứa thời gian" headers={preview.headers} value={dateCol} onChange={setDateCol} />
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-600 w-32 shrink-0">Chỉ lấy lead từ ngày</span>
-              <input type="date" value={since} onChange={(e) => setSince(e.target.value)}
-                disabled={dateCol == null}
-                className="flex-1 rounded-lg border border-slate-200 px-2 py-1.5 text-sm bg-white disabled:bg-slate-100 disabled:text-slate-400" />
-            </div>
-          </div>
+          {/* Bảng cấu hình của tab đang mở */}
+          {openTab && selectedTabs.includes(openTab) && previewByTab[openTab] && tabForms[openTab] && (
+            <TabConfigPanel
+              key={openTab}
+              tab={openTab}
+              form={tabForms[openTab]}
+              onField={(k, v) => setTabField(openTab, k, v)}
+              preview={previewByTab[openTab]}
+              brands={brands} models={models} showrooms={showrooms}
+            />
+          )}
+          {openTab && !previewByTab[openTab] && (
+            <p className="text-xs text-slate-500">Đang tải cấu hình tab “{openTab}”…</p>
+          )}
 
-          {/* 6. Showroom nhận lead */}
-          <div className="space-y-2">
-            <label className="block text-xs font-semibold text-slate-600">Showroom nhận lead</label>
-            <div className="grid gap-1.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))' }}>
-              {showrooms.map((s) => {
-                const checked = srIds.includes(s.id);
-                return (
-                  <label key={s.id}
-                    className="flex items-center gap-2.5 px-3 py-2 rounded-lg border cursor-pointer transition-colors"
-                    style={{ borderColor: checked ? 'var(--color-brand)' : '#e2e8f0', background: checked ? '#e6f0fa' : '#fff' }}>
-                    <input type="checkbox" checked={checked} onChange={() => toggleShowroom(s.id)} className="accent-brand" />
-                    <span className="text-sm font-medium text-slate-700">{s.name}</span>
-                  </label>
-                );
-              })}
-            </div>
-          </div>
-
-          <button onClick={requestSave} disabled={busy}
+          <button onClick={requestSave} disabled={busy || selectedTabs.length === 0}
             className="rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" style={{ background: 'var(--color-brand)' }}>
             {editingId ? 'Xem trước & cập nhật' : 'Xem trước & lưu'}
           </button>
@@ -522,49 +523,58 @@ export default function GoogleSheetConnect({
       )}
       {msg && <p className="text-xs text-red-600">{msg}</p>}
 
-      {/* Popup demo: dữ liệu thật của sheet map vào các trường CRM */}
+      {/* Popup demo: dữ liệu thật của từng tab map vào các trường CRM */}
       {confirmOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setConfirmOpen(false)}>
-          <div className="w-full max-w-2xl rounded-2xl bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
+          <div className="w-full max-w-2xl rounded-2xl bg-white shadow-xl max-h-[88vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3 sticky top-0 bg-white">
               <div>
                 <div className="text-sm font-bold text-slate-900">Xem trước dữ liệu lấy về</div>
-                <div className="text-xs text-slate-400 mt-0.5">Kiểm tra cột đã map đúng chưa trước khi lưu — dữ liệu mẫu từ tab “{previewTab}”.</div>
+                <div className="text-xs text-slate-400 mt-0.5">Kiểm tra cột đã map đúng chưa trước khi lưu — mỗi tab một cấu hình riêng.</div>
               </div>
               <button onClick={() => setConfirmOpen(false)} className="text-slate-400 hover:text-slate-700"><X size={18} /></button>
             </div>
-            <div className="px-5 py-4">
-              {demoRows.length === 0 ? (
+            <div className="px-5 py-4 space-y-4">
+              {demoByTab.every((d) => d.rows.length === 0) ? (
                 <p className="text-sm text-amber-600">Không có dòng dữ liệu mẫu để xem trước. Kiểm tra lại tab/cột đã chọn.</p>
               ) : (
-                <div className="overflow-hidden rounded-xl border border-slate-200">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-slate-50 text-left text-xs font-semibold text-slate-500">
-                        <th className="px-3 py-2">Số điện thoại</th>
-                        <th className="px-3 py-2">Họ tên</th>
-                        <th className="px-3 py-2">Nguồn</th>
-                        <th className="px-3 py-2">Dòng xe</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {demoRows.map((d, i) => (
-                        <tr key={i} className="border-t border-slate-100">
-                          <td className="px-3 py-2 font-medium text-slate-800">{d.phone || <span className="text-red-500">— trống —</span>}</td>
-                          <td className="px-3 py-2 text-slate-700">{d.name || '—'}</td>
-                          <td className="px-3 py-2 text-slate-700">{d.source || '—'}</td>
-                          <td className="px-3 py-2 text-slate-700">{d.model || '—'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                demoByTab.map((d) => (
+                  <div key={d.tab}>
+                    <div className="text-xs font-semibold text-slate-600 mb-1">Tab “{d.tab}”</div>
+                    {d.rows.length === 0 ? (
+                      <p className="text-[11px] text-slate-400">Không có dòng mẫu.</p>
+                    ) : (
+                      <div className="overflow-hidden rounded-xl border border-slate-200">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="bg-slate-50 text-left text-xs font-semibold text-slate-500">
+                              <th className="px-3 py-2">Số điện thoại</th>
+                              <th className="px-3 py-2">Họ tên</th>
+                              <th className="px-3 py-2">Nguồn</th>
+                              <th className="px-3 py-2">Dòng xe</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {d.rows.map((row, i) => (
+                              <tr key={i} className="border-t border-slate-100">
+                                <td className="px-3 py-2 font-medium text-slate-800">{row.phone || <span className="text-red-500">— trống —</span>}</td>
+                                <td className="px-3 py-2 text-slate-700">{row.name || '—'}</td>
+                                <td className="px-3 py-2 text-slate-700">{row.source || '—'}</td>
+                                <td className="px-3 py-2 text-slate-700">{row.model || '—'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                ))
               )}
-              <p className="text-[11px] text-slate-400 mt-3">
+              <p className="text-[11px] text-slate-400">
                 Tiêu đề là trường trong CRM, dữ liệu là của sheet bạn. Nếu sai cột, bấm “Quay lại sửa” và chọn lại cột.
               </p>
             </div>
-            <div className="flex items-center justify-end gap-2 border-t border-slate-100 px-5 py-3">
+            <div className="flex items-center justify-end gap-2 border-t border-slate-100 px-5 py-3 sticky bottom-0 bg-white">
               <button onClick={() => setConfirmOpen(false)} disabled={busy}
                 className="rounded-lg px-4 py-2 text-sm font-semibold text-slate-600 border border-slate-200 hover:bg-slate-50 disabled:opacity-50">
                 Quay lại sửa
@@ -657,6 +667,123 @@ export default function GoogleSheetConnect({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// Bảng cấu hình ĐẦY ĐỦ cho 1 tab — mọi trường đọc/ghi qua form + onField (độc lập giữa các tab).
+function TabConfigPanel({ tab, form, onField, preview, brands, models, showrooms }: {
+  tab: string;
+  form: TabForm;
+  onField: <K extends keyof TabForm>(key: K, val: TabForm[K]) => void;
+  preview: PreviewData;
+  brands: BrandRow[]; models: ModelRow[]; showrooms: ShowroomRow[];
+}) {
+  const brandModels = models.filter((m) => m.brand_id === form.brandId && m.is_active);
+  const toggleSr = (id: string) =>
+    onField('srIds', form.srIds.includes(id) ? form.srIds.filter((s) => s !== id) : [...form.srIds, id]);
+
+  return (
+    <div className="rounded-xl border border-brand/40 p-4 space-y-4 bg-white">
+      <div className="text-sm font-semibold text-slate-800">Cấu hình tab “{tab}”</div>
+
+      {/* 1. Cột dữ liệu */}
+      <div className="grid grid-cols-2 gap-3">
+        <ColSelect label="Cột Số điện thoại" headers={preview.headers} value={form.phoneCol} onChange={(v) => onField('phoneCol', v)} />
+        <ColSelect label="Cột Họ tên" headers={preview.headers} value={form.nameCol} onChange={(v) => onField('nameCol', v)} allowNone />
+      </div>
+
+      {/* 2. Thương hiệu */}
+      <div>
+        <label className="block text-xs font-semibold text-slate-600 mb-1">Thương hiệu</label>
+        <select value={form.brandId} onChange={(e) => { onField('brandId', e.target.value); onField('modelId', ''); }}
+          className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm">
+          <option value="">— chọn —</option>
+          {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+        </select>
+      </div>
+
+      {/* 3. Nguồn lead */}
+      <div className="space-y-2">
+        <label className="block text-xs font-semibold text-slate-600">Nguồn lead</label>
+        <Segmented value={form.sourceMode} onChange={(v) => onField('sourceMode', v as SourceMode)}
+          options={[{ value: 'fixed', label: 'Gán cố định' }, { value: 'column', label: 'Lấy theo cột' }]} />
+        {form.sourceMode === 'fixed' ? (
+          <div className="space-y-1.5">
+            <p className="text-[11px] text-slate-400">Chọn nguồn data thật cho tab này (Google Sheet chỉ là kênh trung chuyển). Mặc định = Facebook.</p>
+            <select value={form.source || DEFAULT_SHEET_SOURCE} onChange={(e) => onField('source', e.target.value)}
+              className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm bg-white">
+              {SOURCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+        ) : (
+          <ColSelect label="Cột chứa Nguồn" headers={preview.headers} value={form.sourceCol} onChange={(v) => onField('sourceCol', v)} />
+        )}
+      </div>
+
+      {/* 4. Dòng xe */}
+      <div className="space-y-2">
+        <label className="block text-xs font-semibold text-slate-600">Dòng xe</label>
+        <Segmented value={form.modelMode} onChange={(v) => onField('modelMode', v as ModelMode)}
+          options={[
+            { value: 'auto', label: 'Tự nhận diện' },
+            { value: 'fixed', label: '1 dòng cố định' },
+            { value: 'column', label: 'Lấy theo cột' },
+          ]} />
+        {form.modelMode === 'auto' && (
+          <p className="text-[11px] text-slate-400">Hệ thống tự dò dòng xe theo từ khoá (tên + ghi chú), chỉ điền khi trúng đúng 1 dòng.</p>
+        )}
+        {form.modelMode === 'fixed' && (
+          <div>
+            {!form.brandId
+              ? <p className="text-[11px] text-amber-600">Chọn thương hiệu trước để chọn dòng xe.</p>
+              : (
+                <select value={form.modelId} onChange={(e) => onField('modelId', e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm bg-white">
+                  <option value="">— chọn dòng xe —</option>
+                  {brandModels.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                </select>
+              )}
+          </div>
+        )}
+        {form.modelMode === 'column' && (
+          <ColSelect label="Cột chứa Dòng xe" headers={preview.headers} value={form.modelCol} onChange={(v) => onField('modelCol', v)} />
+        )}
+      </div>
+
+      {/* 5. Mốc thời gian — chống nạp toàn bộ lead cũ khi kết nối sheet đã tích luỹ lâu */}
+      <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50/60 p-3">
+        <label className="block text-xs font-semibold text-slate-700">Mốc thời gian (chỉ lấy lead mới)</label>
+        <p className="text-[11px] text-slate-500">
+          Sheet thường tích luỹ nhiều lead cũ. Chọn cột thời gian + ngày bắt đầu để hệ thống
+          CHỈ nạp lead từ mốc đó trở đi — tránh nổ hàng loạt thông báo lead cũ. Bỏ trống cột = nạp tất cả (không khuyến nghị).
+        </p>
+        <ColSelect label="Cột chứa thời gian" headers={preview.headers} value={form.dateCol} onChange={(v) => onField('dateCol', v)} />
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-slate-600 w-32 shrink-0">Chỉ lấy lead từ ngày</span>
+          <input type="date" value={form.since} onChange={(e) => onField('since', e.target.value)}
+            disabled={form.dateCol == null}
+            className="flex-1 rounded-lg border border-slate-200 px-2 py-1.5 text-sm bg-white disabled:bg-slate-100 disabled:text-slate-400" />
+        </div>
+      </div>
+
+      {/* 6. Showroom nhận lead */}
+      <div className="space-y-2">
+        <label className="block text-xs font-semibold text-slate-600">Showroom nhận lead</label>
+        <div className="grid gap-1.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))' }}>
+          {showrooms.map((s) => {
+            const checked = form.srIds.includes(s.id);
+            return (
+              <label key={s.id}
+                className="flex items-center gap-2.5 px-3 py-2 rounded-lg border cursor-pointer transition-colors"
+                style={{ borderColor: checked ? 'var(--color-brand)' : '#e2e8f0', background: checked ? '#e6f0fa' : '#fff' }}>
+                <input type="checkbox" checked={checked} onChange={() => toggleSr(s.id)} className="accent-brand" />
+                <span className="text-sm font-medium text-slate-700">{s.name}</span>
+              </label>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }

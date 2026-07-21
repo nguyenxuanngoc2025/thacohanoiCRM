@@ -5,6 +5,7 @@ import { pickByStrategy, type AssignStrategy, type StrategyCandidate } from '@/l
 import { detectModel } from '@/lib/detect-model';
 import { getOpenBrandIds, isBrandClosed } from '@/lib/company-brands';
 import { vnDateStr, resolveRosterTeam } from '@/lib/roster';
+import { resolveIngestScope } from '@/lib/ingest-scope';
 import type { IngestPayload, IngestResult } from '@/types/database';
 
 /** Cửa nạp lead chung — mọi kênh (FB webhook, n8n sau này) gọi vào đây. */
@@ -31,12 +32,16 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
     .select('showroom_id, share_pct')
     .eq('channel_account_id', channel.id);
 
-  const candidateShowroomIds =
-    junction && junction.length > 0
-      ? junction.map((j) => j.showroom_id)
-      : channel.showroom_id
-        ? [channel.showroom_id]
-        : [];
+  // Suy thương hiệu + tập showroom ứng viên. Google Sheet cấu hình riêng từng tab có thể GHI ĐÈ
+  // brand_id/showroom_ids (payload); nguồn khác (FB webhook) không truyền → suy từ kênh + junction.
+  const { brandId: effBrandId, candidateShowroomIds } = resolveIngestScope({
+    channelBrandId: channel.brand_id,
+    channelShowroomId: channel.showroom_id,
+    junctionShowroomIds: (junction ?? []).map((j) => j.showroom_id),
+    overrideBrandId: payload.brand_id,
+    overrideShowroomIds: payload.showroom_ids,
+    hasBrandOverride: 'brand_id' in payload,
+  });
 
   if (candidateShowroomIds.length === 0) return { ok: false, reason: 'no_showroom' };
 
@@ -56,18 +61,18 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
   // Dò TRƯỚC dedup để nhánh "khách cũ hỏi lại" cũng bù được dòng xe nếu lần này mới xác định ra.
   let modelId: string | null = null;
   let modelName: string | null = null;
-  if (channel.brand_id && (payload.model_id || payload.intent_text)) {
+  if (effBrandId && (payload.model_id || payload.intent_text)) {
     const { data: brandModels } = await db
       .from('models')
       .select('id, brand_id, name, keywords, is_active')
-      .eq('brand_id', channel.brand_id)
+      .eq('brand_id', effBrandId)
       .eq('is_active', true);
     const models = (brandModels ?? []) as { id: string; brand_id: string; name: string; keywords: string[]; is_active: boolean }[];
     if (payload.model_id) {
       // Chỉ nhận model_id nếu đúng là dòng xe active của brand fanpage này.
       modelId = models.find((m) => m.id === payload.model_id)?.id ?? null;
     } else if (payload.intent_text) {
-      modelId = detectModel({ brandId: channel.brand_id, text: payload.intent_text, models });
+      modelId = detectModel({ brandId: effBrandId, text: payload.intent_text, models });
     }
     if (modelId) modelName = models.find((m) => m.id === modelId)?.name ?? null;
   }
@@ -79,7 +84,7 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
     .select('id, assigned_to, sales_team_id, showroom_id, status, full_name, model_id')
     .eq('company_id', companyId0)
     .eq('phone', phone)
-    .eq('brand_id', channel.brand_id)
+    .eq('brand_id', effBrandId)
     .maybeSingle();
 
   if (existing) {
@@ -110,7 +115,7 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
         const { data: sr } = await db
           .from('showrooms').select('company_id, is_active, name').eq('id', existing.showroom_id).maybeSingle();
         const openBrandIds = sr ? await getOpenBrandIds(db, sr.company_id) : [];
-        const brandClosed = isBrandClosed(openBrandIds, channel.brand_id);
+        const brandClosed = isBrandClosed(openBrandIds, effBrandId);
         const showroomClosed = (sr as { is_active?: boolean } | null)?.is_active === false;
         if (sr && !brandClosed && !showroomClosed) {
           const { data: chs } = await db
@@ -159,7 +164,7 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
     .from('sales_teams')
     .select('id, showroom_id')
     .in('showroom_id', candidateShowroomIds);
-  if (channel.brand_id) teamsQ = teamsQ.contains('brand_ids', [channel.brand_id]);
+  if (effBrandId) teamsQ = teamsQ.contains('brand_ids', [effBrandId]);
   const { data: teamsAll } = await teamsQ;
 
   const teamsByShowroom = new Map<string, string[]>();
@@ -239,7 +244,7 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
   // Hãng đang TẮT (gỡ khỏi whitelist company_brands)? → VẪN nhận + phân giao lead bình
   // thường (không mất lead), nhưng KHÔNG bắn tin Zalo. Bật lại hãng → lead vẫn còn nguyên.
   const openBrandIds = await getOpenBrandIds(db, showroom.company_id);
-  const brandClosed = isBrandClosed(openBrandIds, channel.brand_id);
+  const brandClosed = isBrandClosed(openBrandIds, effBrandId);
 
   // Showroom đang TẮT (platform_owner tắt tại /admin, vượt hạn mức)? → cùng cơ chế: nhận +
   // phân giao ngầm, KHÔNG báo Zalo. Đọc thẳng cột is_active của showroom đã chọn.
@@ -341,12 +346,12 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
         // Áp mốc effectiveFrom giống cấp 1 để tải không lệch bởi lead cũ trước lần đổi cấu hình.
         let teamCountQ = db.from('leads').select('id', { count: 'exact', head: true })
           .eq('sales_team_id', tid).or('status.is.null,status.neq.Fail');
-        if (channel.brand_id) teamCountQ = teamCountQ.eq('brand_id', channel.brand_id);
+        if (effBrandId) teamCountQ = teamCountQ.eq('brand_id', effBrandId);
         if (effectiveFrom) teamCountQ = teamCountQ.gte('created_at', effectiveFrom);
         const { count } = await teamCountQ;
         let teamLastQ = db.from('leads').select('created_at')
           .eq('sales_team_id', tid).order('created_at', { ascending: false }).limit(1);
-        if (channel.brand_id) teamLastQ = teamLastQ.eq('brand_id', channel.brand_id);
+        if (effBrandId) teamLastQ = teamLastQ.eq('brand_id', effBrandId);
         if (effectiveFrom) teamLastQ = teamLastQ.gte('created_at', effectiveFrom);
         const { data: last } = await teamLastQ.maybeSingle();
         teamCands.push({
@@ -373,12 +378,12 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
           // nhận đều KIA và đều Mazda riêng biệt (không gộp). Áp mốc effectiveFrom như cấp 1, 2.
           let tvbhCountQ = db.from('leads').select('id', { count: 'exact', head: true })
             .eq('assigned_to', id).or('status.is.null,status.neq.Fail');
-          if (channel.brand_id) tvbhCountQ = tvbhCountQ.eq('brand_id', channel.brand_id);
+          if (effBrandId) tvbhCountQ = tvbhCountQ.eq('brand_id', effBrandId);
           if (effectiveFrom) tvbhCountQ = tvbhCountQ.gte('created_at', effectiveFrom);
           const { count } = await tvbhCountQ;
           let tvbhLastQ = db.from('leads').select('created_at')
             .eq('assigned_to', id).order('created_at', { ascending: false }).limit(1);
-          if (channel.brand_id) tvbhLastQ = tvbhLastQ.eq('brand_id', channel.brand_id);
+          if (effBrandId) tvbhLastQ = tvbhLastQ.eq('brand_id', effBrandId);
           if (effectiveFrom) tvbhLastQ = tvbhLastQ.gte('created_at', effectiveFrom);
           const { data: last } = await tvbhLastQ.maybeSingle();
           tvbhCands.push({
@@ -412,7 +417,7 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
       company_id: showroom.company_id,
       showroom_id: chosenShowroomId,
       sales_team_id: chosenTeamId,
-      brand_id: channel.brand_id,
+      brand_id: effBrandId,
       model_id: modelId,
       channel_account_id: channel.id,
       assigned_to: assignedTo,

@@ -55,7 +55,8 @@ export interface SalesTeamRow {
 // Cấu hình Google Sheet (jsonb channel_accounts.config). Các kênh khác để null.
 export interface SheetConfig {
   connection_id?: string;
-  tabs?: { title: string; source?: string | null }[];
+  // Mỗi tab một cấu hình đầy đủ riêng (thương hiệu/showroom/cột/nguồn/dòng xe/mốc thời gian).
+  tabs?: import('@/lib/google-sheet-sync').TabCfg[];
   tab?: string | null;
   phone_col?: number;
   name_col?: number | null;
@@ -68,6 +69,7 @@ export interface SheetConfig {
   // Mốc thời gian: cột chứa thời gian + ngày bắt đầu lấy lead (YYYY-MM-DD) — chống nạp lead cũ.
   date_col?: number | null;
   since?: string | null;
+  brand_id?: string | null; showroom_ids?: string[] | null; // cấp-dòng (cấu hình cũ dùng chung mọi tab)
 }
 
 export interface ChannelRow {

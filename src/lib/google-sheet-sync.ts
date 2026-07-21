@@ -5,7 +5,32 @@ import { isOnOrAfter } from '@/lib/sheet-date';
 
 type Service = ReturnType<typeof createServiceClient>;
 
-export interface TabCfg { title: string; source?: string | null }
+// Cấu hình ĐẦY ĐỦ của 1 tab. Mọi trường tuỳ chọn — thiếu thì kế thừa cấu hình cấp-dòng (tương thích cũ).
+export interface TabCfg {
+  title: string;
+  source?: string | null;
+  brand_id?: string | null;
+  showroom_ids?: string[] | null;
+  phone_col?: number | null;
+  name_col?: number | null;
+  note_cols?: number[];
+  source_mode?: 'fixed' | 'column'; source_col?: number | null;
+  model_mode?: 'auto' | 'fixed' | 'column'; model_id?: string | null; model_col?: number | null;
+  date_col?: number | null; since?: string | null;
+}
+
+// Cấu hình 1 tab đã resolve xong (mọi trường bắt buộc có giá trị dùng được khi đồng bộ).
+export interface ResolvedTab {
+  title: string;
+  brand_id: string | null;
+  showroom_ids: string[];
+  phone_col: number | null;
+  name_col: number | null;
+  note_cols: number[];
+  source_mode: 'fixed' | 'column'; source: string | null; source_col: number | null;
+  model_mode: 'auto' | 'fixed' | 'column'; model_id: string | null; model_col: number | null;
+  date_col: number | null; since: string | null;
+}
 
 export interface SheetConfig {
   connection_id?: string;
@@ -18,18 +43,35 @@ export interface SheetConfig {
   // Mốc thời gian: chỉ nạp dòng có thời gian (cột date_col) >= since ('YYYY-MM-DD').
   // Tránh lần kết nối đầu nạp toàn bộ lead cũ → nổ thông báo. Bỏ trống = nạp tất cả (cũ).
   date_col?: number | null; since?: string | null;
+  brand_id?: string | null; showroom_ids?: string[] | null; // cấp-dòng (cấu hình cũ dùng chung mọi tab)
 }
 
 /** Kết quả 1 lần đồng bộ 1 sheet: rows=dòng có SĐT, fresh=lead mới, dup=trùng, skipped=trước mốc/không ngày. */
 export interface SheetSyncResult { rows: number; fresh: number; dup: number; skipped: number; errors: string[] }
 
-// Chuẩn hoá danh sách tab về dạng object (tương thích cấu hình cũ: mảng chuỗi / `tab` đơn).
-export function normalizeTabs(cfg: SheetConfig): TabCfg[] {
-  if (cfg.tabs && cfg.tabs.length > 0) {
-    return cfg.tabs.map((t) => (typeof t === 'string' ? { title: t, source: null } : t));
-  }
-  if (cfg.tab) return [{ title: cfg.tab, source: null }];
-  return [{ title: '', source: null }]; // tab mặc định
+// Resolve mỗi tab thành cấu hình đầy đủ: ưu tiên trường của tab, thiếu thì kế thừa cấp-dòng.
+export function resolveTabConfigs(cfg: SheetConfig): ResolvedTab[] {
+  const raw: TabCfg[] = cfg.tabs && cfg.tabs.length > 0
+    ? cfg.tabs.map((t) => (typeof t === 'string' ? { title: t } : t))
+    : cfg.tab ? [{ title: cfg.tab }] : [{ title: '' }];
+  const pick = <T,>(a: T | null | undefined, b: T | null | undefined, dflt: T): T =>
+    a ?? b ?? dflt;
+  return raw.map((t) => ({
+    title: t.title ?? '',
+    brand_id: pick(t.brand_id, cfg.brand_id, null),
+    showroom_ids: t.showroom_ids ?? cfg.showroom_ids ?? [],
+    phone_col: pick(t.phone_col, cfg.phone_col, null),
+    name_col: pick(t.name_col, cfg.name_col, null),
+    note_cols: t.note_cols ?? cfg.note_cols ?? [],
+    source_mode: pick(t.source_mode, cfg.source_mode, 'fixed'),
+    source: t.source ?? null,
+    source_col: pick(t.source_col, cfg.source_col, null),
+    model_mode: pick(t.model_mode, cfg.model_mode, 'auto'),
+    model_id: pick(t.model_id, cfg.model_id, null),
+    model_col: pick(t.model_col, cfg.model_col, null),
+    date_col: pick(t.date_col, cfg.date_col, null),
+    since: pick(t.since, cfg.since, null),
+  }));
 }
 
 /**
@@ -44,52 +86,55 @@ export async function syncSheetChannel(
 ): Promise<SheetSyncResult> {
   const result: SheetSyncResult = { rows: 0, fresh: 0, dup: 0, skipped: 0, errors: [] };
   const cfg = (channel.config ?? {}) as SheetConfig;
-  if (!cfg.connection_id || cfg.phone_col == null) {
+  if (!cfg.connection_id) {
     result.errors.push('config-missing');
     await writeLastSync(service, channel.id, result);
     return result;
   }
-  const tabList = normalizeTabs(cfg);
-  const sourceMode = cfg.source_mode ?? 'fixed';
-  const modelMode = cfg.model_mode ?? 'auto';
-  // Cắt theo mốc thời gian chỉ bật khi có CẢ cột thời gian LẪN mốc since.
-  const cutoffActive = cfg.date_col != null && !!cfg.since;
+  // Mỗi tab một cấu hình riêng (thương hiệu/showroom/cột/nguồn/dòng xe/mốc thời gian).
+  const tabList = resolveTabConfigs(cfg);
 
   try {
     const accessToken = await getToken(cfg.connection_id);
     for (const tab of tabList) {
+      // Cắt theo mốc thời gian chỉ bật khi tab có CẢ cột thời gian LẪN mốc since.
+      const cutoffActive = tab.date_col != null && !!tab.since;
       const range = tab.title ? `${tab.title}!A1:Z10000` : 'A1:Z10000';
       const sheetRows = await readSheetValues({ accessToken, spreadsheetId: channel.page_id, range });
       for (const r of sheetRows.slice(1)) { // bỏ header
-        const phone = r[cfg.phone_col] ?? '';
+        if (tab.phone_col == null) continue; // tab chưa chọn cột SĐT → bỏ qua
+        const phone = r[tab.phone_col] ?? '';
         if (!phone.replace(/\D/g, '')) continue;
         result.rows++;
 
         // Mốc thời gian: bỏ qua dòng có thời gian TRƯỚC mốc (lead cũ), hoặc ô thời gian
         // trống/không đọc được (an toàn — lead mới từ pipeline agency luôn có timestamp).
-        if (cutoffActive && !isOnOrAfter(r[cfg.date_col!], cfg.since!)) {
+        if (cutoffActive && !isOnOrAfter(r[tab.date_col!], tab.since!)) {
           result.skipped++;
           continue;
         }
 
-        const name = cfg.name_col != null ? (r[cfg.name_col] ?? null) : null;
-        const notes = (cfg.note_cols ?? []).map((c) => r[c]).filter(Boolean).join(' · ');
+        const name = tab.name_col != null ? (r[tab.name_col] ?? null) : null;
+        const notes = (tab.note_cols ?? []).map((c) => r[c]).filter(Boolean).join(' · ');
 
         // Nguồn: theo cột → ô tương ứng; theo tab → nhãn gán cho tab. Google Sheet chỉ là kênh
         // trung chuyển → mặc định nguồn data thật là 'facebook' (đa số sheet agency chạy FB Ads).
-        const colSrc = sourceMode === 'column' && cfg.source_col != null ? (r[cfg.source_col] ?? '').trim().toLowerCase() : '';
-        const source = sourceMode === 'column' ? (colSrc || 'facebook') : (tab.source || 'facebook');
+        const colSrc = tab.source_mode === 'column' && tab.source_col != null
+          ? (r[tab.source_col] ?? '').trim().toLowerCase() : '';
+        const source = tab.source_mode === 'column' ? (colSrc || 'facebook') : (tab.source || 'facebook');
 
         // Dòng xe: cố định → model_id; theo cột → đưa ô dòng xe vào intent_text; auto → name+notes.
-        const modelCell = modelMode === 'column' && cfg.model_col != null ? (r[cfg.model_col] ?? '') : '';
-        const intentText = modelMode === 'column' ? modelCell : [name, notes].filter(Boolean).join(' ');
+        const modelCell = tab.model_mode === 'column' && tab.model_col != null ? (r[tab.model_col] ?? '') : '';
+        const intentText = tab.model_mode === 'column' ? modelCell : [name, notes].filter(Boolean).join(' ');
 
         const res = await ingestLead({
           page_id: channel.page_id,
+          brand_id: tab.brand_id,
+          showroom_ids: tab.showroom_ids,
           phone_raw: phone,
           full_name: name,
           source,
-          model_id: modelMode === 'fixed' ? (cfg.model_id ?? null) : null,
+          model_id: tab.model_mode === 'fixed' ? (tab.model_id ?? null) : null,
           intent_text: intentText,
           silent_dedup: true, // quét lại toàn bộ → đừng spam lead_logs khi trùng
           external_payload: { row: r, tab: tab.title || null },

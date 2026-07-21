@@ -22,6 +22,11 @@ export interface IngestPayload {
   external_payload?: Record<string, unknown> | null;
   intent_text?: string; // văn bản gom để dò dòng xe (tuỳ kênh)
   model_id?: string | null; // dòng xe chỉ định sẵn (Google Sheet gán cố định/theo cột) — ưu tiên hơn intent_text
+  // Ghi đè thương hiệu/showroom cho lead (Google Sheet cấu hình riêng từng tab).
+  // Khi CÓ: dùng thay cho giá trị suy từ channel ở mọi bước phụ thuộc hãng/showroom.
+  // Khi KHÔNG (FB webhook, nguồn khác): giữ nguyên hành vi cũ (suy từ channel).
+  brand_id?: string | null;
+  showroom_ids?: string[] | null;
   silent_dedup?: boolean; // true = không ghi lead_logs khi trùng (Google Sheet quét lại toàn bộ mỗi lần → tránh spam log)
   suppress_notify?: boolean; // true = KHÔNG đẩy thông báo Zalo (dùng khi backfill lead lịch sử — tránh spam nhóm)
   created_at_override?: string; // ISO — đặt đúng thời điểm gốc từ nguồn (backfill FB time_created) thay vì now()

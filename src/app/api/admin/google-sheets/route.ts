@@ -57,70 +57,62 @@ export async function POST(request: NextRequest) {
     }
 
     const spreadsheetId = body.spreadsheet_id ? String(body.spreadsheet_id).trim() : '';
-    const brand_id = body.brand_id || null;
-    const showroom_ids: string[] = Array.isArray(body.showroom_ids) ? body.showroom_ids.filter(Boolean) : [];
-    const showroom_id = showroom_ids[0] ?? null;
     if (!spreadsheetId) return NextResponse.json({ error: 'Thiếu Google Sheet' }, { status: 400 });
-    if (showroom_ids.length === 0) return NextResponse.json({ error: 'Chọn ít nhất 1 showroom' }, { status: 400 });
-    if (!brand_id) return NextResponse.json({ error: 'Chọn thương hiệu' }, { status: 400 });
-    if (showroom_ids.some((sid) => !companySrIds.includes(sid))) {
-      return NextResponse.json({ error: 'Showroom không thuộc công ty của bạn.' }, { status: 400 });
+    const editingId: string | null = op === 'update' ? (body.id as string) : null;
+
+    // Mỗi tab một cấu hình riêng. Chuẩn hoá + validate từng tab theo phạm vi công ty.
+    const rawTabs: unknown[] = Array.isArray(body.tabs) ? body.tabs : (body.tab ? [{ title: String(body.tab) }] : []);
+    const numOrNull = (v: unknown) => (v == null || v === '' ? null : Number(v));
+    const tabs = rawTabs
+      .map((t) => {
+        const o = (typeof t === 'string' ? { title: t } : t) as Record<string, unknown>;
+        const sids: string[] = Array.isArray(o.showroom_ids) ? (o.showroom_ids as unknown[]).filter(Boolean).map(String) : [];
+        const smode = o.source_mode === 'column' ? 'column' : 'fixed';
+        const mmode = o.model_mode === 'fixed' ? 'fixed' : o.model_mode === 'column' ? 'column' : 'auto';
+        return {
+          title: String(o.title ?? '').trim(),
+          brand_id: o.brand_id ? String(o.brand_id) : null,
+          showroom_ids: sids,
+          phone_col: numOrNull(o.phone_col),
+          name_col: numOrNull(o.name_col),
+          note_cols: Array.isArray(o.note_cols) ? (o.note_cols as unknown[]).map(Number).filter(Number.isInteger) : [],
+          source_mode: smode as 'fixed' | 'column',
+          source: o.source ? String(o.source).trim().toLowerCase() : null,
+          source_col: smode === 'column' ? numOrNull(o.source_col) : null,
+          model_mode: mmode as 'auto' | 'fixed' | 'column',
+          model_id: mmode === 'fixed' && o.model_id ? String(o.model_id) : null,
+          model_col: mmode === 'column' ? numOrNull(o.model_col) : null,
+          date_col: numOrNull(o.date_col),
+          since: typeof o.since === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(o.since) ? o.since : null,
+        };
+      })
+      .filter((t) => t.title);
+
+    if (tabs.length === 0) return NextResponse.json({ error: 'Chọn ít nhất 1 tab' }, { status: 400 });
+    for (const t of tabs) {
+      if (t.phone_col == null) return NextResponse.json({ error: `Tab "${t.title}": chưa chọn cột Số điện thoại` }, { status: 400 });
+      if (!t.brand_id) return NextResponse.json({ error: `Tab "${t.title}": chưa chọn thương hiệu` }, { status: 400 });
+      if (t.showroom_ids.length === 0) return NextResponse.json({ error: `Tab "${t.title}": chọn ít nhất 1 showroom` }, { status: 400 });
+      if (t.showroom_ids.some((sid) => !companySrIds.includes(sid))) {
+        return NextResponse.json({ error: `Tab "${t.title}": showroom không thuộc công ty của bạn` }, { status: 400 });
+      }
     }
 
     const { data: conn } = await service.from('google_connections').select('id').eq('company_id', companyId).maybeSingle();
     if (!conn) return NextResponse.json({ error: 'Công ty chưa kết nối Google' }, { status: 400 });
 
-    const phoneCol = Number(body.phone_col);
-    if (!Number.isInteger(phoneCol) || phoneCol < 0) return NextResponse.json({ error: 'Chưa chọn cột Số điện thoại' }, { status: 400 });
-    const nameCol = body.name_col == null || body.name_col === '' ? null : Number(body.name_col);
-    const noteCols: number[] = Array.isArray(body.note_cols) ? body.note_cols.map(Number).filter(Number.isInteger) : [];
+    // Junction = HỢP showroom của mọi tab (để tầng định tuyến cấp-1 có ứng viên; ghi đè theo tab quyết định thật).
+    const unionShowroomIds = [...new Set(tabs.flatMap((t) => t.showroom_ids))];
+    const anchorBrand = tabs[0].brand_id;
+    const anchorShowroom = tabs[0].showroom_ids[0];
 
-    // Tab cần lấy lead: mảng object {title, source}. Tương thích cũ: mảng chuỗi / `tab` đơn.
-    const rawTabs: unknown[] = Array.isArray(body.tabs)
-      ? body.tabs
-      : (body.tab ? [String(body.tab)] : []);
-    const tabs = rawTabs
-      .map((t) => {
-        if (typeof t === 'string') return { title: t.trim(), source: null as string | null };
-        const o = t as { title?: unknown; source?: unknown };
-        return {
-          title: String(o.title ?? '').trim(),
-          source: o.source ? String(o.source).trim().toLowerCase() : null,
-        };
-      })
-      .filter((t) => t.title);
-
-    const sourceMode = body.source_mode === 'column' ? 'column' : 'fixed';
-    const sourceCol = body.source_col == null || body.source_col === '' ? null : Number(body.source_col);
-    const modelMode = body.model_mode === 'fixed' ? 'fixed' : body.model_mode === 'column' ? 'column' : 'auto';
-    const modelId = modelMode === 'fixed' && body.model_id ? String(body.model_id) : null;
-    const modelCol = modelMode === 'column' && body.model_col != null && body.model_col !== '' ? Number(body.model_col) : null;
-
-    // Mốc thời gian: cột chứa thời gian + ngày bắt đầu lấy lead (YYYY-MM-DD).
-    // Chỉ nạp dòng có thời gian >= since → tránh kết nối lần đầu nạp toàn bộ lead cũ.
-    const dateCol = body.date_col == null || body.date_col === '' ? null : Number(body.date_col);
-    const since = typeof body.since === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.since) ? body.since : null;
-
-    const config = {
-      connection_id: conn.id,
-      tabs,
-      source_mode: sourceMode,
-      source_col: sourceMode === 'column' ? sourceCol : null,
-      model_mode: modelMode,
-      model_id: modelId,
-      model_col: modelCol,
-      phone_col: phoneCol,
-      name_col: nameCol,
-      note_cols: noteCols,
-      date_col: dateCol,
-      since,
-    };
+    const config = { connection_id: conn.id, spreadsheet_id: spreadsheetId, tabs };
     const row = {
       platform: 'google_sheet',
       page_id: spreadsheetId,
       page_name: body.page_name ? String(body.page_name).trim() : null,
-      showroom_id,
-      brand_id,
+      showroom_id: anchorShowroom,
+      brand_id: anchorBrand,
       is_active: body.is_active ?? true,
       config,
     };
@@ -128,15 +120,24 @@ export async function POST(request: NextRequest) {
     const syncShowrooms = async (channelId: string) => {
       await service.from('channel_account_showrooms').delete().eq('channel_account_id', channelId);
       await service.from('channel_account_showrooms').insert(
-        showroom_ids.map((sid) => ({ channel_account_id: channelId, showroom_id: sid }))
+        unionShowroomIds.map((sid) => ({ channel_account_id: channelId, showroom_id: sid }))
       );
     };
 
-    if (op === 'update') {
-      const { error } = await service.from('channel_accounts').update(row).eq('id', body.id);
+    // Chọn lại đúng file đã kết nối (cùng page_id trong công ty) → cập nhật dòng cũ thay vì tạo mới
+    // (tránh đụng ràng buộc page_id UNIQUE + cho phép thêm/bớt/sửa tab).
+    let targetId: string | null = editingId;
+    if (!targetId) {
+      const { data: dup } = await service.from('channel_accounts')
+        .select('id, showroom_id').eq('page_id', spreadsheetId).maybeSingle();
+      if (dup && companySrIds.includes(dup.showroom_id as string)) targetId = dup.id as string;
+    }
+
+    if (targetId) {
+      const { error } = await service.from('channel_accounts').update(row).eq('id', targetId);
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-      await syncShowrooms(body.id);
-      return NextResponse.json({ success: true });
+      await syncShowrooms(targetId);
+      return NextResponse.json({ success: true, id: targetId });
     }
 
     const { data, error } = await service.from('channel_accounts').insert(row).select('id').single();
