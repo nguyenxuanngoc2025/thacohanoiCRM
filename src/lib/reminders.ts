@@ -9,6 +9,8 @@ export interface OverdueLead {
   phone: string;
   assignee_name: string | null;
   next_contact_at: string;
+  // SLA vòng 1 (giờ) của công ty — dùng suy ra mốc GIAO lead: giao = next_contact_at − first_response.
+  first_response_hours: number;
 }
 
 export interface OverdueMessage {
@@ -35,7 +37,13 @@ export function buildOverdueMessages(leads: OverdueLead[], now: Date): OverdueMe
       fullName: l.full_name,
       phone: l.phone,
       assignee: l.assignee_name,
-      overdueHours: Math.max(0, Math.round((now.getTime() - new Date(l.next_contact_at).getTime()) / 3600000)),
+      // Thời gian khách chờ TỪ LÚC GIAO: (nay − hạn liên hệ) + SLA vòng 1.
+      // next_contact_at = lúc giao + first_response, nên cộng lại = nay − lúc giao.
+      overdueMinutes: Math.max(
+        0,
+        Math.round((now.getTime() - new Date(l.next_contact_at).getTime()) / 60000)
+          + l.first_response_hours * 60,
+      ),
     }));
     out.push({
       teamId,

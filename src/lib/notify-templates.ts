@@ -167,7 +167,18 @@ export interface OverdueItem {
   fullName: string | null;
   phone: string;
   assignee: string | null;
-  overdueHours: number;
+  // Thời gian khách đã chờ chưa được liên hệ, TÍNH TỪ LÚC GIAO lead (đơn vị phút).
+  overdueMinutes: number;
+}
+
+// Định dạng thời lượng chờ theo "giờ + phút" cho dễ đọc — không bao giờ hiện trơ "0 giờ".
+// < 1 giờ → "X phút"; tròn giờ → "X giờ"; lẻ → "X giờ Y phút".
+function formatDuration(mins: number): string {
+  const m = Math.max(0, Math.round(mins));
+  if (m < 60) return `${m} phút`;
+  const h = Math.floor(m / 60);
+  const r = m % 60;
+  return r === 0 ? `${h} giờ` : `${h} giờ ${r} phút`;
 }
 
 // Chỉ nêu vài lead gấp nhất; phần còn lại gói gọn vào số liệu — tin ngắn, dễ đọc,
@@ -178,23 +189,23 @@ export function renderOverdue(showroom: string, items: OverdueItem[]): string {
   const total = items.length;
   const unassigned = items.filter((it) => !it.assignee?.trim()).length;
   const assigned = total - unassigned;
-  const maxOverdue = items.reduce((m, it) => Math.max(m, it.overdueHours), 0);
+  const maxOverdue = items.reduce((m, it) => Math.max(m, it.overdueMinutes), 0);
 
-  // Top lead gấp nhất (quá hạn lâu nhất) để nêu đích danh, còn lại quy về số liệu.
+  // Top lead gấp nhất (chờ lâu nhất) để nêu đích danh, còn lại quy về số liệu.
   const top = [...items]
-    .sort((a, b) => b.overdueHours - a.overdueHours)
+    .sort((a, b) => b.overdueMinutes - a.overdueMinutes)
     .slice(0, OVERDUE_TOP)
     .map((it) => {
       const ten = it.fullName?.trim() || 'Khách lẻ';
       const tvbh = it.assignee?.trim() || 'chưa phân giao';
-      return `• ${ten} ${maskPhone(it.phone)} — ${tvbh} — ${it.overdueHours}h`;
+      return `• ${ten} ${maskPhone(it.phone)} — ${tvbh} — ${formatDuration(it.overdueMinutes)}`;
     });
   const remaining = total - top.length;
 
   const lines = [
     `<b>QUÁ HẠN LIÊN HỆ — ${showroom}</b>`,
     `Tổng <b>${total}</b> lead · Chưa phân giao ${unassigned} · Đã giao ${assigned}`,
-    `Quá hạn lâu nhất: ${maxOverdue}h`,
+    `Quá hạn lâu nhất: ${formatDuration(maxOverdue)}`,
     '',
     'Ưu tiên xử lý:',
     ...top,

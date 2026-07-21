@@ -20,12 +20,21 @@ export async function POST(request: NextRequest) {
     .select('follow_up_hours').eq('round', 1).eq('is_active', true).maybeSingle();
   const gapHours = Math.max(0, Number(sla?.follow_up_hours ?? 2));
 
+  // SLA vòng 1 THEO TỪNG CÔNG TY (cron chạy đa tenant) → suy ra mốc giao lead để tính
+  // thời gian khách đã chờ. next_contact_at = lúc giao + first_response_hours.
+  const { data: slaRows } = await db.from('sla_config')
+    .select('company_id, first_response_hours').eq('round', 1).eq('is_active', true);
+  const frByCompany = new Map<string, number>();
+  for (const r of slaRows ?? []) {
+    frByCompany.set(r.company_id as string, Math.max(0, Number(r.first_response_hours ?? 0)));
+  }
+
   // Lead quá hạn (thống nhất với isLeadOverdue): ĐÃ giao TVBH + CHƯA chuyển trạng thái
   // + tới/quá hạn SLA. Đã chuyển trạng thái → thoát quá hạn. Chưa giao → chưa tính hạn.
   // Thêm điều kiện chưa nhắc đủ 2 lần.
   const { data: leads, error } = await db
     .from('leads')
-    .select('id, sales_team_id, full_name, phone, assigned_to, next_contact_at, overdue_reminder_count, last_overdue_notified_at, sales_teams(name), users!assigned_to(full_name)')
+    .select('id, company_id, sales_team_id, full_name, phone, assigned_to, next_contact_at, overdue_reminder_count, last_overdue_notified_at, sales_teams(name), users!assigned_to(full_name)')
     .lte('next_contact_at', now.toISOString())
     .is('status', null)
     .not('assigned_to', 'is', null)
@@ -51,6 +60,7 @@ export async function POST(request: NextRequest) {
       phone: l.phone,
       assignee_name: j.users?.full_name ?? null,
       next_contact_at: l.next_contact_at as string,
+      first_response_hours: frByCompany.get(l.company_id as string) ?? 0,
     };
   });
 

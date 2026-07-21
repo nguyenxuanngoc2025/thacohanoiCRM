@@ -213,13 +213,13 @@ describe('notify-templates', () => {
 
   it('renderOverdue: tóm tắt tổng + chưa giao + lâu nhất, nêu lead gấp, SĐT che', () => {
     const t = renderOverdue('KIA Hà Nội', [
-      { fullName: 'A', phone: '+84901234567', assignee: 'B', overdueHours: 5 },
-      { fullName: null, phone: '+84909876543', assignee: null, overdueHours: 12 },
+      { fullName: 'A', phone: '+84901234567', assignee: 'B', overdueMinutes: 5 * 60 },
+      { fullName: null, phone: '+84909876543', assignee: null, overdueMinutes: 12 * 60 },
     ]);
     expect(t).toContain('QUÁ HẠN LIÊN HỆ');
     expect(t).toContain('Tổng <b>2</b> lead');
     expect(t).toContain('Chưa phân giao 1 · Đã giao 1');
-    expect(t).toContain('Quá hạn lâu nhất: 12h');   // lấy max
+    expect(t).toContain('Quá hạn lâu nhất: 12 giờ');   // lấy max
     expect(t).toContain('Khách lẻ');
     expect(t).toContain('0901234***');         // SĐT dạng 10 chữ số, che 3 số cuối
     expect(t).not.toContain('+84');            // KHÔNG dùng +84
@@ -229,14 +229,14 @@ describe('notify-templates', () => {
 
   it('renderOverdue: nhiều lead → tin ngắn, chỉ nêu top, phần dư gói "… và N lead khác"', () => {
     const items = Array.from({ length: 92 }, (_, i) => ({
-      fullName: `KH ${i}`, phone: '+84901234567', assignee: 'B', overdueHours: i + 1,
+      fullName: `KH ${i}`, phone: '+84901234567', assignee: 'B', overdueMinutes: (i + 1) * 60,
     }));
     const t = renderOverdue('KIA Hà Nội', items);
     expect(t).toContain('Tổng <b>92</b> lead');     // số liệu tổng đúng
     const lineCount = t.split('\n').filter((l) => l.startsWith('•')).length;
     expect(lineCount).toBeLessThanOrEqual(3);         // chỉ nêu top 3 lead gấp nhất
     expect(t).toContain('… và 89 lead khác.');        // phần dư gói gọn
-    expect(t).toContain('92h');                       // top nêu lead quá hạn lâu nhất
+    expect(t).toContain('92 giờ');                    // top nêu lead chờ lâu nhất
     expect(t.length).toBeLessThan(600);               // tin gọn, dễ đọc
   });
 
