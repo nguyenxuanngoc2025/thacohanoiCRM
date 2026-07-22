@@ -192,6 +192,25 @@ export interface HealthCheck { label: string; status: 'ok' | 'warn' | 'fail'; de
 export interface HealthResult { ok: boolean; checks: HealthCheck[] }
 
 /**
+ * fetch có thử lại + timeout, dành riêng cho health check gọi Graph API.
+ * Chỉ retry khi lệnh gọi NÉM lỗi (nghẽn mạng / timeout / máy chủ không phản hồi) —
+ * để một cú chập chờn vài giây không bị coi là "hỏng" và bắn cảnh báo giả.
+ * Nếu Facebook có trả lời (kể cả trả lỗi token) thì KHÔNG retry: đó là lỗi thật, báo ngay.
+ */
+async function fetchHealth(url: string, tries = 3, timeoutMs = 8000): Promise<Response> {
+  let lastErr: unknown;
+  for (let i = 0; i < tries; i++) {
+    try {
+      return await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+    } catch (e) {
+      lastErr = e;
+      if (i < tries - 1) await new Promise((r) => setTimeout(r, 500 * (i + 1)));
+    }
+  }
+  throw lastErr;
+}
+
+/**
  * Kiểm tra "sức khoẻ" kết nối 1 fanpage: token hệ thống còn sống? webhook còn đăng ký
  * đủ field? đọc được form lead không? Trả danh sách check để hiện cho admin (không lộ token).
  */
@@ -206,7 +225,7 @@ export async function checkFacebookPageHealth(pageId: string): Promise<HealthRes
 
   // 1) Token còn sống?
   try {
-    const r = await fetch(`${GRAPH}/me?fields=id,name&access_token=${token}`);
+    const r = await fetchHealth(`${GRAPH}/me?fields=id,name&access_token=${token}`);
     const j = await r.json();
     if (r.ok && j?.id) {
       checks.push({ label: 'Token hệ thống', status: 'ok', detail: `Còn hiệu lực (${j.name ?? j.id}).` });
@@ -222,7 +241,7 @@ export async function checkFacebookPageHealth(pageId: string): Promise<HealthRes
   // 2) Lấy được page token (fanpage nằm trong Business Manager của token)?
   let pageToken: string | undefined;
   try {
-    const r = await fetch(`${GRAPH}/${pageId}?fields=access_token,name&access_token=${token}`);
+    const r = await fetchHealth(`${GRAPH}/${pageId}?fields=access_token,name&access_token=${token}`);
     const j = await r.json();
     pageToken = j?.access_token;
     if (pageToken) {
@@ -238,7 +257,7 @@ export async function checkFacebookPageHealth(pageId: string): Promise<HealthRes
 
   // 3) Webhook còn đăng ký đủ field (leadgen/messages/feed)?
   try {
-    const r = await fetch(`${GRAPH}/${pageId}/subscribed_apps?access_token=${pageToken}`);
+    const r = await fetchHealth(`${GRAPH}/${pageId}/subscribed_apps?access_token=${pageToken}`);
     const j = await r.json();
     const subs: string[] = (j?.data ?? []).flatMap((d: { subscribed_fields?: string[] }) => d.subscribed_fields ?? []);
     const missing = REQUIRED_WEBHOOK_FIELDS.filter((f) => !subs.includes(f));
@@ -255,7 +274,7 @@ export async function checkFacebookPageHealth(pageId: string): Promise<HealthRes
 
   // 4) Đọc được biểu mẫu lead không (quyền leads_retrieval)?
   try {
-    const r = await fetch(`${GRAPH}/${pageId}/leadgen_forms?fields=id&limit=1&access_token=${pageToken}`);
+    const r = await fetchHealth(`${GRAPH}/${pageId}/leadgen_forms?fields=id&limit=1&access_token=${pageToken}`);
     const j = await r.json();
     if (r.ok && Array.isArray(j?.data)) {
       checks.push({ label: 'Đọc biểu mẫu lead', status: 'ok', detail: 'Lấy được dữ liệu lead từ form quảng cáo.' });
