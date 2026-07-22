@@ -66,7 +66,7 @@ export default async function AssignPage() {
   ] = await Promise.all([
     unassignedQuery
       .order('created_at', { ascending: false })
-      .limit(300),
+      .limit(2000),
     supabase
       .from('users')
       .select('id, full_name, showroom_id, sales_team_id, assign_share_pct, showroom:showrooms!showroom_id(name), sales_team:sales_teams!sales_team_id(name)')

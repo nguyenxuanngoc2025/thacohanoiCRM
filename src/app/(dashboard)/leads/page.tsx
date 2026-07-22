@@ -78,7 +78,7 @@ export default async function LeadsPage() {
   ] = await Promise.all([
     leadsQuery
       .order('created_at', { ascending: false })
-      .limit(300),
+      .limit(2000),
     supabase.from('models').select('id, name, brand_id').eq('is_active', true).order('sort_order'),
     supabase.from('lead_logs').select('lead_id').eq('type', 'contact'),
     supabase.from('brands').select('id, name').order('name'),

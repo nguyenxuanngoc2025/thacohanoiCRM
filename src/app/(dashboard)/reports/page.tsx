@@ -96,7 +96,7 @@ export default async function ReportsPage({
     .gte('created_at', iso(fromMs))
     .lte('created_at', iso(toMs))
     .order('created_at', { ascending: false })
-    .limit(5000);
+    .limit(20000);
 
   const leads: ReportLead[] = ((raw ?? []) as unknown as RawLead[])
     .map(mapLead)
@@ -111,7 +111,7 @@ export default async function ReportsPage({
     .gte('created_at', new Date(prevFromMs).toISOString())
     .lt('created_at', new Date(prevToMs).toISOString())
     .order('created_at', { ascending: false })
-    .limit(5000);
+    .limit(20000);
 
   const prevLeads: ReportLead[] = ((rawPrev ?? []) as unknown as RawLead[])
     .map(mapLead)
