@@ -8,14 +8,16 @@ import {
   GripVertical, Pin, History,
 } from 'lucide-react';
 import { formatPhoneDisplay } from '@/lib/phone';
-import { matchesQuery } from '@/lib/search';
 import { STATUS_OPTIONS, FAIL_REASONS, isContacted, type LeadStatus } from '@/lib/lead-status';
 import { sourceLabel, sourcePlatform, type SourceCatalog } from '@/lib/source';
 import { classifyLead, markContacted, unmarkContacted, bulkReassign, deleteLeads, setLeadModel } from './actions';
 import { isLeadOverdue } from '@/lib/overdue';
+import { type LeadsQuery, type LeadSortKey } from '@/lib/leads-query';
 import type { ModelOption, BrandOption, ShowroomOption, AssigneeOption, TeamOption } from './LeadsView';
+import { exportLeads } from './export-action';
 import LeadDrawer from './LeadDrawer';
 import NewLeadModal from './NewLeadModal';
+import TimeRangeFilter from './TimeRangeFilter';
 
 export interface LeadRow {
   id: string;
@@ -45,48 +47,9 @@ export interface LeadRow {
   b10_care_note: string | null;
 }
 
-// ─── Bộ lọc phạm vi (nâng lên LeadsView để KPI nhảy theo) ───────────────────────
-export interface Filters {
-  q: string;
-  showroom: string;
-  brand: string;
-  model: string;
-  source: string;
-  assignee: string; // '' = tất cả, '__none__' = chưa giao, còn lại = id
-  status: string;   // '' = tất cả, '__none__' = chưa phân loại, còn lại = code
-  month: string;    // '' = tất cả, 'YYYY-MM'
-  team: string;     // '' = tất cả, còn lại = tên phòng bán hàng
-}
-
-export const EMPTY_FILTERS: Filters = {
-  q: '', showroom: '', brand: '', model: '', source: '', assignee: '', status: '', month: '', team: '',
-};
-
 /** Lead quá hạn: đã giao TVBH, chưa chuyển trạng thái, hạn SLA đã trôi qua. */
 export function isOverdue(l: LeadRow): boolean {
   return isLeadOverdue(l, Date.now());
-}
-
-/** Áp các bộ lọc phạm vi (KHÔNG gồm tab/sort — phần đó nằm trong bảng). */
-export function applyScope(leads: LeadRow[], f: Filters, catalog?: SourceCatalog): LeadRow[] {
-  return leads.filter((l) => {
-    if (!matchesQuery(l.full_name, formatPhoneDisplay(l.phone), f.q)) return false;
-    if (f.showroom && l.showroom_name !== f.showroom) return false;
-    if (f.team && l.team_name !== f.team) return false;
-    if (f.brand && l.brand_name !== f.brand) return false;
-    if (f.model && l.model_name !== f.model) return false;
-    if (f.source && sourcePlatform(l.source, catalog) !== f.source) return false;
-    if (f.assignee) {
-      if (f.assignee === '__none__') { if (l.assigned_to) return false; }
-      else if (l.assigned_to !== f.assignee) return false;
-    }
-    if (f.status) {
-      if (f.status === '__none__') { if (l.status) return false; }
-      else if (l.status !== f.status) return false;
-    }
-    if (f.month && l.created_at.slice(0, 7) !== f.month) return false;
-    return true;
-  });
 }
 
 type Tab = 'all' | 'pending' | 'contacted' | 'overdue';
@@ -95,37 +58,11 @@ type ColKey =
   | 'contacted' | 'class' | 'failreason' | 'contactedAt' | 'note' | 'source' | 'next' | 'count'
   | 'b10on' | 'b10class' | 'b10note';
 
-const STATUS_ORDER: Record<string, number> = Object.fromEntries(
-  STATUS_OPTIONS.map((s, i) => [s.code, i]),
-);
-
-// Mốc thời gian (null = -1 để cuộn lên đầu khi sort tăng dần)
-const tsOrNeg = (v: string | null) => (v ? Date.parse(v) : -1);
-
-function compare(key: ColKey, a: LeadRow, b: LeadRow, catalog?: SourceCatalog): number {
-  switch (key) {
-    case 'time': return Date.parse(a.created_at) - Date.parse(b.created_at);
-    case 'name': return (a.full_name ?? '').localeCompare(b.full_name ?? '', 'vi');
-    case 'phone': return a.phone.localeCompare(b.phone);
-    case 'showroom': return (a.showroom_name ?? '').localeCompare(b.showroom_name ?? '', 'vi');
-    case 'team': return (a.team_name ?? '').localeCompare(b.team_name ?? '', 'vi');
-    case 'brand': return a.brand_name.localeCompare(b.brand_name, 'vi');
-    case 'model': return (a.model_name ?? '').localeCompare(b.model_name ?? '', 'vi');
-    case 'assignee': return (a.assignee_name ?? '').localeCompare(b.assignee_name ?? '', 'vi');
-    case 'contacted': return (isContacted(a.last_contact_at) ? 1 : 0) - (isContacted(b.last_contact_at) ? 1 : 0);
-    case 'class': return (STATUS_ORDER[a.status ?? ''] ?? 99) - (STATUS_ORDER[b.status ?? ''] ?? 99);
-    case 'failreason': return (a.fail_reason ?? '').localeCompare(b.fail_reason ?? '', 'vi');
-    case 'b10on': return (a.b10_on ? 1 : 0) - (b.b10_on ? 1 : 0);
-    case 'b10class': return (STATUS_ORDER[a.b10_status ?? ''] ?? 99) - (STATUS_ORDER[b.b10_status ?? ''] ?? 99);
-    case 'b10note': return (a.b10_care_note ?? '').localeCompare(b.b10_care_note ?? '', 'vi');
-    case 'contactedAt': return tsOrNeg(a.last_contact_at) - tsOrNeg(b.last_contact_at);
-    case 'note': return (a.last_note ?? '').localeCompare(b.last_note ?? '', 'vi');
-    case 'platform': return sourcePlatform(a.source, catalog).localeCompare(sourcePlatform(b.source, catalog), 'vi');
-    case 'source': return sourceLabel(a.source, catalog).localeCompare(sourceLabel(b.source, catalog), 'vi');
-    case 'next': return tsOrNeg(a.next_contact_at) - tsOrNeg(b.next_contact_at);
-    case 'count': return a.contact_count - b.contact_count;
-  }
-}
+// Cột nào có thể sắp xếp phía server (khớp LeadSortKey của RPC). Cột khác chỉ hiển thị.
+const SORTABLE: Partial<Record<ColKey, LeadSortKey>> = {
+  time: 'time', name: 'name', phone: 'phone', showroom: 'showroom', team: 'team',
+  brand: 'brand', model: 'model', assignee: 'assignee', class: 'class',
+};
 
 interface ColDef { key: ColKey; label: string; pad: string }
 
@@ -176,9 +113,6 @@ const fmtDate = (v: string) => new Date(v).toLocaleString('vi-VN', {
 const fmtDay = (v: string) => new Date(v).toLocaleDateString('vi-VN', {
   day: '2-digit', month: '2-digit', year: 'numeric',
 });
-
-const uniqSorted = (arr: (string | null)[]) =>
-  [...new Set(arr.filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b, 'vi'));
 
 interface Opt { value: string; label: string }
 
@@ -539,14 +473,13 @@ function StatusPicker({ lead, variant, pending, start }: {
 }
 
 export default function LeadsTable({
-  leads, allLeads, filters, setFilters, models, brands, showrooms, assignees, teams,
+  leads, query, pushQuery, models, brands, showrooms, assignees, teams,
   formBrands, formShowrooms, formTeams, fixedTeamId,
   canCreate, canAssign, canDelete, b10Enabled, isTvbh, sourceCatalog,
 }: {
   leads: LeadRow[];
-  allLeads: LeadRow[];
-  filters: Filters;
-  setFilters: React.Dispatch<React.SetStateAction<Filters>>;
+  query: LeadsQuery;
+  pushQuery: (q: LeadsQuery) => void;
   models: ModelOption[];
   brands: BrandOption[];
   showrooms: ShowroomOption[];
@@ -566,10 +499,8 @@ export default function LeadsTable({
   // Khoá lưu cấu hình cột + bộ cột ẩn mặc định khác nhau theo vai trò (TVBH gọn hơn).
   const storageKey = isTvbh ? TVBH_STORAGE_KEY : STORAGE_KEY;
   const defaultHidden = isTvbh ? TVBH_DEFAULT_HIDDEN : DEFAULT_HIDDEN;
-  const [tab, setTab] = useState<Tab>('all');
   const [showNew, setShowNew] = useState(false);
-  const [sortKey, setSortKey] = useState<ColKey | null>(null);
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [exporting, setExporting] = useState(false);
   const [pending, start] = useTransition();
   const [hidden, setHidden] = useState<Set<ColKey>>(() => new Set(defaultHidden));
   const [order, setOrder] = useState<ColKey[]>(DEFAULT_ORDER);
@@ -581,6 +512,8 @@ export default function LeadsTable({
   const [bulkAssignee, setBulkAssignee] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [filterMenu, setFilterMenu] = useState(false);
+  // Ô tìm kiếm: gõ vào state cục bộ, debounce 300ms rồi mới đẩy URL (tránh render lại mỗi ký tự).
+  const [qLocal, setQLocal] = useState(query.q);
   // Dropdown trong header render qua portal (card có overflow-hidden sẽ cắt mất nếu dùng absolute)
   const filterBtnRef = React.useRef<HTMLButtonElement>(null);
   const colBtnRef = React.useRef<HTMLButtonElement>(null);
@@ -623,6 +556,14 @@ export default function LeadsTable({
   // Bỏ chọn khi tập lead theo bộ lọc thay đổi
   useEffect(() => { setSel(new Set()); }, [leads]);
 
+  // Đồng bộ ô tìm kiếm khi URL đổi từ ngoài (điều hướng, xoá lọc).
+  useEffect(() => { setQLocal(query.q); }, [query.q]);
+  // Debounce 300ms: chỉ đẩy URL khi từ khoá thật sự khác giá trị đang áp.
+  useEffect(() => {
+    const t = setTimeout(() => { if (qLocal !== query.q) pushQuery({ ...query, q: qLocal, page: 1 }); }, 300);
+    return () => clearTimeout(t);
+  }, [qLocal]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const toggleCol = (key: ColKey) => {
     setHidden((prev) => {
       const next = new Set(prev);
@@ -647,12 +588,16 @@ export default function LeadsTable({
     });
   };
 
-  const setF = (k: keyof Filters, v: string) =>
-    setFilters((prev) => ({ ...prev, [k]: v, ...(k === 'brand' ? { model: '' } : {}) }));
+  // Đổi 1 ô lọc → đẩy URL (reset về trang 1). Đổi thương hiệu thì xoá dòng xe đang chọn.
+  const setF = (k: 'showroom' | 'brand' | 'model' | 'source' | 'assignee' | 'status' | 'team', v: string) =>
+    pushQuery({ ...query, [k]: v, ...(k === 'brand' ? { model: '' } : {}), page: 1 });
 
-  // Số bộ lọc đang bật (không tính ô tìm kiếm — nó có ô riêng).
-  const activeFilters = [filters.month, filters.showroom, filters.team, filters.brand, filters.model, filters.source, filters.assignee, filters.status].filter(Boolean).length;
-  const clearFilters = () => setFilters((prev) => ({ ...EMPTY_FILTERS, q: prev.q }));
+  // Số bộ lọc đang bật (không tính ô tìm kiếm + mốc thời gian — chúng có control riêng).
+  const activeFilters = [query.showroom, query.team, query.brand, query.model, query.source, query.assignee, query.status].filter(Boolean).length;
+  const clearFilters = () => pushQuery({
+    ...query,
+    showroom: '', team: '', brand: '', model: '', source: '', assignee: '', status: '', page: 1,
+  });
 
   // Cột sticky luôn ghim đầu theo thứ tự cố định; cột còn lại theo thứ tự người dùng kéo-thả.
   const byKey = (k: ColKey) => COLS.find((c) => c.key === k)!;
@@ -681,68 +626,51 @@ export default function LeadsTable({
     };
   };
 
-  const counts = {
-    all: leads.length,
-    pending: leads.filter((l) => !isContacted(l.last_contact_at)).length,
-    contacted: leads.filter((l) => isContacted(l.last_contact_at)).length,
-    overdue: leads.filter(isOverdue).length,
-  };
+  // Bảng render đúng 1 trang đã lọc/sắp từ server → không lọc/sắp lại ở client.
+  const rows = leads;
+  const tab = query.tab;
 
-  // ─── Tuỳ chọn cho các bộ lọc (xây từ TOÀN bộ lead, không bị thu hẹp) ──────────
-  const showroomOpts = useMemo<Opt[]>(
-    () => uniqSorted(allLeads.map((l) => l.showroom_name)).map((s) => ({ value: s, label: s })),
-    [allLeads],
-  );
-  const brandOpts = useMemo<Opt[]>(
-    () => uniqSorted(allLeads.map((l) => l.brand_name)).map((s) => ({ value: s, label: s })),
-    [allLeads],
-  );
+  // ─── Tuỳ chọn cho các bộ lọc: dựng từ CATALOG (id) — RPC lọc theo id, không theo tên ─
   // Chỉ cấp xem được nhiều phòng (showroom trở lên) mới cần lọc theo phòng — TVBH/tp_phong đã ở trong 1 phòng rồi.
   const showTeamFilter = !fixedTeamId && !isTvbh;
+  const showroomOpts = useMemo<Opt[]>(
+    () => showrooms.map((s) => ({ value: s.id, label: s.name })),
+    [showrooms],
+  );
+  const brandOpts = useMemo<Opt[]>(
+    () => brands.map((b) => ({ value: b.id, label: b.name })),
+    [brands],
+  );
   const teamOpts = useMemo<Opt[]>(
-    () => uniqSorted(allLeads.map((l) => l.team_name)).map((s) => ({ value: s, label: s })),
-    [allLeads],
+    () => teams.map((t) => ({ value: t.id, label: t.name })),
+    [teams],
   );
   const modelOpts = useMemo<Opt[]>(
-    () => uniqSorted(allLeads.filter((l) => !filters.brand || l.brand_name === filters.brand).map((l) => l.model_name))
-      .map((s) => ({ value: s, label: s })),
-    [allLeads, filters.brand],
+    () => models.filter((m) => !query.brand || m.brand_id === query.brand).map((m) => ({ value: m.id, label: m.name })),
+    [models, query.brand],
   );
   const sourceOpts = useMemo<Opt[]>(
-    () => uniqSorted(allLeads.map((l) => sourcePlatform(l.source, sourceCatalog))).map((s) => ({ value: s, label: s })),
-    [allLeads, sourceCatalog],
+    () => sourceCatalog.platforms.map((p) => ({ value: p.name, label: p.name })),
+    [sourceCatalog],
   );
-  const assigneeOpts = useMemo<Opt[]>(() => {
-    const base = assignees.map((a) => ({ value: a.id, label: a.full_name }));
-    return allLeads.some((l) => !l.assigned_to) ? [{ value: '__none__', label: 'Chưa giao' }, ...base] : base;
-  }, [assignees, allLeads]);
+  const assigneeOpts = useMemo<Opt[]>(
+    () => [{ value: '__none__', label: 'Chưa giao' }, ...assignees.map((a) => ({ value: a.id, label: a.full_name }))],
+    [assignees],
+  );
   const statusOpts = useMemo<Opt[]>(() => [
     { value: '__none__', label: 'Chưa phân loại' },
     ...STATUS_OPTIONS.map((s) => ({ value: s.code, label: `${s.code} · ${s.label}` })),
   ], []);
-  const monthOpts = useMemo<Opt[]>(() => {
-    const set = new Set(allLeads.map((l) => l.created_at.slice(0, 7)));
-    return [...set].sort().reverse().map((m) => {
-      const [y, mm] = m.split('-');
-      return { value: m, label: `Tháng ${parseInt(mm, 10)}/${y}` };
-    });
-  }, [allLeads]);
 
-  const rows = useMemo(() => {
-    const filtered = leads.filter((l) => {
-      if (tab === 'contacted' && !isContacted(l.last_contact_at)) return false;
-      if (tab === 'pending' && isContacted(l.last_contact_at)) return false;
-      if (tab === 'overdue' && !isOverdue(l)) return false;
-      return true;
-    });
-    if (!sortKey) return filtered;
-    const sorted = [...filtered].sort((a, b) => compare(sortKey, a, b, sourceCatalog));
-    return sortDir === 'asc' ? sorted : sorted.reverse();
-  }, [leads, tab, sortKey, sortDir, sourceCatalog]);
-
+  // Bấm header cột: cột đang sắp → đảo chiều; cột khác → sắp cột đó (thời gian mặc định desc, còn lại asc).
   const onSort = (key: ColKey) => {
-    if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    else { setSortKey(key); setSortDir('asc'); }
+    const sk = SORTABLE[key];
+    if (!sk) return;
+    if (query.sort === sk) {
+      pushQuery({ ...query, dir: query.dir === 'asc' ? 'desc' : 'asc', page: 1 });
+    } else {
+      pushQuery({ ...query, sort: sk, dir: sk === 'time' ? 'desc' : 'asc', page: 1 });
+    }
   };
 
   const toggleOne = (id: string) => setSel((prev) => {
@@ -771,14 +699,15 @@ export default function LeadsTable({
     });
   };
 
-  const exportCsv = () => {
+  // Dựng CSV từ MẢNG rows truyền vào (dùng cho xuất toàn bộ, không chỉ 1 trang).
+  const buildCsvAndDownload = (data: LeadRow[]) => {
     const headers = [
       'Thời gian', 'Khách hàng', 'SĐT', 'Trạng thái', 'Phân loại', 'Lý do loại',
       'Nguồn', 'Chi tiết kênh', 'Thương hiệu', 'Dòng xe', 'Showroom', 'Phòng bán hàng', 'Phụ trách',
       'Số lần LH', 'Gọi hụt', 'Hẹn gọi lại', 'Nội dung liên hệ',
     ];
     const cell = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const lines = rows.map((l) => [
+    const lines = data.map((l) => [
       fmtDate(l.created_at), l.full_name ?? '', formatPhoneDisplay(l.phone),
       isContacted(l.last_contact_at) ? 'Đã liên hệ' : 'Chưa liên hệ', l.status ?? '', l.fail_reason ?? '',
       sourcePlatform(l.source, sourceCatalog), sourceLabel(l.source, sourceCatalog), l.brand_name, l.model_name ?? '',
@@ -793,6 +722,17 @@ export default function LeadsTable({
     a.download = `leads-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  // Xuất TOÀN BỘ lead khớp bộ lọc hiện tại (không chỉ trang đang xem) — lấy qua server action.
+  const exportAll = async () => {
+    setExporting(true);
+    try {
+      const all = await exportLeads(query);
+      buildCsvAndDownload(all);
+    } finally {
+      setExporting(false);
+    }
   };
 
   const TABS: { key: Tab; label: string }[] = [
@@ -867,15 +807,15 @@ export default function LeadsTable({
         {TABS.map((t) => (
           <button
             key={t.key}
-            onClick={() => setTab(t.key)}
+            onClick={() => pushQuery({ ...query, tab: t.key, page: 1 })}
             className="text-sm rounded-full px-3 py-1 transition-colors"
             style={{
               fontWeight: tab === t.key ? 600 : 500,
-              color: tab === t.key ? (t.key === 'overdue' ? '#be123c' : 'var(--color-brand)') : (t.key === 'overdue' && counts.overdue > 0 ? '#e11d48' : '#64748b'),
+              color: tab === t.key ? (t.key === 'overdue' ? '#be123c' : 'var(--color-brand)') : '#64748b',
               background: tab === t.key ? (t.key === 'overdue' ? '#fff1f2' : '#e6f0fa') : 'transparent',
             }}
           >
-            {t.label} <span className="opacity-60">({counts[t.key]})</span>
+            {t.label}
           </button>
         ))}
 
@@ -884,12 +824,19 @@ export default function LeadsTable({
         <div className="relative flex-1 min-w-[120px] max-w-[200px]">
           <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
           <input
-            value={filters.q}
-            onChange={(e) => setF('q', e.target.value)}
+            value={qLocal}
+            onChange={(e) => setQLocal(e.target.value)}
             placeholder="Tìm tên / SĐT"
             className="text-sm border border-slate-200 rounded-lg pl-8 pr-2.5 py-1.5 outline-none focus:border-brand w-full"
           />
         </div>
+
+        <TimeRangeFilter
+          range={query.range}
+          from={query.from}
+          to={query.to}
+          onChange={(v) => pushQuery({ ...query, ...v, page: 1 })}
+        />
 
         <div className="relative">
           <button
@@ -929,16 +876,15 @@ export default function LeadsTable({
                 </div>
                 <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
                   {[
-                    { label: 'Tháng', value: filters.month, key: 'month' as const, ph: 'Tất cả tháng', opts: monthOpts },
-                    { label: 'Showroom', value: filters.showroom, key: 'showroom' as const, ph: 'Tất cả showroom', opts: showroomOpts },
+                    { label: 'Showroom', value: query.showroom, key: 'showroom' as const, ph: 'Tất cả showroom', opts: showroomOpts },
                     ...(showTeamFilter
-                      ? [{ label: 'Phòng bán hàng', value: filters.team, key: 'team' as const, ph: 'Tất cả phòng', opts: teamOpts }]
+                      ? [{ label: 'Phòng bán hàng', value: query.team, key: 'team' as const, ph: 'Tất cả phòng', opts: teamOpts }]
                       : []),
-                    { label: 'Thương hiệu', value: filters.brand, key: 'brand' as const, ph: 'Tất cả thương hiệu', opts: brandOpts },
-                    { label: 'Dòng xe', value: filters.model, key: 'model' as const, ph: 'Tất cả dòng xe', opts: modelOpts },
-                    { label: 'Nguồn', value: filters.source, key: 'source' as const, ph: 'Tất cả nguồn', opts: sourceOpts },
-                    { label: 'Phụ trách', value: filters.assignee, key: 'assignee' as const, ph: 'Tất cả phụ trách', opts: assigneeOpts },
-                    { label: 'Phân loại', value: filters.status, key: 'status' as const, ph: 'Tất cả phân loại', opts: statusOpts },
+                    { label: 'Thương hiệu', value: query.brand, key: 'brand' as const, ph: 'Tất cả thương hiệu', opts: brandOpts },
+                    { label: 'Dòng xe', value: query.model, key: 'model' as const, ph: 'Tất cả dòng xe', opts: modelOpts },
+                    { label: 'Nguồn', value: query.source, key: 'source' as const, ph: 'Tất cả nguồn', opts: sourceOpts },
+                    { label: 'Phụ trách', value: query.assignee, key: 'assignee' as const, ph: 'Tất cả phụ trách', opts: assigneeOpts },
+                    { label: 'Phân loại', value: query.status, key: 'status' as const, ph: 'Tất cả phân loại', opts: statusOpts },
                   ].map((f) => (
                     <div key={f.key} className="flex flex-col gap-1 min-w-0">
                       <span className="text-[11px] font-medium text-slate-500">{f.label}</span>
@@ -954,10 +900,11 @@ export default function LeadsTable({
 
         <div className="ml-auto flex items-center gap-2">
           <button
-            onClick={exportCsv}
-            className="inline-flex items-center gap-1.5 text-sm text-slate-600 border border-slate-200 rounded-lg px-3 py-1.5 hover:bg-slate-50"
+            onClick={exportAll}
+            disabled={exporting}
+            className="inline-flex items-center gap-1.5 text-sm text-slate-600 border border-slate-200 rounded-lg px-3 py-1.5 hover:bg-slate-50 disabled:opacity-50"
           >
-            <Download size={14} /> Xuất CSV
+            <Download size={14} /> {exporting ? 'Đang xuất…' : 'Xuất CSV'}
           </button>
           <div className="relative hidden lg:block">
             <button
@@ -1187,19 +1134,24 @@ export default function LeadsTable({
                 </th>
               )}
               {visibleCols.map((c) => {
-                const active = sortKey === c.key;
+                const sortable = SORTABLE[c.key];
+                const active = !!sortable && query.sort === sortable;
                 return (
                   <th key={c.key} className={`${c.pad} py-3 font-semibold whitespace-nowrap`} style={stickyStyle(c.key, true)}>
-                    <button
-                      onClick={() => onSort(c.key)}
-                      className="inline-flex items-center gap-1 hover:text-brand transition-colors uppercase"
-                      style={{ color: active ? 'var(--color-brand)' : undefined }}
-                    >
-                      {c.label}
-                      {active
-                        ? (sortDir === 'asc' ? <ChevronUp size={13} /> : <ChevronDown size={13} />)
-                        : <ChevronsUpDown size={12} className="opacity-30" />}
-                    </button>
+                    {sortable ? (
+                      <button
+                        onClick={() => onSort(c.key)}
+                        className="inline-flex items-center gap-1 hover:text-brand transition-colors uppercase"
+                        style={{ color: active ? 'var(--color-brand)' : undefined }}
+                      >
+                        {c.label}
+                        {active
+                          ? (query.dir === 'asc' ? <ChevronUp size={13} /> : <ChevronDown size={13} />)
+                          : <ChevronsUpDown size={12} className="opacity-30" />}
+                      </button>
+                    ) : (
+                      <span className="uppercase">{c.label}</span>
+                    )}
                   </th>
                 );
               })}
