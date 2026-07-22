@@ -35,7 +35,7 @@ export default function TimeRangeFilter({
           fontWeight: active ? 600 : 400,
         }}
       >
-        <CalendarDays size={14} /> {label}
+        <CalendarDays size={14} /> <span className={active ? 'inline' : 'hidden sm:inline'}>{label}</span>
       </button>
       {open && (
         <>

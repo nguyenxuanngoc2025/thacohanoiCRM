@@ -53,7 +53,7 @@ export function isOverdue(l: LeadRow): boolean {
   return isLeadOverdue(l, Date.now());
 }
 
-type Tab = 'all' | 'today' | 'pending' | 'contacted' | 'overdue';
+type Tab = 'all' | 'pending' | 'contacted' | 'overdue';
 type ColKey =
   | 'time' | 'name' | 'phone' | 'showroom' | 'team' | 'brand' | 'model' | 'platform' | 'assignee'
   | 'contacted' | 'class' | 'failreason' | 'contactedAt' | 'note' | 'source' | 'next' | 'count'
@@ -489,7 +489,7 @@ const SearchBox = React.memo(function SearchBox({
     return () => clearTimeout(t);
   }, [v, initial]);
   return (
-    <div className="relative w-full lg:flex-1 lg:min-w-[120px] lg:max-w-[200px]">
+    <div className="relative flex-1 min-w-0 lg:min-w-[120px] lg:max-w-[200px]">
       <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
       <input
         value={v}
@@ -756,7 +756,6 @@ export default function LeadsTable({
 
   const TABS: { key: Tab; label: string }[] = [
     { key: 'all', label: 'Tất cả' },
-    { key: 'today', label: 'Hôm nay' },
     { key: 'pending', label: 'Chưa liên hệ' },
     { key: 'contacted', label: 'Đã liên hệ' },
     { key: 'overdue', label: 'Quá hạn' },
@@ -823,7 +822,7 @@ export default function LeadsTable({
 
   return (
     <div className="h-full flex flex-col bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-      <div className="flex flex-col gap-2 px-3 sm:px-6 py-3 border-b border-slate-100 shrink-0 lg:flex-row lg:items-center lg:flex-wrap">
+      <div className="flex flex-col gap-2 px-3 sm:px-6 py-3 border-b border-slate-100 shrink-0 lg:flex-row lg:items-center lg:flex-nowrap">
         {/* Tab lọc nhanh: cuộn ngang 1 hàng trên mobile; nhập vào hàng chung ở desktop */}
         <div className="flex items-center gap-1 overflow-x-auto -mx-3 px-3 sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0 lg:overflow-visible lg:contents [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {TABS.map((t) => (
@@ -833,8 +832,8 @@ export default function LeadsTable({
               className="text-sm rounded-full px-3 py-1 transition-colors shrink-0 whitespace-nowrap"
               style={{
                 fontWeight: tab === t.key ? 600 : 500,
-                color: tab === t.key ? (t.key === 'overdue' ? '#be123c' : t.key === 'today' ? '#b45309' : 'var(--color-brand)') : '#64748b',
-                background: tab === t.key ? (t.key === 'overdue' ? '#fff1f2' : t.key === 'today' ? '#fef3c7' : '#e6f0fa') : 'transparent',
+                color: tab === t.key ? (t.key === 'overdue' ? '#be123c' : 'var(--color-brand)') : '#64748b',
+                background: tab === t.key ? (t.key === 'overdue' ? '#fff1f2' : '#e6f0fa') : 'transparent',
               }}
             >
               {t.label}
@@ -844,10 +843,9 @@ export default function LeadsTable({
 
         <div className="hidden lg:block w-px h-5 bg-slate-200 mx-1" />
 
+        {/* Công cụ: gộp tìm kiếm + lọc vào 1 hàng riêng trên mobile; nhập vào hàng chung ở desktop */}
+        <div className="flex items-center gap-2 lg:contents">
         <SearchBox initial={query.q} onSearch={(v) => pushQuery({ ...query, q: v, page: 1 })} />
-
-        {/* Công cụ: 1 hàng riêng trên mobile; nhập vào hàng chung ở desktop */}
-        <div className="flex items-center flex-wrap gap-2 lg:contents">
         <TimeRangeFilter
           range={query.range}
           from={query.from}
@@ -867,7 +865,7 @@ export default function LeadsTable({
               fontWeight: activeFilters ? 600 : 400,
             }}
           >
-            <ListFilter size={14} /> Bộ lọc
+            <ListFilter size={14} /> <span className="hidden sm:inline">Bộ lọc</span>
             {activeFilters > 0 && (
               <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] text-[11px] font-semibold text-white rounded-full px-1" style={{ background: 'var(--color-brand)' }}>
                 {activeFilters}
@@ -919,7 +917,7 @@ export default function LeadsTable({
           <button
             onClick={exportAll}
             disabled={exporting}
-            className="inline-flex items-center gap-1.5 text-sm text-slate-600 border border-slate-200 rounded-lg px-3 py-1.5 hover:bg-slate-50 disabled:opacity-50"
+            className="hidden lg:inline-flex items-center gap-1.5 text-sm text-slate-600 border border-slate-200 rounded-lg px-3 py-1.5 hover:bg-slate-50 disabled:opacity-50"
           >
             <Download size={14} /> {exporting ? 'Đang xuất…' : 'Xuất CSV'}
           </button>
