@@ -69,6 +69,14 @@ export async function POST(request: NextRequest) {
         const sids: string[] = Array.isArray(o.showroom_ids) ? (o.showroom_ids as unknown[]).filter(Boolean).map(String) : [];
         const smode = o.source_mode === 'column' ? 'column' : 'fixed';
         const mmode = o.model_mode === 'fixed' ? 'fixed' : o.model_mode === 'column' ? 'column' : 'auto';
+        // Cách chia CẤP 1 vào các showroom của tab (giống fanpage). Chỉ nhận 3 giá trị hợp lệ.
+        const strat = ['least_loaded', 'round_robin', 'weighted'].includes(String(o.showroom_assign_strategy))
+          ? String(o.showroom_assign_strategy) : 'least_loaded';
+        // % từng showroom — chỉ giữ cặp thuộc showroom của tab, ép số.
+        const rawShares = (o.showroom_shares && typeof o.showroom_shares === 'object')
+          ? (o.showroom_shares as Record<string, unknown>) : {};
+        const shares: Record<string, number> = {};
+        for (const sid of sids) shares[sid] = Number(rawShares[sid]) || 0;
         return {
           title: String(o.title ?? '').trim(),
           brand_id: o.brand_id ? String(o.brand_id) : null,
@@ -87,6 +95,8 @@ export async function POST(request: NextRequest) {
           address_col: numOrNull(o.address_col),
           address_fallback_province: o.address_col != null && o.address_col !== ''
             ? (o.address_fallback_province ? String(o.address_fallback_province).trim() : null) : null,
+          showroom_assign_strategy: strat as 'least_loaded' | 'round_robin' | 'weighted',
+          showroom_shares: shares,
         };
       })
       .filter((t) => t.title);

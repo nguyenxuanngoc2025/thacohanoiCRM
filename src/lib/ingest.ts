@@ -225,10 +225,13 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
   const withTvbh = candidateShowroomIds.filter(showroomHasTvbh);
   const showroomPool = withTvbh.length > 0 ? withTvbh : candidateShowroomIds;
 
-  // Kiểu chia cấp 1 lấy từ KÊNH; % của từng showroom lấy từ junction (mỗi kênh 1 bộ % riêng).
-  const showroomStrategy = (channel.showroom_assign_strategy ?? 'least_loaded') as AssignStrategy;
+  // Kiểu chia cấp 1: ưu tiên override từ payload (Google Sheet cấu hình từng tab), thiếu thì lấy từ KÊNH.
+  // % từng showroom: từ payload.showroom_shares nếu có, nếu không thì junction (mỗi kênh 1 bộ % riêng).
+  const showroomStrategy = (payload.showroom_assign_strategy ?? channel.showroom_assign_strategy ?? 'least_loaded') as AssignStrategy;
   const shareBySr = new Map<string, number>(
-    (junction ?? []).map((j) => [j.showroom_id, Number(j.share_pct) || 0])
+    payload.showroom_shares
+      ? Object.entries(payload.showroom_shares).map(([k, v]) => [k, Number(v) || 0])
+      : (junction ?? []).map((j) => [j.showroom_id, Number(j.share_pct) || 0])
   );
 
   // Mốc hiệu lực: chỉ đếm lead phát sinh SAU lần đổi cấu hình chia gần nhất ("hiệu lực kể từ thời điểm

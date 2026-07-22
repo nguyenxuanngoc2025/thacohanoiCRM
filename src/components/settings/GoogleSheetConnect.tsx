@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Plus, Edit2, Trash2, X, BarChart3, Eye, RefreshCw, Settings2, Check } from 'lucide-react';
-import type { ShowroomRow, BrandRow, ChannelRow, ModelRow } from './types';
+import type { ShowroomRow, BrandRow, ChannelRow, ModelRow, AssignStrategy } from './types';
 import { STATUS_LABEL } from '@/lib/lead-status';
 import { useDialogs } from '@/components/ui/dialogs';
 
@@ -34,6 +34,8 @@ interface TabForm {
   modelMode: ModelMode; modelId: string; modelCol: number | null;
   dateCol: number | null; since: string;
   addressCol: number | null; addressFallback: string;
+  // Cách chia lead CẤP 1 vào các showroom của tab + % từng showroom (giống fanpage).
+  srStrategy: AssignStrategy; srShares: Record<string, string>;
 }
 
 interface LastSync { at: string; rows: number; fresh: number; dup: number; skipped?: number; errors: string[] }
@@ -64,6 +66,7 @@ const emptyTabForm = (): TabForm => ({
   modelMode: 'auto', modelId: '', modelCol: null,
   dateCol: null, since: todayISO(),
   addressCol: null, addressFallback: '',
+  srStrategy: 'least_loaded', srShares: {},
 });
 
 export default function GoogleSheetConnect({
@@ -187,6 +190,11 @@ export default function GoogleSheetConnect({
         since: String((t.since ?? cfg.since ?? '') || ''),
         addressCol: num(t.address_col ?? cfg.address_col),
         addressFallback: String((t.address_fallback_province ?? cfg.address_fallback_province ?? '') || ''),
+        srStrategy: (['least_loaded', 'round_robin', 'weighted'].includes(String(t.showroom_assign_strategy))
+          ? String(t.showroom_assign_strategy) : 'least_loaded') as AssignStrategy,
+        srShares: Object.fromEntries(
+          Object.entries((t.showroom_shares ?? {}) as Record<string, unknown>).map(([k, v]) => [k, String(v ?? '')])
+        ),
       };
     }
     setEditingId(sheet.id);
@@ -364,6 +372,11 @@ export default function GoogleSheetConnect({
           since: f.since || null,
           address_col: f.addressCol,
           address_fallback_province: f.addressCol != null ? (f.addressFallback || null) : null,
+          // Cách chia + tỷ lệ CẤP 1 (chỉ có ý nghĩa khi tab có ≥2 showroom).
+          showroom_assign_strategy: f.srStrategy,
+          showroom_shares: f.srStrategy === 'weighted'
+            ? Object.fromEntries(f.srIds.map((id) => [id, Number(f.srShares[id]) || 0]))
+            : {},
         };
       });
       const res = await fetch('/api/admin/google-sheets', {
@@ -837,6 +850,47 @@ function TabConfigPanel({ tab, form, onField, preview, brands, models, showrooms
           </div>
         )}
       </div>
+
+      {/* 8. Cách chia lead vào showroom — chỉ hiện khi tab có ≥2 showroom (giống fanpage) */}
+      {form.srIds.length >= 2 && (
+        <div className="space-y-2">
+          <label className="block text-xs font-semibold text-slate-600">Cách chia lead vào các showroom</label>
+          <p className="text-[11px] text-slate-400">Áp dụng khi tab này giao lead cho nhiều showroom (vd cùng thị trường Hà Nội).</p>
+          <select value={form.srStrategy} onChange={(e) => onField('srStrategy', e.target.value as AssignStrategy)}
+            className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm bg-white">
+            <option value="least_loaded">Chia đều (ưu tiên nơi đang ít lead nhất)</option>
+            <option value="round_robin">Xoay vòng (lần lượt từng showroom)</option>
+            <option value="weighted">Theo tỷ lệ %</option>
+          </select>
+        </div>
+      )}
+      {form.srIds.length >= 2 && form.srStrategy === 'weighted' && (
+        <div className="rounded-lg border border-slate-200 p-3 space-y-2">
+          <div className="text-xs font-semibold text-slate-500">Tỷ lệ phân bổ cho từng showroom</div>
+          {form.srIds.map((id) => {
+            const s = showrooms.find((x) => x.id === id);
+            return (
+              <div key={id} className="flex items-center gap-2">
+                <span className="flex-1 text-sm text-slate-700 truncate">{s?.name ?? '—'}</span>
+                <input type="number" min={0} value={form.srShares[id] ?? '0'}
+                  onChange={(e) => onField('srShares', { ...form.srShares, [id]: e.target.value })}
+                  className="w-20 rounded-lg border border-slate-200 px-2 py-1.5 text-sm text-right" />
+                <span className="text-xs text-slate-400">%</span>
+              </div>
+            );
+          })}
+          {(() => {
+            const total = form.srIds.reduce((a, id) => a + (Number(form.srShares[id]) || 0), 0);
+            return (
+              <div className="text-xs">
+                Tổng:{' '}
+                <span className={total === 100 ? 'font-bold text-emerald-600' : 'font-bold text-amber-600'}>{total}%</span>
+                {total !== 100 && <span className="text-slate-400"> (nên 100%)</span>}
+              </div>
+            );
+          })()}
+        </div>
+      )}
     </div>
   );
 }

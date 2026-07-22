@@ -33,6 +33,10 @@ export interface IngestPayload {
   // không có nữa → giữ showroom_ids/kênh như cũ. Chỉ tác động khi kênh có bật cột địa chỉ.
   address_text?: string | null;
   address_fallback_province?: string | null;
+  // Ghi đè cách chia + tỷ lệ CẤP 1 (kênh→showroom) cho lead này (Google Sheet cấu hình từng tab).
+  // Khi CÓ: dùng thay cho showroom_assign_strategy/junction share_pct của channel.
+  showroom_assign_strategy?: import('@/lib/assign').AssignStrategy | null;
+  showroom_shares?: Record<string, number> | null;
   silent_dedup?: boolean; // true = không ghi lead_logs khi trùng (Google Sheet quét lại toàn bộ mỗi lần → tránh spam log)
   suppress_notify?: boolean; // true = KHÔNG đẩy thông báo Zalo (dùng khi backfill lead lịch sử — tránh spam nhóm)
   created_at_override?: string; // ISO — đặt đúng thời điểm gốc từ nguồn (backfill FB time_created) thay vì now()

@@ -2,6 +2,7 @@ import type { createServiceClient } from '@/lib/supabase/server';
 import { readSheetValues } from '@/lib/google';
 import { ingestLead } from '@/lib/ingest';
 import { isOnOrAfter } from '@/lib/sheet-date';
+import type { AssignStrategy } from '@/lib/assign';
 
 type Service = ReturnType<typeof createServiceClient>;
 
@@ -19,6 +20,8 @@ export interface TabCfg {
   date_col?: number | null; since?: string | null;
   // Định tuyến theo địa chỉ: đọc tỉnh từ 1 cột → giao về showroom của tỉnh đó.
   address_col?: number | null; address_fallback_province?: string | null;
+  // Cách chia lead vào các showroom của tab + % từng showroom (dùng khi 'weighted'). Giống fanpage.
+  showroom_assign_strategy?: AssignStrategy; showroom_shares?: Record<string, number>;
 }
 
 // Cấu hình 1 tab đã resolve xong (mọi trường bắt buộc có giá trị dùng được khi đồng bộ).
@@ -33,6 +36,7 @@ export interface ResolvedTab {
   model_mode: 'auto' | 'fixed' | 'column'; model_id: string | null; model_col: number | null;
   date_col: number | null; since: string | null;
   address_col: number | null; address_fallback_province: string | null;
+  showroom_assign_strategy: AssignStrategy; showroom_shares: Record<string, number>;
 }
 
 export interface SheetConfig {
@@ -77,6 +81,8 @@ export function resolveTabConfigs(cfg: SheetConfig): ResolvedTab[] {
     since: pick(t.since, cfg.since, null),
     address_col: pick(t.address_col, cfg.address_col, null),
     address_fallback_province: pick(t.address_fallback_province, cfg.address_fallback_province, null),
+    showroom_assign_strategy: t.showroom_assign_strategy ?? 'least_loaded',
+    showroom_shares: t.showroom_shares ?? {},
   }));
 }
 
@@ -147,6 +153,9 @@ export async function syncSheetChannel(
           intent_text: intentText,
           address_text: addressText,
           address_fallback_province: tab.address_fallback_province,
+          // Cách chia + tỷ lệ theo tab (giống fanpage) → CẤP 1 phân về showroom của tab.
+          showroom_assign_strategy: tab.showroom_assign_strategy,
+          showroom_shares: tab.showroom_shares,
           silent_dedup: true, // quét lại toàn bộ → đừng spam lead_logs khi trùng
           external_payload: { row: r, tab: tab.title || null },
         });
