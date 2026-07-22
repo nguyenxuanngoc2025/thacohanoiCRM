@@ -1,6 +1,6 @@
 import { createServiceClient } from '@/lib/supabase/server';
 import { normalizePhone } from '@/lib/phone';
-import { looksLikePersonName } from '@/lib/person-name';
+import { looksLikePersonName, isTestLead } from '@/lib/person-name';
 import { pickByStrategy, type AssignStrategy, type StrategyCandidate } from '@/lib/assign';
 import { detectModel } from '@/lib/detect-model';
 import { matchProvinceShowrooms } from '@/lib/route-province';
@@ -15,6 +15,9 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
 
   const phone = normalizePhone(payload.phone_raw);
   if (!phone) return { ok: false, reason: 'invalid_phone' };
+
+  // Lead thử nghiệm (agency/tester đặt tên "test"): VẪN lưu để không mất dấu, nhưng KHÔNG báo Zalo.
+  const testLead = isTestLead(payload.full_name);
 
   // Tra nguồn theo page_id
   const { data: channel } = await db
@@ -131,7 +134,7 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
 
       // Báo Zalo nhóm phòng đang chăm: chỉ khi lead cũ ĐÃ có phòng, không bị chặn báo,
       // hãng/showroom KHÔNG tắt (cùng cơ chế im lặng như lead mới).
-      if (!payload.suppress_notify && existing.sales_team_id) {
+      if (!payload.suppress_notify && !testLead && existing.sales_team_id) {
         const { data: sr } = await db
           .from('showrooms').select('company_id, is_active, name').eq('id', existing.showroom_id).maybeSingle();
         const openBrandIds = sr ? await getOpenBrandIds(db, sr.company_id) : [];
@@ -328,7 +331,7 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
       } else if (res.mode === 'unassigned') {
         // Chưa đặt phòng trực hôm nay → lead giữ chưa phân giao; nhắc Zalo (1 lần/ngày/showroom).
         rosterHandled = true;
-        if (!showroomClosed && !payload.suppress_notify) {
+        if (!showroomClosed && !payload.suppress_notify && !testLead) {
           const { data: dup } = await db.from('notifications').select('id')
             .eq('payload->>event', 'roster_reminder')
             .eq('payload->>showroomId', chosenShowroomId)
@@ -505,7 +508,7 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
   // phòng nào (chosenTeamId null) → không có group để báo → bỏ qua.
   // Backfill lead lịch sử: bỏ qua toàn bộ thông báo để không spam nhóm Zalo bằng lead cũ.
   // Hãng tắt (brandClosed): bỏ qua báo Zalo (lead vẫn được nhận + phân giao ở trên).
-  const { data: notifChannels } = chosenTeamId && !payload.suppress_notify && !brandClosed && !showroomClosed
+  const { data: notifChannels } = chosenTeamId && !payload.suppress_notify && !testLead && !brandClosed && !showroomClosed
     ? await db
         .from('notification_channels')
         .select('id, channel, target, events, sales_team_id, sales_team_ids, scope')

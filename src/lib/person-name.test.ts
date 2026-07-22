@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { looksLikePersonName, leadNeedsNameEnrich } from './person-name';
+import { looksLikePersonName, leadNeedsNameEnrich, isTestLead } from './person-name';
 
 describe('looksLikePersonName', () => {
   it('tên người thật → true (giữ nguyên, không tra)', () => {
@@ -29,6 +29,26 @@ describe('looksLikePersonName', () => {
     expect(looksLikePersonName('bao gia xe')).toBe(false);
     expect(looksLikePersonName('Đăng ký nhận ưu đãi')).toBe(false);
     expect(looksLikePersonName('khuyen mai thang 6')).toBe(false);
+  });
+});
+
+describe('isTestLead', () => {
+  it('tên test các kiểu → true (bỏ qua báo Zalo)', () => {
+    expect(isTestLead('test')).toBe(true);
+    expect(isTestLead('Test')).toBe(true);
+    expect(isTestLead('test 1')).toBe(true);
+    expect(isTestLead('test123')).toBe(true);
+    expect(isTestLead('lead test')).toBe(true);
+    expect(isTestLead('abc test')).toBe(true);
+    expect(isTestLead('  TEST  ')).toBe(true);
+  });
+
+  it('tên người thật / trống → false (vẫn báo bình thường)', () => {
+    expect(isTestLead('Nguyễn Văn A')).toBe(false);
+    expect(isTestLead('Đào Trọng Nhanh')).toBe(false);
+    expect(isTestLead(null)).toBe(false);
+    expect(isTestLead('')).toBe(false);
+    expect(isTestLead('Khách lẻ')).toBe(false);
   });
 });
 

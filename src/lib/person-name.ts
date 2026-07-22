@@ -26,6 +26,17 @@ export function looksLikePersonName(name: string | null | undefined): boolean {
   return true;
 }
 
+// Lead thử nghiệm: agency/tester thường đặt tên "test" (test, test 1, lead test, testabc…).
+// Dùng để BỎ QUA thông báo Zalo (vẫn lưu lead để không mất dấu). So trên chuỗi đã bỏ dấu:
+// bắt token "test" đứng đầu chuỗi hoặc sau ký tự không phải chữ (test, test1, test lead, abc test),
+// tránh dính tên người thật (tiếng Việt không có "test").
+export function isTestLead(name: string | null | undefined): boolean {
+  const raw = (name ?? '').trim();
+  if (!raw) return false;
+  const noDiac = stripDiacritics(raw.toLowerCase());
+  return /(?:^|[^a-z])test/.test(noDiac);
+}
+
 export interface NameEnrichCandidate {
   full_name: string | null;
   phone: string | null;
