@@ -15,18 +15,17 @@ export async function POST(request: NextRequest) {
   const db = createServiceClient();
   const now = new Date();
 
-  // Khoảng cách giữa 2 lần nhắc lấy từ cấu hình thời hạn liên hệ (round 1).
-  const { data: sla } = await db.from('sla_config')
-    .select('follow_up_hours').eq('round', 1).eq('is_active', true).maybeSingle();
-  const gapHours = Math.max(0, Number(sla?.follow_up_hours ?? 2));
-
-  // SLA vòng 1 THEO TỪNG CÔNG TY (cron chạy đa tenant) → suy ra mốc giao lead để tính
-  // thời gian khách đã chờ. next_contact_at = lúc giao + first_response_hours.
+  // SLA vòng 1 THEO TỪNG CÔNG TY (cron chạy đa tenant): first_response_hours suy ra mốc giao
+  // lead (next_contact_at = lúc giao + first_response), follow_up_hours = khoảng cách 2 lần nhắc.
+  // ⚠️ KHÔNG .maybeSingle() — nhiều tenant cùng round1 active → phải đọc theo MẢNG rồi map.
+  const DEFAULT_GAP_HOURS = 2;
   const { data: slaRows } = await db.from('sla_config')
-    .select('company_id, first_response_hours').eq('round', 1).eq('is_active', true);
+    .select('company_id, first_response_hours, follow_up_hours').eq('round', 1).eq('is_active', true);
   const frByCompany = new Map<string, number>();
+  const gapByCompany = new Map<string, number>();
   for (const r of slaRows ?? []) {
     frByCompany.set(r.company_id as string, Math.max(0, Number(r.first_response_hours ?? 0)));
+    gapByCompany.set(r.company_id as string, Math.max(0, Number(r.follow_up_hours ?? DEFAULT_GAP_HOURS)));
   }
 
   // Lead quá hạn (thống nhất với isLeadOverdue): ĐÃ giao TVBH + CHƯA chuyển trạng thái
@@ -47,7 +46,7 @@ export async function POST(request: NextRequest) {
     count: l.overdue_reminder_count ?? 0,
     nextContactAt: l.next_contact_at as string,
     lastNotifiedAt: l.last_overdue_notified_at as string | null,
-    gapHours,
+    gapHours: gapByCompany.get(l.company_id as string) ?? DEFAULT_GAP_HOURS,
   }, now).notify);
 
   const mapped: OverdueLead[] = due.map((l) => {
@@ -70,7 +69,7 @@ export async function POST(request: NextRequest) {
   // phân loại (lead rời truy vấn) hoặc số lần gọi hụt đạt ngưỡng MAX_NO_ANSWER.
   const { data: cbLeads } = await db
     .from('leads')
-    .select('id, sales_team_id, full_name, phone, no_answer_count, next_contact_at, last_overdue_notified_at, sales_teams(name), users!assigned_to(full_name)')
+    .select('id, company_id, sales_team_id, full_name, phone, no_answer_count, next_contact_at, last_overdue_notified_at, sales_teams(name), users!assigned_to(full_name)')
     .eq('status', 'Chưa LH được')
     .lte('next_contact_at', now.toISOString())
     .not('assigned_to', 'is', null)
@@ -81,7 +80,7 @@ export async function POST(request: NextRequest) {
     noAnswerCount: l.no_answer_count ?? 0,
     nextContactAt: l.next_contact_at as string | null,
     lastNotifiedAt: l.last_overdue_notified_at as string | null,
-    gapHours,
+    gapHours: gapByCompany.get(l.company_id as string) ?? DEFAULT_GAP_HOURS,
   }, now).notify);
 
   const cbMapped: CallbackLead[] = cbDue.map((l) => {
@@ -111,7 +110,7 @@ export async function POST(request: NextRequest) {
     createdAt: l.created_at as string,
     thresholdHours: frByCompany.get(l.company_id as string) ?? 0,
     lastNotifiedAt: l.last_overdue_notified_at as string | null,
-    gapHours,
+    gapHours: gapByCompany.get(l.company_id as string) ?? DEFAULT_GAP_HOURS,
   }, now).notify);
 
   const ucMapped: UnassignedLead[] = ucDue.map((l) => {
@@ -170,7 +169,7 @@ export async function POST(request: NextRequest) {
       count: l.overdue_reminder_count ?? 0,
       nextContactAt: l.next_contact_at as string,
       lastNotifiedAt: l.last_overdue_notified_at as string | null,
-      gapHours,
+      gapHours: gapByCompany.get(l.company_id as string) ?? DEFAULT_GAP_HOURS,
     }, now);
     await db.from('leads').update({
       overdue_reminder_count: a.nextCount, last_overdue_notified_at: now.toISOString(),
