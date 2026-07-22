@@ -686,8 +686,19 @@ function TabConfigPanel({ tab, form, onField, preview, brands, models, showrooms
   brands: BrandRow[]; models: ModelRow[]; showrooms: ShowroomRow[];
 }) {
   const brandModels = models.filter((m) => m.brand_id === form.brandId && m.is_active);
+  // Chỉ hiện showroom bán đúng thương hiệu đã chọn (UX — tránh tick nhầm showroom khác hãng).
+  const brandShowrooms = form.brandId ? showrooms.filter((s) => s.brand_ids.includes(form.brandId)) : [];
   const toggleSr = (id: string) =>
     onField('srIds', form.srIds.includes(id) ? form.srIds.filter((s) => s !== id) : [...form.srIds, id]);
+  // Đổi thương hiệu → bỏ chọn showroom không thuộc hãng mới + reset dòng xe (tránh cấu hình lệch).
+  const changeBrand = (bid: string) => {
+    onField('brandId', bid);
+    onField('modelId', '');
+    onField('srIds', form.srIds.filter((id) => {
+      const sr = showrooms.find((x) => x.id === id);
+      return !!bid && !!sr && sr.brand_ids.includes(bid);
+    }));
+  };
   // Danh sách tỉnh (khử trùng) từ showroom đã gán tỉnh — để chọn tỉnh mặc định khi định tuyến địa chỉ.
   const provinceOptions = Array.from(
     new Set(showrooms.map((s) => (s.province ?? '').trim()).filter(Boolean)),
@@ -706,7 +717,7 @@ function TabConfigPanel({ tab, form, onField, preview, brands, models, showrooms
       {/* 2. Thương hiệu */}
       <div>
         <label className="block text-xs font-semibold text-slate-600 mb-1">Thương hiệu</label>
-        <select value={form.brandId} onChange={(e) => { onField('brandId', e.target.value); onField('modelId', ''); }}
+        <select value={form.brandId} onChange={(e) => changeBrand(e.target.value)}
           className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm">
           <option value="">— chọn —</option>
           {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
@@ -798,22 +809,28 @@ function TabConfigPanel({ tab, form, onField, preview, brands, models, showrooms
         )}
       </div>
 
-      {/* 7. Showroom nhận lead */}
+      {/* 7. Showroom nhận lead — chỉ hiện showroom bán đúng thương hiệu đã chọn */}
       <div className="space-y-2">
         <label className="block text-xs font-semibold text-slate-600">Showroom nhận lead</label>
-        <div className="grid gap-1.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))' }}>
-          {showrooms.map((s) => {
-            const checked = form.srIds.includes(s.id);
-            return (
-              <label key={s.id}
-                className="flex items-center gap-2.5 px-3 py-2 rounded-lg border cursor-pointer transition-colors"
-                style={{ borderColor: checked ? 'var(--color-brand)' : '#e2e8f0', background: checked ? '#e6f0fa' : '#fff' }}>
-                <input type="checkbox" checked={checked} onChange={() => toggleSr(s.id)} className="accent-brand" />
-                <span className="text-sm font-medium text-slate-700">{s.name}</span>
-              </label>
-            );
-          })}
-        </div>
+        {!form.brandId ? (
+          <p className="text-[11px] text-amber-600">Chọn thương hiệu trước để hiện danh sách showroom.</p>
+        ) : brandShowrooms.length === 0 ? (
+          <p className="text-[11px] text-amber-600">Chưa có showroom nào bán thương hiệu này.</p>
+        ) : (
+          <div className="grid gap-1.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))' }}>
+            {brandShowrooms.map((s) => {
+              const checked = form.srIds.includes(s.id);
+              return (
+                <label key={s.id}
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-lg border cursor-pointer transition-colors"
+                  style={{ borderColor: checked ? 'var(--color-brand)' : '#e2e8f0', background: checked ? '#e6f0fa' : '#fff' }}>
+                  <input type="checkbox" checked={checked} onChange={() => toggleSr(s.id)} className="accent-brand" />
+                  <span className="text-sm font-medium text-slate-700">{s.name}</span>
+                </label>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

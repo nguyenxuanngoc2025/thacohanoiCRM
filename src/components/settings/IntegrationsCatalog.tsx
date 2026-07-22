@@ -334,6 +334,17 @@ function ChannelModal({
   const toggleShowroom = (id: string) =>
     setShowroomIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
+  // Chỉ hiện showroom bán đúng thương hiệu đã chọn (UX — tránh tick nhầm showroom khác hãng).
+  const brandShowrooms = brandId ? showrooms.filter((s) => s.brand_ids.includes(brandId)) : [];
+  // Đổi thương hiệu → bỏ chọn showroom không thuộc hãng mới (tránh cấu hình lệch).
+  const changeBrand = (bid: string) => {
+    setBrandId(bid);
+    setShowroomIds((prev) => prev.filter((id) => {
+      const sr = showrooms.find((x) => x.id === id);
+      return !!bid && !!sr && sr.brand_ids.includes(bid);
+    }));
+  };
+
   const submit = async () => {
     setError(null);
     if (!pageId.trim()) { setError(`Nhập ${idLabel}.`); return; }
@@ -384,20 +395,32 @@ function ChannelModal({
               <TextInput value={secret} onChange={(e) => setSecret(e.target.value)} placeholder={isNew ? 'Dán OA Secret Key' : '••••••••'} />
             </Field>
           )}
+          <Field label="Thương hiệu">
+            <Select value={brandId} onChange={(e) => changeBrand(e.target.value)}>
+              <option value="">— Chọn thương hiệu —</option>
+              {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </Select>
+          </Field>
           <Field label="Showroom nhận lead" hint="Tick các showroom dùng chung kênh này.">
-            <div className="space-y-1.5">
-              {showrooms.map((s) => {
-                const checked = showroomIds.includes(s.id);
-                return (
-                  <label key={s.id}
-                    className="flex items-center gap-2.5 px-3 py-2 rounded-lg border cursor-pointer transition-colors"
-                    style={{ borderColor: checked ? 'var(--color-brand)' : '#e2e8f0', background: checked ? '#e6f0fa' : '#fff' }}>
-                    <input type="checkbox" checked={checked} onChange={() => toggleShowroom(s.id)} className="accent-brand" />
-                    <span className="text-sm font-medium text-slate-700">{s.name}</span>
-                  </label>
-                );
-              })}
-            </div>
+            {!brandId ? (
+              <p className="text-[11px] text-amber-600">Chọn thương hiệu trước để hiện danh sách showroom.</p>
+            ) : brandShowrooms.length === 0 ? (
+              <p className="text-[11px] text-amber-600">Chưa có showroom nào bán thương hiệu này.</p>
+            ) : (
+              <div className="space-y-1.5">
+                {brandShowrooms.map((s) => {
+                  const checked = showroomIds.includes(s.id);
+                  return (
+                    <label key={s.id}
+                      className="flex items-center gap-2.5 px-3 py-2 rounded-lg border cursor-pointer transition-colors"
+                      style={{ borderColor: checked ? 'var(--color-brand)' : '#e2e8f0', background: checked ? '#e6f0fa' : '#fff' }}>
+                      <input type="checkbox" checked={checked} onChange={() => toggleShowroom(s.id)} className="accent-brand" />
+                      <span className="text-sm font-medium text-slate-700">{s.name}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
           </Field>
           {showroomIds.length >= 2 && (
             <Field label="Cách chia lead vào các showroom" hint="Áp dụng khi kênh này phục vụ nhiều showroom.">
@@ -436,12 +459,6 @@ function ChannelModal({
               })()}
             </div>
           )}
-          <Field label="Thương hiệu">
-            <Select value={brandId} onChange={(e) => setBrandId(e.target.value)}>
-              <option value="">— Chọn thương hiệu —</option>
-              {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-            </Select>
-          </Field>
           <Field label="Chiến dịch (tuỳ chọn)" hint="Gắn nhãn nguồn để báo cáo theo chiến dịch quảng cáo.">
             <TextInput value={campaign} onChange={(e) => setCampaign(e.target.value)} placeholder="Nhập tên chiến dịch nếu có" />
           </Field>
