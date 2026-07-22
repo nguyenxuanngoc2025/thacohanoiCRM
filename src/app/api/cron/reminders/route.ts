@@ -1,8 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { checkCronSecret } from '@/lib/cron-auth';
-import { buildOverdueMessages, buildCallbackMessages, type OverdueLead, type CallbackLead } from '@/lib/reminders';
-import { decideOverdueAction, decideCallbackReminder, MAX_NO_ANSWER } from '@/lib/overdue-escalation';
+import { buildOverdueMessages, buildCallbackMessages, buildUnassignedMessages, type OverdueLead, type CallbackLead, type UnassignedLead } from '@/lib/reminders';
+import { decideOverdueAction, decideCallbackReminder, decideUnassignedReminder, MAX_NO_ANSWER } from '@/lib/overdue-escalation';
 import { getMutedTeamIdsGlobal } from '@/lib/company-brands';
 
 export const dynamic = 'force-dynamic';
@@ -98,7 +98,36 @@ export async function POST(request: NextRequest) {
   });
   const messagesB = buildCallbackMessages(cbMapped);
 
-  const messages = [...messagesA, ...messagesB];
+  // Nhóm C: lead CHƯA giao TVBH (đã vào phòng) tồn quá hạn liên hệ lần đầu → nhắc phòng đi phân giao.
+  // Ngưỡng = first_response_hours (round1) theo công ty, mốc tính từ created_at; lặp mỗi gapHours tới khi giao.
+  const { data: ucLeads } = await db
+    .from('leads')
+    .select('id, company_id, sales_team_id, full_name, phone, created_at, last_overdue_notified_at, sales_teams(name)')
+    .is('status', null)
+    .is('assigned_to', null)
+    .not('sales_team_id', 'is', null);
+
+  const ucDue = (ucLeads ?? []).filter((l) => decideUnassignedReminder({
+    createdAt: l.created_at as string,
+    thresholdHours: frByCompany.get(l.company_id as string) ?? 0,
+    lastNotifiedAt: l.last_overdue_notified_at as string | null,
+    gapHours,
+  }, now).notify);
+
+  const ucMapped: UnassignedLead[] = ucDue.map((l) => {
+    const j = l as unknown as { sales_teams: { name: string } | null };
+    return {
+      id: l.id,
+      sales_team_id: (l.sales_team_id as string | null) ?? null,
+      team_name: j.sales_teams?.name ?? null,
+      full_name: l.full_name ?? null,
+      phone: l.phone,
+      created_at: l.created_at as string,
+    };
+  });
+  const messagesC = buildUnassignedMessages(ucMapped, now);
+
+  const messages = [...messagesA, ...messagesB, ...messagesC];
   if (messages.length === 0) return NextResponse.json({ ok: true, sent: 0 });
 
   // Phòng thuộc hãng ĐANG TẮT (cross-company) → bỏ qua nhắc hạn cho phòng đó.
@@ -149,6 +178,11 @@ export async function POST(request: NextRequest) {
   }
   // Nhóm B chỉ ghi mốc nhắc gần nhất (cổng chu kỳ lặp); số lần gọi hụt chỉ do TVBH tăng.
   for (const l of cbDue) {
+    if (!notifiedLeadIds.includes(l.id)) continue;
+    await db.from('leads').update({ last_overdue_notified_at: now.toISOString() }).eq('id', l.id);
+  }
+  // Nhóm C chỉ ghi mốc nhắc gần nhất (cổng chu kỳ lặp); KHÔNG đụng overdue_reminder_count.
+  for (const l of ucDue) {
     if (!notifiedLeadIds.includes(l.id)) continue;
     await db.from('leads').update({ last_overdue_notified_at: now.toISOString() }).eq('id', l.id);
   }
