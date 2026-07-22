@@ -77,6 +77,8 @@ export default async function AssignPage() {
     supabase
       .from('sales_teams')
       .select('id, name, showroom_id, brand_ids, tvbh_assign_strategy, showroom:showrooms!showroom_id(name)')
+      // .eq('company_id') phòng thủ 2 lớp cùng RLS migration 0057 (cô lập tenant).
+      .eq('company_id', me?.company_id ?? '')
       .order('name'),
   ]);
 

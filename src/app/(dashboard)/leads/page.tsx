@@ -82,9 +82,11 @@ export default async function LeadsPage() {
     supabase.from('models').select('id, name, brand_id').eq('is_active', true).order('sort_order'),
     supabase.from('lead_logs').select('lead_id').eq('type', 'contact'),
     supabase.from('brands').select('id, name').order('name'),
-    supabase.from('showrooms').select('id, name, is_active').order('name'),
+    // .eq('company_id') phòng thủ 2 lớp: RLS đã cô lập tenant (migration 0057), thêm filter
+    // ở query để rõ ý định + không phụ thuộc 100% vào RLS nếu sau này đổi client.
+    supabase.from('showrooms').select('id, name, is_active').eq('company_id', me?.company_id ?? '').order('name'),
     supabase.from('users').select('id, full_name, showroom_id, sales_team_id').in('role', ['tvbh', 'tn']).eq('is_active', true).order('full_name'),
-    supabase.from('sales_teams').select('id, name, showroom_id, brand_ids').order('name'),
+    supabase.from('sales_teams').select('id, name, showroom_id, brand_ids').eq('company_id', me?.company_id ?? '').order('name'),
   ]);
 
   // Đếm số lần liên hệ theo lead
