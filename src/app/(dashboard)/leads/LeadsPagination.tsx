@@ -21,7 +21,7 @@ export default function LeadsPagination({
   const to = Math.min(page * pageSize, total);
   const btn = 'h-6 min-w-6 px-1 rounded text-[13px] text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-transparent';
   return (
-    <div className="flex items-center justify-between gap-2 text-slate-600">
+    <div className="flex items-center justify-between gap-2 py-2 text-slate-600">
       <div className="flex items-center gap-2 text-xs">
         <span>Hiển thị {from}–{to} / {total} khách</span>
         <select
