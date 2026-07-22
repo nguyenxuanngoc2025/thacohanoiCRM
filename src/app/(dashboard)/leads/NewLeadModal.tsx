@@ -151,7 +151,7 @@ export default function NewLeadModal({
   return (
     <ModalPortal>
     <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90dvh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[90dvh] flex flex-col" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 shrink-0">
           <h3 className="font-bold text-slate-900 inline-flex items-center gap-2">
             <UserPlus size={18} style={{ color: 'var(--color-brand)' }} /> Thêm lead thủ công
@@ -159,7 +159,7 @@ export default function NewLeadModal({
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700"><X size={18} /></button>
         </div>
 
-        <div className="p-5 space-y-3 overflow-y-auto">
+        <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 overflow-y-auto">
           <div>
             <label className={lblCls}>Họ tên</label>
             <input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Nguyễn Văn A" className={inputCls} />
@@ -258,14 +258,14 @@ export default function NewLeadModal({
             )}
           </div>
 
-          <div>
+          <div className="sm:col-span-2">
             <label className={lblCls}>Ghi chú</label>
             <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2}
               placeholder="VD: Khách hỏi giá lăn bánh Carnival…"
               className={`${inputCls} resize-none`} />
           </div>
 
-          {error && <div className="text-sm bg-rose-50 text-rose-600 border border-rose-100 rounded-lg px-3 py-2">{error}</div>}
+          {error && <div className="sm:col-span-2 text-sm bg-rose-50 text-rose-600 border border-rose-100 rounded-lg px-3 py-2">{error}</div>}
         </div>
 
         <div className="flex justify-end gap-2 px-5 py-3.5 border-t border-slate-100 shrink-0">
