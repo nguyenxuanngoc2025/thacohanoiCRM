@@ -101,12 +101,25 @@ export async function getUserEmail(accessToken: string): Promise<string> {
   return json.email ?? '';
 }
 
+// Google API hay trả 503 UNAVAILABLE / 429 / 5xx tạm thời — Google khuyến nghị retry backoff.
+// Thử lại tối đa 3 lần (0.5s, 1s, 2s) trước khi ném lỗi để không chặn thao tác chỉ vì blip.
+async function fetchGoogle(url: string, accessToken: string): Promise<Response> {
+  const RETRY_STATUS = new Set([429, 500, 502, 503, 504]);
+  let res!: Response;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+    if (res.ok || !RETRY_STATUS.has(res.status)) return res;
+    await new Promise((r) => setTimeout(r, 500 * 2 ** attempt));
+  }
+  return res;
+}
+
 /** Liệt kê tên các tab (sheet con) trong 1 file Google Sheet. */
 export async function listSheetTabs(params: {
   accessToken: string; spreadsheetId: string;
 }): Promise<string[]> {
   const url = `${SHEETS_API}/${encodeURIComponent(params.spreadsheetId)}?fields=sheets.properties.title`;
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${params.accessToken}` } });
+  const res = await fetchGoogle(url, params.accessToken);
   if (!res.ok) {
     const detail = await res.text().catch(() => '');
     throw new Error(`list tabs failed: ${res.status} ${detail}`);
@@ -120,7 +133,7 @@ export async function readSheetValues(params: {
   accessToken: string; spreadsheetId: string; range: string;
 }): Promise<string[][]> {
   const url = `${SHEETS_API}/${encodeURIComponent(params.spreadsheetId)}/values/${encodeURIComponent(params.range)}?majorDimension=ROWS`;
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${params.accessToken}` } });
+  const res = await fetchGoogle(url, params.accessToken);
   if (!res.ok) {
     const detail = await res.text().catch(() => '');
     throw new Error(`read sheet failed: ${res.status} ${detail}`);

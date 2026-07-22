@@ -196,11 +196,16 @@ export default function GoogleSheetConnect({
     setTabForms(forms);
     setOpenTab(null);
     setPreviewByTab({});
+    // Hiện ngay các tab đã lưu để bảng Sửa mở được kể cả khi Google tạm lỗi (503) —
+    // vẫn sửa được thương hiệu/showroom/nguồn (không cần Google). Sau đó thử lấy list sống để bổ sung.
+    setTabs(titles);
     setMsg(null); setBusy(true);
     try {
       const list = await fetchTabList(sheet.page_id ?? '');
-      setTabs(list);
-    } catch (e) { setMsg(e instanceof Error ? e.message : 'Lỗi'); } finally { setBusy(false); }
+      if (list.length > 0) setTabs(list);
+    } catch (e) {
+      setMsg(`${e instanceof Error ? e.message : 'Lỗi'} — vẫn sửa được thương hiệu/showroom; phần cột & xem trước cần Google, thử lại sau.`);
+    } finally { setBusy(false); }
   };
 
   const del = async (sheet: ChannelRow) => {
