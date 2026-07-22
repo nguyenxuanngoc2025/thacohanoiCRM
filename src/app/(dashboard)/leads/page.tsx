@@ -7,37 +7,15 @@ import { resolveCreatorScope } from '@/lib/lead-scope';
 import { loadSourceCatalog } from '@/lib/source-catalog';
 import { getTenant } from '@/lib/tenant';
 import { type UserRole } from '@/types/database';
+import {
+  parseLeadsQuery, splitQuery, platformToSources, presetRange, clampPage, PAGE_SIZE,
+} from '@/lib/leads-query';
 
 export const dynamic = 'force-dynamic';
 
-interface RawLead {
-  id: string;
-  full_name: string | null;
-  phone: string;
-  source: string | null;
-  status: LeadRow['status'];
-  created_at: string;
-  last_contact_at: string | null;
-  next_contact_at: string | null;
-  last_note: string | null;
-  fail_reason: string | null;
-  no_answer_count: number | null;
-  b10_status: LeadRow['b10_status'];
-  b10_synced_at: string | null;
-  b10_care_note: string | null;
-  brand_id: string;
-  model_id: string | null;
-  showroom_id: string | null;
-  sales_team_id: string | null;
-  assigned_to: string | null;
-  brand: { name: string } | null;
-  model: { name: string } | null;
-  showroom: { name: string } | null;
-  sales_team: { name: string } | null;
-  assignee: { full_name: string } | null;
-}
-
-export default async function LeadsPage() {
+export default async function LeadsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const sp = await searchParams;
+  const query = parseLeadsQuery(sp);
   const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -60,27 +38,14 @@ export default async function LeadsPage() {
   // Showroom đang TẮT của công ty → ẩn lead + option showroom/phòng của nó (mirror hãng đóng).
   const inactiveSrIds = new Set(await getInactiveShowroomIds(supabase, me?.company_id ?? null));
 
-  let leadsQuery = supabase
-    .from('leads')
-    .select(
-      'id, full_name, phone, source, status, created_at, last_contact_at, next_contact_at, last_note, fail_reason, no_answer_count, b10_status, b10_synced_at, b10_care_note, brand_id, model_id, showroom_id, sales_team_id, assigned_to, brand:brands(name), model:models(name), showroom:showrooms(name), sales_team:sales_teams(name), assignee:users!assigned_to(full_name)',
-    );
-  if (openBrandIds.length) leadsQuery = leadsQuery.in('brand_id', openBrandIds);
-
   const [
-    { data: rawLeads },
     { data: rawModels },
-    { data: contactLogs },
     { data: rawBrands },
     { data: rawShowrooms },
     { data: rawAssignees },
     { data: rawTeams },
   ] = await Promise.all([
-    leadsQuery
-      .order('created_at', { ascending: false })
-      .limit(2000),
     supabase.from('models').select('id, name, brand_id').eq('is_active', true).order('sort_order'),
-    supabase.from('lead_logs').select('lead_id').eq('type', 'contact'),
     supabase.from('brands').select('id, name').order('name'),
     // .eq('company_id') phòng thủ 2 lớp: RLS đã cô lập tenant (migration 0057), thêm filter
     // ở query để rõ ý định + không phụ thuộc 100% vào RLS nếu sau này đổi client.
@@ -89,39 +54,47 @@ export default async function LeadsPage() {
     supabase.from('sales_teams').select('id, name, showroom_id, brand_ids').eq('company_id', me?.company_id ?? '').order('name'),
   ]);
 
-  // Đếm số lần liên hệ theo lead
-  const contactCount: Record<string, number> = {};
-  for (const r of (contactLogs ?? []) as { lead_id: string }[]) {
-    contactCount[r.lead_id] = (contactCount[r.lead_id] ?? 0) + 1;
-  }
+  // Danh mục nguồn (map platform ↔ value) — cần trước khi gọi RPC để dịch bộ lọc nguồn.
+  const sourceCatalog = await loadSourceCatalog(supabase);
 
-  const leads: LeadRow[] = ((rawLeads ?? []) as unknown as RawLead[]).map((l) => ({
-    id: l.id,
-    full_name: l.full_name,
-    phone: l.phone,
-    source: l.source,
-    status: l.status,
-    created_at: l.created_at,
-    last_contact_at: l.last_contact_at,
-    next_contact_at: l.next_contact_at,
-    last_note: l.last_note,
-    fail_reason: l.fail_reason,
-    no_answer_count: l.no_answer_count ?? 0,
-    b10_status: l.b10_status,
-    b10_on: l.b10_synced_at != null,
-    b10_care_note: l.b10_care_note,
-    brand_id: l.brand_id,
-    brand_name: l.brand?.name ?? '—',
-    model_id: l.model_id,
-    model_name: l.model?.name ?? null,
-    showroom_id: l.showroom_id,
-    showroom_name: l.showroom?.name ?? null,
-    sales_team_id: l.sales_team_id,
-    team_name: l.sales_team?.name ?? null,
-    assigned_to: l.assigned_to,
-    assignee_name: l.assignee?.full_name ?? null,
-    contact_count: contactCount[l.id] ?? 0,
-  })).filter((l) => !inactiveSrIds.has(String(l.showroom_id ?? '')));
+  // Lọc/tìm/sắp/tab/phân trang đẩy hết xuống RPC (RLS tự áp scope theo vai trò).
+  const rangeMs = presetRange(query.range, Date.now(), query.from, query.to);
+  const { digits, text } = splitQuery(query.q);
+  const sources = platformToSources(query.source, sourceCatalog);
+
+  const { data: rpc, error: rpcErr } = await supabase.rpc('leads_search_page', {
+    p_from: rangeMs ? new Date(rangeMs.fromMs).toISOString() : null,
+    p_to: rangeMs ? new Date(rangeMs.toMs).toISOString() : null,
+    p_showroom: query.showroom || null,
+    p_brand: query.brand || null,
+    p_model: query.model || null,
+    p_sources: sources,
+    p_assignee: query.assignee && query.assignee !== '__none__' ? query.assignee : null,
+    p_assignee_none: query.assignee === '__none__',
+    p_status: query.status && query.status !== '__none__' ? query.status : null,
+    p_status_none: query.status === '__none__',
+    p_team: query.team || null,
+    p_tab: query.tab,
+    p_q_digits: digits,
+    p_q_text: text,
+    p_open_brands: openBrandIds.length ? openBrandIds : null,
+    p_inactive_showrooms: [...inactiveSrIds],
+    p_sort: query.sort,
+    p_dir: query.dir,
+    p_limit: PAGE_SIZE,
+    p_offset: (query.page - 1) * PAGE_SIZE,
+    p_b10: b10Enabled,
+  });
+  if (rpcErr) throw new Error(rpcErr.message);
+
+  const result = (rpc ?? { rows: [], total_count: 0, stats: {} }) as {
+    rows: LeadRow[];
+    total_count: number;
+    stats: { total: number; contacted: number; pending: number; rate: number; gdtd: number; b10: number };
+  };
+  const leads: LeadRow[] = result.rows ?? [];
+  const total = result.total_count ?? 0;
+  const page = clampPage(query.page, total);
 
   // Dropdown tạo/sửa lead: chỉ hiện hãng đang mở (ẩn dòng xe/hãng/phòng của hãng đã tắt).
   const brandClosed = (bid: string | null | undefined) => isBrandClosed(openBrandIds, bid ?? null);
@@ -156,12 +129,15 @@ export default async function LeadsPage() {
     && (!fixedTeamId || t.id === fixedTeamId),
   );
 
-  const sourceCatalog = await loadSourceCatalog(supabase);
-
   return (
     <LeadsView
       sourceCatalog={sourceCatalog}
       leads={leads}
+      total={total}
+      page={page}
+      pageSize={PAGE_SIZE}
+      stats={result.stats}
+      query={query}
       models={models}
       brands={brands}
       showrooms={showrooms}
