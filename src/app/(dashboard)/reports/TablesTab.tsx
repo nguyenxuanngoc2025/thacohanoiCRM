@@ -18,13 +18,13 @@ interface MetricCol { key: MetricKey; label: string; pct?: boolean; tone?: strin
 // Cột bám đúng phễu phân loại khách hàng: Đã LH → KHQT → GDTD → KHĐ → Loại.
 const METRICS: MetricCol[] = [
   { key: 'leads', label: 'Lead' },
-  { key: 'share', label: 'Tỉ trọng', pct: true },
+  { key: 'share', label: 'Tỷ trọng lead', pct: true },
   { key: 'contacted', label: 'Đã LH' },
   { key: 'contactRate', label: 'Tỉ lệ LH', pct: true },
   { key: 'interested', label: 'KHQT', tone: '#1d4ed8' },
   { key: 'following', label: 'GDTD', tone: '#b45309' },
   { key: 'won', label: 'KHĐ', tone: '#047857' },
-  { key: 'winRate', label: 'Tỉ lệ chốt', pct: true, tone: '#047857' },
+  { key: 'winRate', label: 'Tỷ lệ ký HĐ', pct: true, tone: '#047857' },
   { key: 'fail', label: 'Loại', tone: '#be123c' },
   { key: 'failRate', label: 'Tỉ lệ loại', pct: true, tone: '#be123c' },
   { key: 'overdue', label: 'Quá hạn', tone: '#be123c' },

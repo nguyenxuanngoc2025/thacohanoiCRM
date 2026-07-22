@@ -35,8 +35,8 @@ describe('buildSampleReport — tin TUẦN/THÁNG', () => {
     expect(s[0].label).toContain('phòng bán hàng');
     const all = s.map((x) => x.text).join('\n');
     expect(all).toContain('TUẦN 13/07–19/07');
-    expect(all).toContain('Phễu chốt');
-    expect(all).toContain('Tỷ lệ chốt');
+    expect(all).toContain('Phễu bán hàng');
+    expect(all).toContain('Tỷ lệ ký HĐ');
     expect(all).toContain('Kỳ trước');
     expect(all).not.toContain('Quá hạn');
     expect(all).not.toContain('Chưa tuân thủ');

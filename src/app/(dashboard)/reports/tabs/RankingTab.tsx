@@ -52,9 +52,9 @@ export default function RankingTab({
       { header: 'Tổng lead', value: (r) => r.leads },
       ...(showContacted ? [{ header: 'Đã LH', value: (r: RankedWithIndex) => r.contacted }] : []),
       { header: 'KHĐ', value: (r) => r.won },
-      { header: 'Tỉ lệ chốt (%)', value: (r) => r.winRate },
+      { header: 'Tỷ lệ ký HĐ (%)', value: (r) => r.winRate },
       { header: 'Quá hạn', value: (r) => r.overdue },
-      { header: 'Δ%chốt', value: (r) => r.winRateDelta },
+      { header: 'Δ% ký HĐ', value: (r) => r.winRateDelta },
     ];
     exportXlsx('xep-hang', [tableSheet(dimLabel, cols, rankedWithIndex)]);
   };
@@ -84,9 +84,9 @@ export default function RankingTab({
                 <th className="py-2 px-3 text-right">Tổng lead</th>
                 {showContacted && <th className="py-2 px-3 text-right">Đã LH</th>}
                 <th className="py-2 px-3 text-right" style={{ color: '#047857' }}>KHĐ</th>
-                <th className="py-2 px-3 text-right" style={{ color: '#047857' }}>%chốt</th>
+                <th className="py-2 px-3 text-right" style={{ color: '#047857' }}>% ký HĐ</th>
                 <th className="py-2 px-3 text-right" style={{ color: '#be123c' }}>Quá hạn</th>
-                <th className="py-2 px-3 text-right">Δ%chốt</th>
+                <th className="py-2 px-3 text-right">Δ% ký HĐ</th>
               </tr>
             </thead>
             <tbody>
@@ -184,7 +184,7 @@ export default function RankingTab({
                   <CardStat label="Tổng lead" value={fmt(r.leads)} />
                   {showContacted && <CardStat label="Đã LH" value={fmt(r.contacted)} color={r.contacted === 0 ? '#cbd5e1' : '#1d4ed8'} />}
                   <CardStat label="KHĐ" value={fmt(r.won)} color={r.won === 0 ? '#cbd5e1' : '#047857'} />
-                  <CardStat label="%chốt" value={`${r.winRate.toFixed(1)}%`} color={r.winRate === 0 ? '#cbd5e1' : '#047857'} />
+                  <CardStat label="% ký HĐ" value={`${r.winRate.toFixed(1)}%`} color={r.winRate === 0 ? '#cbd5e1' : '#047857'} />
                   <CardStat label="Quá hạn" value={fmt(r.overdue)} color={r.overdue === 0 ? '#cbd5e1' : '#be123c'} />
                 </div>
               </div>
@@ -196,7 +196,7 @@ export default function RankingTab({
               <CardStat label="Tổng lead" value={fmt(totals.total)} />
               {showContacted && <CardStat label="Đã LH" value={fmt(totals.contacted)} color="#1d4ed8" />}
               <CardStat label="KHĐ" value={fmt(totals.won)} color="#047857" />
-              <CardStat label="%chốt" value={`${totals.winRate}%`} color="#047857" />
+              <CardStat label="% ký HĐ" value={`${totals.winRate}%`} color="#047857" />
               <CardStat label="Quá hạn" value={fmt(totals.overdue)} color="#be123c" />
             </div>
           </div>

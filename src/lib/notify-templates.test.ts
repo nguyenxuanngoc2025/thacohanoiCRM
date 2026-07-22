@@ -227,17 +227,26 @@ describe('notify-templates', () => {
     expect(t).toContain('Vào hệ thống');        // lời nhắc hành động
   });
 
-  it('renderOverdue: nhiều lead → tin ngắn, chỉ nêu top, phần dư gói "… và N lead khác"', () => {
+  it('renderOverdue: liệt kê đầy đủ tới ngưỡng 30, gấp nhất trước, dư mới gói "… và N lead khác"', () => {
     const items = Array.from({ length: 92 }, (_, i) => ({
       fullName: `KH ${i}`, phone: '+84901234567', assignee: 'B', overdueMinutes: (i + 1) * 60,
     }));
     const t = renderOverdue('KIA Hà Nội', items);
     expect(t).toContain('Tổng <b>92</b> lead');     // số liệu tổng đúng
     const lineCount = t.split('\n').filter((l) => l.startsWith('•')).length;
-    expect(lineCount).toBeLessThanOrEqual(3);         // chỉ nêu top 3 lead gấp nhất
-    expect(t).toContain('… và 89 lead khác.');        // phần dư gói gọn
-    expect(t).toContain('92 giờ');                    // top nêu lead chờ lâu nhất
-    expect(t.length).toBeLessThan(600);               // tin gọn, dễ đọc
+    expect(lineCount).toBe(30);                        // liệt kê tới ngưỡng an toàn 30
+    expect(t).toContain('… và 62 lead khác.');        // phần dư (92-30) gói gọn
+    expect(t).toContain('92 giờ');                    // gấp nhất (chờ lâu nhất) nêu đầu tiên
+  });
+
+  it('renderOverdue: ít hơn ngưỡng → liệt kê hết, KHÔNG có dòng "… và N khác"', () => {
+    const items = Array.from({ length: 8 }, (_, i) => ({
+      fullName: `KH ${i}`, phone: '+84901234567', assignee: null, overdueMinutes: (i + 1) * 60,
+    }));
+    const t = renderOverdue('KIA Hà Nội', items);
+    const lineCount = t.split('\n').filter((l) => l.startsWith('•')).length;
+    expect(lineCount).toBe(8);                         // liệt kê toàn bộ 8 KH
+    expect(t).not.toContain('lead khác.');            // không dư → không gói
   });
 
   it('renderCallbackReminder: nhắc gọi lại, nêu số lần gọi hụt, SĐT che, tinh tế', () => {

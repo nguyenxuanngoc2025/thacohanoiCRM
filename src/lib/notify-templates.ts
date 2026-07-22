@@ -181,9 +181,11 @@ function formatDuration(mins: number): string {
   return r === 0 ? `${h} giờ` : `${h} giờ ${r} phút`;
 }
 
-// Chỉ nêu vài lead gấp nhất; phần còn lại gói gọn vào số liệu — tin ngắn, dễ đọc,
-// không bị Zalo từ chối vì quá dài, và đủ thông điệp để nhóm hành động ngay.
+// Callback: chỉ nêu vài khách gọi hụt nhiều nhất để tin gọn.
 const OVERDUE_TOP = 3;
+// Quá hạn: LIỆT KÊ đầy đủ danh sách KH quá hạn trong 1 tin (gom theo phòng), gấp nhất
+// lên trước. Có ngưỡng an toàn kẻo tin quá dài bị Zalo từ chối; dư mới gói "… và N khác".
+const OVERDUE_LIST_MAX = 30;
 
 export function renderOverdue(showroom: string, items: OverdueItem[]): string {
   const total = items.length;
@@ -191,24 +193,24 @@ export function renderOverdue(showroom: string, items: OverdueItem[]): string {
   const assigned = total - unassigned;
   const maxOverdue = items.reduce((m, it) => Math.max(m, it.overdueMinutes), 0);
 
-  // Top lead gấp nhất (chờ lâu nhất) để nêu đích danh, còn lại quy về số liệu.
-  const top = [...items]
+  // Liệt kê toàn bộ KH quá hạn (gấp nhất — chờ lâu nhất — lên trước), tới ngưỡng an toàn.
+  const listed = [...items]
     .sort((a, b) => b.overdueMinutes - a.overdueMinutes)
-    .slice(0, OVERDUE_TOP)
+    .slice(0, OVERDUE_LIST_MAX)
     .map((it) => {
       const ten = it.fullName?.trim() || 'Khách lẻ';
       const tvbh = it.assignee?.trim() || 'chưa phân giao';
       return `• ${ten} ${maskPhone(it.phone)} — ${tvbh} — ${formatDuration(it.overdueMinutes)}`;
     });
-  const remaining = total - top.length;
+  const remaining = total - listed.length;
 
   const lines = [
     `<b>QUÁ HẠN LIÊN HỆ — ${showroom}</b>`,
     `Tổng <b>${total}</b> lead · Chưa phân giao ${unassigned} · Đã giao ${assigned}`,
     `Quá hạn lâu nhất: ${formatDuration(maxOverdue)}`,
     '',
-    'Ưu tiên xử lý:',
-    ...top,
+    'Danh sách KH quá hạn (gấp nhất trước):',
+    ...listed,
   ];
   if (remaining > 0) lines.push(`… và ${remaining} lead khác.`);
   lines.push('Vào hệ thống để phân giao và liên hệ ngay.');
@@ -367,13 +369,13 @@ function renderPeriodScopedStats(cur: DailySrStats, prev: DailySrStats, brands: 
   const lines = [
     `Tổng lead: <b>${cur.total}</b> (${deltaStr(cur.total, prev.total)} so kỳ trước)`,
     `Đã liên hệ: ${cur.contacted} (${pct(cur.contacted, cur.total)}%)`,
-    `Phễu chốt: KHQT ${cur.KHQT} → Đàm phán ${cur.GDTD} → Ký HĐ <b>${cur.KyHD}</b>`,
-    `Tỷ lệ chốt: <b>${winRate}%</b> · Đã loại: ${cur.Fail}`,
+    `Phễu bán hàng: KHQT ${cur.KHQT} → Đàm phán ${cur.GDTD} → Ký HĐ <b>${cur.KyHD}</b>`,
+    `Tỷ lệ ký HĐ: <b>${winRate}%</b> · Đã loại: ${cur.Fail}`,
   ];
   if (brands.length > 0) {
     lines.push(byModel ? 'Chi tiết theo dòng xe:' : 'Chi tiết theo thương hiệu:');
     for (const b of brands) {
-      lines.push(`· ${b.name}: ${b.stats.total} lead · Ký HĐ ${b.stats.KyHD} · chốt ${pct(b.stats.KyHD, b.stats.total)}%`);
+      lines.push(`· ${b.name}: ${b.stats.total} lead · Ký HĐ ${b.stats.KyHD} (${pct(b.stats.KyHD, b.stats.total)}%)`);
     }
   }
   return lines;
@@ -381,7 +383,7 @@ function renderPeriodScopedStats(cur: DailySrStats, prev: DailySrStats, brands: 
 
 // Dòng chốt "Kỳ trước" — nhắc lại số kỳ liền trước để đối chiếu nhanh.
 function renderPrevFoot(prevLabel: string, prev: DailySrStats): string {
-  return `—— Kỳ trước (${prevLabel}): ${prev.total} lead · Ký HĐ ${prev.KyHD} · chốt ${pct(prev.KyHD, prev.total)}%`;
+  return `—— Kỳ trước (${prevLabel}): ${prev.total} lead · Ký HĐ ${prev.KyHD} (${pct(prev.KyHD, prev.total)}%)`;
 }
 
 // Báo cáo TUẦN/THÁNG của 1 showroom (gửi nhóm BLĐ showroom). dateLabel/prevLabel đã gồm từ chỉ kỳ.
@@ -452,11 +454,11 @@ export function renderPeriodMgmt(
 ): string {
   const winRate = pct(curTotals.KyHD, curTotals.total);
   const head = `<b>BÁO CÁO ${dateLabel} — TỔNG HỢP BLĐ</b>`;
-  const totalLine = `TỔNG: <b>${curTotals.total}</b> lead (${deltaStr(curTotals.total, prevTotals.total)}) · Ký HĐ <b>${curTotals.KyHD}</b> (${deltaStr(curTotals.KyHD, prevTotals.KyHD)}) · Tỷ lệ chốt ${winRate}%`;
+  const totalLine = `TỔNG: <b>${curTotals.total}</b> lead (${deltaStr(curTotals.total, prevTotals.total)}) · Ký HĐ <b>${curTotals.KyHD}</b> (${deltaStr(curTotals.KyHD, prevTotals.KyHD)}) · Tỷ lệ ký HĐ ${winRate}%`;
   const contactLine = `Đã liên hệ ${curTotals.contacted} (${pct(curTotals.contacted, curTotals.total)}%) · KHQT ${curTotals.KHQT} · Đàm phán ${curTotals.GDTD}`;
   const sorted = [...rows].sort((a, b) => b.cur.KyHD - a.cur.KyHD || b.cur.total - a.cur.total);
   const body = sorted.map((r, i) =>
-    `${i + 1}. ${r.showroom}: ${r.cur.total} lead · Ký HĐ ${r.cur.KyHD} · chốt ${pct(r.cur.KyHD, r.cur.total)}%`);
+    `${i + 1}. ${r.showroom}: ${r.cur.total} lead · Ký HĐ ${r.cur.KyHD} (${pct(r.cur.KyHD, r.cur.total)}%)`);
   const foot = `—— Kỳ trước (${prevLabel}): ${prevTotals.total} lead · Ký HĐ ${prevTotals.KyHD}`;
   return [head, totalLine, contactLine, '———', 'Xếp hạng showroom (theo Ký HĐ):', ...body, foot].join('\n');
 }

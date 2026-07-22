@@ -160,7 +160,7 @@ export default function ReportsView({
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-slate-900">Báo cáo</h1>
-          <p className="text-sm text-slate-400 mt-0.5">Phân tích hiệu quả lead theo kênh & tỉ lệ chốt</p>
+          <p className="text-sm text-slate-400 mt-0.5">Phân tích hiệu quả lead theo kênh & tỷ lệ ký HĐ</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {hasFilter && (
