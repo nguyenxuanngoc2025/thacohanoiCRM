@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import LeadsTable, { type LeadRow, type Filters, EMPTY_FILTERS, applyScope } from './LeadsTable';
+import LeadsTable, { type LeadRow } from './LeadsTable';
+import LeadsPagination from './LeadsPagination';
 import type { SourceCatalog } from '@/lib/source';
-import { isContacted } from '@/lib/lead-status';
+import { type LeadsQuery, queryToSearchParams } from '@/lib/leads-query';
 import { createClient } from '@/lib/supabase/client';
 
 export interface StatCard {
@@ -27,11 +28,17 @@ export interface TeamOption { id: string; name: string; showroom_id: string; bra
 const THRESHOLD = 140; // px cuộn trong bảng để thu hết card
 
 export default function LeadsView({
-  leads, models, brands, showrooms, assignees, teams,
+  leads, total, page, pageSize, stats, query,
+  models, brands, showrooms, assignees, teams,
   formBrands, formShowrooms, formTeams, fixedTeamId,
   canCreate, canAssign, canDelete, b10Enabled, isTvbh, sourceCatalog,
 }: {
   leads: LeadRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+  stats: { total: number; contacted: number; pending: number; rate: number; gdtd: number; b10: number };
+  query: LeadsQuery;
   models: ModelOption[];
   brands: BrandOption[];
   showrooms: ShowroomOption[];
@@ -52,7 +59,12 @@ export default function LeadsView({
   const router = useRouter();
   const rootRef = useRef<HTMLDivElement>(null);
   const cardsRef = useRef<HTMLDivElement>(null);
-  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
+
+  // Điều hướng: đổi query → đẩy URL (server render lại theo bộ lọc/trang mới). Giữ scroll.
+  const pushQuery = (next: LeadsQuery) => {
+    const qs = queryToSearchParams(next).toString();
+    router.push(qs ? `/leads?${qs}` : '/leads', { scroll: false });
+  };
 
   // Realtime: có lead mới/đổi → tự lấy lại dữ liệu (bỏ F5). Debounce để gộp nhiều thay đổi
   // liên tiếp thành 1 lần refresh, giữ nguyên bộ lọc (state client không mất). RLS đã gác:
@@ -74,27 +86,18 @@ export default function LeadsView({
     };
   }, [router]);
 
-  // Tập lead theo bộ lọc phạm vi → KPI cards tính từ đây để "nhảy" theo filter.
-  const scoped = useMemo(() => applyScope(leads, filters, sourceCatalog), [leads, filters, sourceCatalog]);
-
+  // KPI cards đọc thẳng từ stats server (tính trên TOÀN bộ tập khớp bộ lọc, không chỉ 1 trang).
   const cards = useMemo<StatCard[]>(() => {
-    const total = scoped.length;
-    const contacted = scoped.filter((l) => isContacted(l.last_contact_at)).length;
-    const pending = total - contacted;
-    const rate = total ? Math.round((contacted / total) * 100) : 0;
-    const gdtd = scoped.filter((l) => l.status === 'GDTD').length;
     const list: StatCard[] = [
-      { label: 'Tổng lead', value: total, accent: true },
-      { label: 'Chưa liên hệ', value: pending },
-      { label: 'Đã liên hệ', value: contacted },
-      { label: 'Tỷ lệ liên hệ', value: `${rate}%` },
-      { label: 'GDTD', value: gdtd },
+      { label: 'Tổng lead', value: stats.total, accent: true },
+      { label: 'Chưa liên hệ', value: stats.pending },
+      { label: 'Đã liên hệ', value: stats.contacted },
+      { label: 'Tỷ lệ liên hệ', value: `${stats.rate}%` },
+      { label: 'GDTD', value: stats.gdtd },
     ];
-    if (b10Enabled) {
-      list.push({ label: 'Đã lên B10', value: scoped.filter((l) => l.b10_on).length });
-    }
+    if (b10Enabled) list.push({ label: 'Đã lên B10', value: stats.b10 });
     return list;
-  }, [scoped, b10Enabled]);
+  }, [stats, b10Enabled]);
 
   useEffect(() => {
     const scroller = rootRef.current?.querySelector<HTMLElement>('[data-table-scroll]');
@@ -151,10 +154,9 @@ export default function LeadsView({
 
       <div className="flex-1 min-h-0">
         <LeadsTable
-          leads={scoped}
-          allLeads={leads}
-          filters={filters}
-          setFilters={setFilters}
+          leads={leads}
+          query={query}
+          pushQuery={pushQuery}
           models={models}
           brands={brands}
           showrooms={showrooms}
@@ -172,6 +174,12 @@ export default function LeadsView({
           sourceCatalog={sourceCatalog}
         />
       </div>
+      <LeadsPagination
+        page={page}
+        total={total}
+        pageSize={pageSize}
+        onGo={(p) => pushQuery({ ...query, page: p })}
+      />
     </div>
   );
 }
