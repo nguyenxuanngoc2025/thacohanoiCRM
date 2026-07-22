@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useRef, useTransition } from 'react';
 import { X, PhoneCall, RefreshCw, Clock, Save, Pencil, Check, History } from 'lucide-react';
-import { formatPhoneDisplay } from '@/lib/phone';
 import { type SourceCatalog } from '@/lib/source';
 import { planDrawerSave, isDrawerDirty, type DrawerBaseline } from '@/lib/lead-drawer-save';
 import { STATUS_OPTIONS, FAIL_REASONS, type LeadStatus } from '@/lib/lead-status';
@@ -10,6 +9,7 @@ import { updateLead, reassignLead, reassignTeam, renameLead, setLeadSource, getL
 import type { LeadRow } from './LeadsTable';
 import type { ModelOption, AssigneeOption, TeamOption } from './LeadsView';
 import ModalPortal from '@/components/ui/ModalPortal';
+import PhoneActions from './PhoneActions';
 
 const fmtDate = (v: string) => new Date(v).toLocaleString('vi-VN', {
   day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
@@ -226,7 +226,7 @@ export default function LeadDrawer({
                 </button>
               </div>
             )}
-            <div className="text-sm text-slate-500 mt-0.5">{formatPhoneDisplay(lead.phone)}</div>
+            <div className="mt-0.5"><PhoneActions phone={lead.phone} size="md" /></div>
             {b10Enabled && lead.b10_status && (
               <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 text-xs font-medium">
                 <History size={12} /> KH cũ · B10: {lead.b10_status}

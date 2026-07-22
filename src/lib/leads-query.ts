@@ -4,7 +4,7 @@ import { resolveRange, isRangeKey } from './report-range';
 import { normalizeText } from './search';
 import type { SourceCatalog } from './source-catalog';
 
-export type LeadTab = 'all' | 'pending' | 'contacted' | 'overdue';
+export type LeadTab = 'all' | 'today' | 'pending' | 'contacted' | 'overdue';
 export type LeadSortKey =
   | 'time' | 'name' | 'phone' | 'showroom' | 'team' | 'brand' | 'model' | 'assignee' | 'class';
 export type RangePreset = 'all' | 'today' | 'this_week' | 'this_month' | 'last_month' | '30d' | 'custom';
@@ -19,7 +19,7 @@ export interface LeadsQuery {
   tab: LeadTab; sort: LeadSortKey; dir: 'asc' | 'desc'; page: number; size: PageSize;
 }
 
-const TABS: LeadTab[] = ['all', 'pending', 'contacted', 'overdue'];
+const TABS: LeadTab[] = ['all', 'today', 'pending', 'contacted', 'overdue'];
 const SORTS: LeadSortKey[] = ['time', 'name', 'phone', 'showroom', 'team', 'brand', 'model', 'assignee', 'class'];
 
 export const DEFAULT_QUERY: LeadsQuery = {

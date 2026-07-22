@@ -18,6 +18,7 @@ import { exportLeads } from './export-action';
 import LeadDrawer from './LeadDrawer';
 import NewLeadModal from './NewLeadModal';
 import TimeRangeFilter from './TimeRangeFilter';
+import PhoneActions from './PhoneActions';
 
 export interface LeadRow {
   id: string;
@@ -52,7 +53,7 @@ export function isOverdue(l: LeadRow): boolean {
   return isLeadOverdue(l, Date.now());
 }
 
-type Tab = 'all' | 'pending' | 'contacted' | 'overdue';
+type Tab = 'all' | 'today' | 'pending' | 'contacted' | 'overdue';
 type ColKey =
   | 'time' | 'name' | 'phone' | 'showroom' | 'team' | 'brand' | 'model' | 'platform' | 'assignee'
   | 'contacted' | 'class' | 'failreason' | 'contactedAt' | 'note' | 'source' | 'next' | 'count'
@@ -755,6 +756,7 @@ export default function LeadsTable({
 
   const TABS: { key: Tab; label: string }[] = [
     { key: 'all', label: 'Tất cả' },
+    { key: 'today', label: 'Hôm nay' },
     { key: 'pending', label: 'Chưa liên hệ' },
     { key: 'contacted', label: 'Đã liên hệ' },
     { key: 'overdue', label: 'Quá hạn' },
@@ -795,7 +797,7 @@ export default function LeadsTable({
           )}
         </span>
       );
-      case 'phone': return <span className="text-slate-600">{formatPhoneDisplay(l.phone)}</span>;
+      case 'phone': return <PhoneActions phone={l.phone} />;
       case 'showroom': return <span className="text-slate-600">{l.showroom_name ?? '—'}</span>;
       case 'team': return <span className="text-slate-600">{l.team_name ?? '—'}</span>;
       case 'brand': return <span className="text-slate-600">{l.brand_name}</span>;
@@ -829,8 +831,8 @@ export default function LeadsTable({
             className="text-sm rounded-full px-3 py-1 transition-colors"
             style={{
               fontWeight: tab === t.key ? 600 : 500,
-              color: tab === t.key ? (t.key === 'overdue' ? '#be123c' : 'var(--color-brand)') : '#64748b',
-              background: tab === t.key ? (t.key === 'overdue' ? '#fff1f2' : '#e6f0fa') : 'transparent',
+              color: tab === t.key ? (t.key === 'overdue' ? '#be123c' : t.key === 'today' ? '#b45309' : 'var(--color-brand)') : '#64748b',
+              background: tab === t.key ? (t.key === 'overdue' ? '#fff1f2' : t.key === 'today' ? '#fef3c7' : '#e6f0fa') : 'transparent',
             }}
           >
             {t.label}
@@ -1097,7 +1099,7 @@ export default function LeadsTable({
                           <History size={13} className="text-amber-500 shrink-0" aria-label="Khách cũ đã có trên B10" />
                         )}
                       </div>
-                      <div className="text-sm font-semibold text-slate-700 tabular-nums">{formatPhoneDisplay(l.phone)}</div>
+                      <div className="mt-0.5"><PhoneActions phone={l.phone} size="md" /></div>
                     </div>
                     <div onClick={(e) => e.stopPropagation()} className="shrink-0">
                       <StatusPicker lead={l} variant={contacted ? 'class' : 'contacted'} pending={pending} start={start} />
@@ -1111,6 +1113,7 @@ export default function LeadsTable({
                     <span className="truncate">{l.brand_name}</span>
                   </div>
                   <div className="mt-1 text-xs text-slate-500 space-y-0.5">
+                    <div>Dòng xe: <span className="text-slate-700">{l.model_name ?? 'Chưa rõ'}</span></div>
                     <div>Phòng: <span className="text-slate-700">{l.team_name ?? 'Chưa phân'}</span></div>
                     <div>Phụ trách: <span className="text-slate-700">{l.assignee_name ?? 'Chưa giao'}</span></div>
                     {l.status === 'Fail' && l.fail_reason && (
