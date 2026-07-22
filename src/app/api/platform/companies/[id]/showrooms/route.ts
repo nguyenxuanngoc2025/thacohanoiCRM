@@ -32,6 +32,14 @@ async function syncBrands(
 const normBrandIds = (v: unknown): string[] =>
   Array.isArray(v) ? (v as unknown[]).map((x) => String(x)).filter(Boolean) : [];
 
+// Từ khoá tỉnh (không dấu/viết tắt): nhận mảng HOẶC chuỗi phân tách bởi dấu phẩy/xuống dòng.
+const normAliases = (v: unknown): string[] => {
+  const arr = Array.isArray(v)
+    ? (v as unknown[]).map((x) => String(x))
+    : typeof v === 'string' ? v.split(/[,\n]/) : [];
+  return Array.from(new Set(arr.map((s) => s.trim()).filter(Boolean)));
+};
+
 // POST /api/platform/companies/:id/showrooms — tạo showroom mới cho công ty (chặn quota).
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const guard = await requirePlatformOwner();
@@ -40,7 +48,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { id: companyId } = await params;
 
   try {
-    const body = await request.json() as { name?: string; code?: string; brand_ids?: unknown };
+    const body = await request.json() as { name?: string; code?: string; brand_ids?: unknown; province?: unknown; province_aliases?: unknown };
     const name = String(body.name ?? '').trim();
     if (!name) return NextResponse.json({ error: 'Thiếu tên showroom.' }, { status: 400 });
     const brandIds = normBrandIds(body.brand_ids);
@@ -60,7 +68,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const { data, error } = await service
       .from('showrooms')
-      .insert({ name, code: body.code ? String(body.code).trim() : null, company_id: companyId })
+      .insert({
+        name, code: body.code ? String(body.code).trim() : null, company_id: companyId,
+        province: body.province ? String(body.province).trim() : null,
+        province_aliases: normAliases(body.province_aliases),
+      })
       .select('id')
       .single();
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
@@ -86,6 +98,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   try {
     const body = await request.json() as {
       showroom_id?: string; is_active?: boolean; name?: string; code?: string; brand_ids?: unknown;
+      province?: unknown; province_aliases?: unknown;
     };
     const showroomId = (body.showroom_id ?? '').trim();
     if (!showroomId) return NextResponse.json({ error: 'Thiếu showroom_id.' }, { status: 400 });
@@ -114,7 +127,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     const { error } = await service
       .from('showrooms')
-      .update({ name, code: body.code ? String(body.code).trim() : null })
+      .update({
+        name, code: body.code ? String(body.code).trim() : null,
+        province: body.province ? String(body.province).trim() : null,
+        province_aliases: normAliases(body.province_aliases),
+      })
       .eq('id', showroomId);
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
     const e = await syncBrands(service, companyId, showroomId, brandIds);

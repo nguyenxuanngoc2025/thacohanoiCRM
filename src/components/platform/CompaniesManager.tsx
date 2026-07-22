@@ -63,7 +63,7 @@ async function deleteShowroom(companyId: string, showroomId: string): Promise<{ 
   return { ok: res.ok, error: data?.error };
 }
 
-type SrItem = { id: string; name: string; code: string | null; is_active: boolean; brand_ids: string[] };
+type SrItem = { id: string; name: string; code: string | null; is_active: boolean; brand_ids: string[]; province: string | null; province_aliases: string[] };
 
 export default function CompaniesManager({
   companies, brands,
@@ -633,6 +633,8 @@ function ShowroomEditModal({
   const [name, setName] = useState(editing?.name ?? '');
   const [code, setCode] = useState(editing?.code ?? '');
   const [brandIds, setBrandIds] = useState<string[]>(editing?.brand_ids ?? []);
+  const [province, setProvince] = useState(editing?.province ?? '');
+  const [aliases, setAliases] = useState((editing?.province_aliases ?? []).join(', '));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -643,7 +645,11 @@ function ShowroomEditModal({
     setError(null);
     if (!name.trim()) { setError('Nhập tên showroom.'); return; }
     setBusy(true);
-    const payload = { name: name.trim(), code: code.trim() || null, brand_ids: brandIds };
+    const payload = {
+      name: name.trim(), code: code.trim() || null, brand_ids: brandIds,
+      province: province.trim() || null,
+      province_aliases: aliases.split(',').map((s) => s.trim()).filter(Boolean),
+    };
     const r = editing
       ? await updateShowroom(companyId, { showroom_id: editing.id, ...payload })
       : await createShowroom(companyId, payload);
@@ -668,6 +674,18 @@ function ShowroomEditModal({
             <label className="block text-sm font-medium text-slate-700 mb-1">Mã <span className="text-slate-400 font-normal">(tuỳ chọn)</span></label>
             <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="TC"
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Tỉnh / khu vực <span className="text-slate-400 font-normal">(tuỳ chọn)</span></label>
+            <input value={province} onChange={(e) => setProvince(e.target.value)} placeholder="Ninh Bình"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+            <p className="text-[11px] text-slate-400 mt-1">Dùng để định tuyến lead từ Google Sheet theo cột địa chỉ.</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Từ khoá tỉnh khác <span className="text-slate-400 font-normal">(cách nhau bởi dấu phẩy)</span></label>
+            <input value={aliases} onChange={(e) => setAliases(e.target.value)} placeholder="ninh binh, nb"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+            <p className="text-[11px] text-slate-400 mt-1">Cách viết không dấu / viết tắt để khớp địa chỉ (vd “ha noi”, “hn”).</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">Thương hiệu tại showroom</label>

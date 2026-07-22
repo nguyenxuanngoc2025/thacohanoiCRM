@@ -19,6 +19,10 @@ export interface ShowroomRow {
   // Cách showroom chia lead vào các phòng + % share của showroom (dùng khi công ty chọn theo tỷ lệ).
   team_assign_strategy: AssignStrategy;
   assign_share_pct: number;
+  // Tỉnh/khu vực của showroom + từ khoá khác (không dấu/viết tắt) để định tuyến lead theo địa chỉ.
+  // Tuỳ chọn — chỉ trang Cài đặt (Google Sheet) cần; các nơi khác dùng ShowroomRow không cần tỉnh.
+  province?: string | null;
+  province_aliases?: string[];
 }
 
 export interface BrandRow {
@@ -69,6 +73,9 @@ export interface SheetConfig {
   // Mốc thời gian: cột chứa thời gian + ngày bắt đầu lấy lead (YYYY-MM-DD) — chống nạp lead cũ.
   date_col?: number | null;
   since?: string | null;
+  // Định tuyến theo địa chỉ: cột địa chỉ + tỉnh mặc định khi không nhận ra tỉnh nào.
+  address_col?: number | null;
+  address_fallback_province?: string | null;
   brand_id?: string | null; showroom_ids?: string[] | null; // cấp-dòng (cấu hình cũ dùng chung mọi tab)
 }
 

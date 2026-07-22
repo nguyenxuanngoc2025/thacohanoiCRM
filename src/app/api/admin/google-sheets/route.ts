@@ -84,6 +84,9 @@ export async function POST(request: NextRequest) {
           model_col: mmode === 'column' ? numOrNull(o.model_col) : null,
           date_col: numOrNull(o.date_col),
           since: typeof o.since === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(o.since) ? o.since : null,
+          address_col: numOrNull(o.address_col),
+          address_fallback_province: o.address_col != null && o.address_col !== ''
+            ? (o.address_fallback_province ? String(o.address_fallback_province).trim() : null) : null,
         };
       })
       .filter((t) => t.title);

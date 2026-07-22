@@ -28,6 +28,11 @@ export interface IngestPayload {
   // Khi KHÔNG (FB webhook, nguồn khác): giữ nguyên hành vi cũ (suy từ channel).
   brand_id?: string | null;
   showroom_ids?: string[] | null;
+  // Định tuyến theo địa chỉ (Google Sheet có cột địa chỉ): khớp tỉnh → tập showroom của tỉnh đó,
+  // ghi đè showroom_ids khi trúng. Không trúng → lùi về tỉnh mặc định (address_fallback_province),
+  // không có nữa → giữ showroom_ids/kênh như cũ. Chỉ tác động khi kênh có bật cột địa chỉ.
+  address_text?: string | null;
+  address_fallback_province?: string | null;
   silent_dedup?: boolean; // true = không ghi lead_logs khi trùng (Google Sheet quét lại toàn bộ mỗi lần → tránh spam log)
   suppress_notify?: boolean; // true = KHÔNG đẩy thông báo Zalo (dùng khi backfill lead lịch sử — tránh spam nhóm)
   created_at_override?: string; // ISO — đặt đúng thời điểm gốc từ nguồn (backfill FB time_created) thay vì now()

@@ -3,6 +3,7 @@ import { normalizePhone } from '@/lib/phone';
 import { looksLikePersonName } from '@/lib/person-name';
 import { pickByStrategy, type AssignStrategy, type StrategyCandidate } from '@/lib/assign';
 import { detectModel } from '@/lib/detect-model';
+import { matchProvinceShowrooms } from '@/lib/route-province';
 import { getOpenBrandIds, isBrandClosed } from '@/lib/company-brands';
 import { vnDateStr, resolveRosterTeam } from '@/lib/roster';
 import { resolveIngestScope } from '@/lib/ingest-scope';
@@ -34,7 +35,7 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
 
   // Suy thương hiệu + tập showroom ứng viên. Google Sheet cấu hình riêng từng tab có thể GHI ĐÈ
   // brand_id/showroom_ids (payload); nguồn khác (FB webhook) không truyền → suy từ kênh + junction.
-  const { brandId: effBrandId, candidateShowroomIds } = resolveIngestScope({
+  const { brandId: effBrandId, candidateShowroomIds: rawShowroomIds } = resolveIngestScope({
     channelBrandId: channel.brand_id,
     channelShowroomId: channel.showroom_id,
     junctionShowroomIds: (junction ?? []).map((j) => j.showroom_id),
@@ -43,15 +44,34 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
     hasBrandOverride: 'brand_id' in payload,
   });
 
-  if (candidateShowroomIds.length === 0) return { ok: false, reason: 'no_showroom' };
+  if (rawShowroomIds.length === 0) return { ok: false, reason: 'no_showroom' };
 
   // Công ty của kênh (mọi showroom của 1 kênh cùng thuộc 1 công ty) — cần SỚM để:
   //  (1) chống trùng theo ĐÚNG công ty (lead độc lập từng công ty),
-  //  (2) đọc chiến lược phân giao cấp 1 ở dưới.
+  //  (2) đọc chiến lược phân giao cấp 1 ở dưới,
+  //  (3) định tuyến theo địa chỉ trong PHẠM VI công ty đó.
   const { data: anchorSr } = await db
-    .from('showrooms').select('company_id').in('id', candidateShowroomIds).limit(1).maybeSingle();
+    .from('showrooms').select('company_id').in('id', rawShowroomIds).limit(1).maybeSingle();
   const companyId0 = anchorSr?.company_id ?? null;
   if (!companyId0) return { ok: false, reason: 'no_showroom' };
+
+  // ĐỊNH TUYẾN THEO ĐỊA CHỈ (Google Sheet có cột địa chỉ): khớp tỉnh trong địa chỉ → tập showroom
+  // của tỉnh đó (trong công ty). Trúng → dùng thay showroom_ids cấu hình. Không trúng → lùi về tỉnh
+  // mặc định (vd Hà Nội). Vẫn không có → giữ showroom_ids/kênh như cũ. KHÔNG địa chỉ → bỏ qua.
+  let candidateShowroomIds = rawShowroomIds;
+  if (payload.address_text != null) {
+    const { data: provSr } = await db
+      .from('showrooms')
+      .select('id, province, province_aliases')
+      .eq('company_id', companyId0)
+      .eq('is_active', true);
+    const srList = (provSr ?? []) as { id: string; province: string | null; province_aliases: string[] | null }[];
+    let matched = matchProvinceShowrooms(payload.address_text, srList);
+    if (matched.length === 0 && payload.address_fallback_province) {
+      matched = matchProvinceShowrooms(payload.address_fallback_province, srList);
+    }
+    if (matched.length > 0) candidateShowroomIds = matched;
+  }
 
   // Kênh chuẩn hoá (lowercase) — lưu vào cột source để biết nguồn lead.
   const channelKey = (payload.source ?? 'facebook').trim().toLowerCase() || 'facebook';

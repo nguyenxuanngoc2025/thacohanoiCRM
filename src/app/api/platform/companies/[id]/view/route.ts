@@ -14,7 +14,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   if (!company) return NextResponse.json({ error: 'Không tìm thấy công ty.' }, { status: 404 });
 
   const [{ data: showrooms }, { data: users }, { data: leads }] = await Promise.all([
-    service.from('showrooms').select('id,name,code,is_active').eq('company_id', id).order('name'),
+    service.from('showrooms').select('id,name,code,is_active,province,province_aliases').eq('company_id', id).order('name'),
     service.from('users').select('id,full_name,email,role,is_active').eq('company_id', id).order('full_name'),
     service.from('leads')
       .select('id,full_name,phone,status,source,created_at,showroom_id')
@@ -39,8 +39,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   for (const r of (srBrandRows ?? []) as { showroom_id: string; brand_id: string }[]) {
     (brandIdsBySr[r.showroom_id] ??= []).push(r.brand_id);
   }
-  const showroomsOut = ((showrooms ?? []) as { id: string; name: string; code: string | null; is_active: boolean }[])
-    .map((s) => ({ ...s, brand_ids: brandIdsBySr[s.id] ?? [] }));
+  const showroomsOut = ((showrooms ?? []) as {
+    id: string; name: string; code: string | null; is_active: boolean;
+    province: string | null; province_aliases: string[] | null;
+  }[])
+    .map((s) => ({ ...s, province_aliases: s.province_aliases ?? [], brand_ids: brandIdsBySr[s.id] ?? [] }));
 
   const srName: Record<string, string> = {};
   for (const s of (showrooms ?? []) as { id: string; name: string }[]) srName[s.id] = s.name;

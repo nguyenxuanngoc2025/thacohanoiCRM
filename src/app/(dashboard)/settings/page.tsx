@@ -27,7 +27,7 @@ export default async function SettingsPage() {
   // Giai đoạn 1: nhân sự + showroom của ĐÚNG công ty này (làm gốc scope cho phần còn lại).
   const [{ data: staff }, { data: showroomRows }] = await Promise.all([
     service.from('users').select('id, full_name, email, role, showroom_id, brand_id, sales_team_id, is_active, assign_share_pct').eq('company_id', companyId).is('deleted_at', null).order('role'),
-    service.from('showrooms').select('id, name, code, team_assign_strategy, assign_share_pct, is_active').eq('company_id', companyId).order('name'),
+    service.from('showrooms').select('id, name, code, team_assign_strategy, assign_share_pct, is_active, province, province_aliases').eq('company_id', companyId).order('name'),
   ]);
   // Showroom đang TẮT (platform_owner tắt tại /admin) → ẩn sạch khỏi Cài đặt: showroom +
   // phòng + nhân sự + kênh + kênh thông báo của nó không hiển thị. Giữ srIds/userIds theo
@@ -152,11 +152,14 @@ export default async function SettingsPage() {
   }
   const showrooms = (showroomRowsActive as {
     id: string; name: string; code: string | null; team_assign_strategy?: string; assign_share_pct?: number;
+    province?: string | null; province_aliases?: string[] | null;
   }[]).map((s) => ({
     ...s,
     brand_ids: brandIdsBySr[s.id] ?? [],
     team_assign_strategy: (s.team_assign_strategy ?? 'weighted') as 'least_loaded' | 'round_robin' | 'weighted' | 'day_roster',
     assign_share_pct: Number(s.assign_share_pct) || 0,
+    province: s.province ?? null,
+    province_aliases: s.province_aliases ?? [],
   }));
 
   // Lịch trực phòng nhận (day_roster) từ hôm nay trở đi — chỉ showroom đang hoạt động.

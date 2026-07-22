@@ -17,6 +17,8 @@ export interface TabCfg {
   source_mode?: 'fixed' | 'column'; source_col?: number | null;
   model_mode?: 'auto' | 'fixed' | 'column'; model_id?: string | null; model_col?: number | null;
   date_col?: number | null; since?: string | null;
+  // Định tuyến theo địa chỉ: đọc tỉnh từ 1 cột → giao về showroom của tỉnh đó.
+  address_col?: number | null; address_fallback_province?: string | null;
 }
 
 // Cấu hình 1 tab đã resolve xong (mọi trường bắt buộc có giá trị dùng được khi đồng bộ).
@@ -30,6 +32,7 @@ export interface ResolvedTab {
   source_mode: 'fixed' | 'column'; source: string | null; source_col: number | null;
   model_mode: 'auto' | 'fixed' | 'column'; model_id: string | null; model_col: number | null;
   date_col: number | null; since: string | null;
+  address_col: number | null; address_fallback_province: string | null;
 }
 
 export interface SheetConfig {
@@ -43,6 +46,7 @@ export interface SheetConfig {
   // Mốc thời gian: chỉ nạp dòng có thời gian (cột date_col) >= since ('YYYY-MM-DD').
   // Tránh lần kết nối đầu nạp toàn bộ lead cũ → nổ thông báo. Bỏ trống = nạp tất cả (cũ).
   date_col?: number | null; since?: string | null;
+  address_col?: number | null; address_fallback_province?: string | null;
   brand_id?: string | null; showroom_ids?: string[] | null; // cấp-dòng (cấu hình cũ dùng chung mọi tab)
 }
 
@@ -71,6 +75,8 @@ export function resolveTabConfigs(cfg: SheetConfig): ResolvedTab[] {
     model_col: pick(t.model_col, cfg.model_col, null),
     date_col: pick(t.date_col, cfg.date_col, null),
     since: pick(t.since, cfg.since, null),
+    address_col: pick(t.address_col, cfg.address_col, null),
+    address_fallback_province: pick(t.address_fallback_province, cfg.address_fallback_province, null),
   }));
 }
 
@@ -127,6 +133,9 @@ export async function syncSheetChannel(
         const modelCell = tab.model_mode === 'column' && tab.model_col != null ? (r[tab.model_col] ?? '') : '';
         const intentText = tab.model_mode === 'column' ? modelCell : [name, notes].filter(Boolean).join(' ');
 
+        // Địa chỉ: đọc ô địa chỉ (nếu tab bật cột) → ingest định tuyến theo tỉnh.
+        const addressText = tab.address_col != null ? (r[tab.address_col] ?? null) : null;
+
         const res = await ingestLead({
           page_id: channel.page_id,
           brand_id: tab.brand_id,
@@ -136,6 +145,8 @@ export async function syncSheetChannel(
           source,
           model_id: tab.model_mode === 'fixed' ? (tab.model_id ?? null) : null,
           intent_text: intentText,
+          address_text: addressText,
+          address_fallback_province: tab.address_fallback_province,
           silent_dedup: true, // quét lại toàn bộ → đừng spam lead_logs khi trùng
           external_payload: { row: r, tab: tab.title || null },
         });

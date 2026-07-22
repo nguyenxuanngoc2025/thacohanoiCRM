@@ -33,6 +33,7 @@ interface TabForm {
   sourceMode: SourceMode; source: string; sourceCol: number | null;
   modelMode: ModelMode; modelId: string; modelCol: number | null;
   dateCol: number | null; since: string;
+  addressCol: number | null; addressFallback: string;
 }
 
 interface LastSync { at: string; rows: number; fresh: number; dup: number; skipped?: number; errors: string[] }
@@ -62,6 +63,7 @@ const emptyTabForm = (): TabForm => ({
   sourceMode: 'fixed', source: DEFAULT_SHEET_SOURCE, sourceCol: null,
   modelMode: 'auto', modelId: '', modelCol: null,
   dateCol: null, since: todayISO(),
+  addressCol: null, addressFallback: '',
 });
 
 export default function GoogleSheetConnect({
@@ -183,6 +185,8 @@ export default function GoogleSheetConnect({
         modelCol: num(t.model_col ?? cfg.model_col),
         dateCol: num(t.date_col ?? cfg.date_col),
         since: String((t.since ?? cfg.since ?? '') || ''),
+        addressCol: num(t.address_col ?? cfg.address_col),
+        addressFallback: String((t.address_fallback_province ?? cfg.address_fallback_province ?? '') || ''),
       };
     }
     setEditingId(sheet.id);
@@ -353,6 +357,8 @@ export default function GoogleSheetConnect({
           model_col: f.modelMode === 'column' ? f.modelCol : null,
           date_col: f.dateCol,
           since: f.since || null,
+          address_col: f.addressCol,
+          address_fallback_province: f.addressCol != null ? (f.addressFallback || null) : null,
         };
       });
       const res = await fetch('/api/admin/google-sheets', {
@@ -682,6 +688,10 @@ function TabConfigPanel({ tab, form, onField, preview, brands, models, showrooms
   const brandModels = models.filter((m) => m.brand_id === form.brandId && m.is_active);
   const toggleSr = (id: string) =>
     onField('srIds', form.srIds.includes(id) ? form.srIds.filter((s) => s !== id) : [...form.srIds, id]);
+  // Danh sách tỉnh (khử trùng) từ showroom đã gán tỉnh — để chọn tỉnh mặc định khi định tuyến địa chỉ.
+  const provinceOptions = Array.from(
+    new Set(showrooms.map((s) => (s.province ?? '').trim()).filter(Boolean)),
+  );
 
   return (
     <div className="rounded-xl border border-brand/40 p-4 space-y-4 bg-white">
@@ -767,7 +777,28 @@ function TabConfigPanel({ tab, form, onField, preview, brands, models, showrooms
         </div>
       </div>
 
-      {/* 6. Showroom nhận lead */}
+      {/* 6. Định tuyến theo địa chỉ — đọc tỉnh từ 1 cột, giao về showroom của tỉnh đó */}
+      <div className="space-y-2 rounded-lg border border-sky-200 bg-sky-50/60 p-3">
+        <label className="block text-xs font-semibold text-slate-700">Định tuyến theo địa chỉ (tuỳ chọn)</label>
+        <p className="text-[11px] text-slate-500">
+          Nếu sheet có cột địa chỉ (tỉnh/thành), chọn cột đó → hệ thống giao lead về showroom của tỉnh
+          tương ứng (vd Ninh Bình → showroom Ninh Bình; Hà Nội → chia đều các showroom Hà Nội). Cần đặt
+          tỉnh cho từng showroom ở mục “Showroom” bên dưới. Bỏ trống = không định tuyến theo địa chỉ.
+        </p>
+        <ColSelect label="Cột chứa địa chỉ" headers={preview.headers} value={form.addressCol} onChange={(v) => onField('addressCol', v)} allowNone />
+        {form.addressCol != null && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-600 w-40 shrink-0">Không nhận ra tỉnh → giao về</span>
+            <select value={form.addressFallback} onChange={(e) => onField('addressFallback', e.target.value)}
+              className="flex-1 rounded-lg border border-slate-200 px-2 py-1.5 text-sm bg-white">
+              <option value="">— giữ theo showroom đã chọn —</option>
+              {provinceOptions.map((p) => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </div>
+        )}
+      </div>
+
+      {/* 7. Showroom nhận lead */}
       <div className="space-y-2">
         <label className="block text-xs font-semibold text-slate-600">Showroom nhận lead</label>
         <div className="grid gap-1.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))' }}>
