@@ -1,4 +1,4 @@
-import { renderOverdue, renderCallbackReminder, type OverdueItem, type CallbackItem } from './notify-templates';
+import { renderOverdue, renderCallbackReminder, renderUnassignedReminder, type OverdueItem, type CallbackItem, type UnassignedItem } from './notify-templates';
 
 export interface OverdueLead {
   id: string;
@@ -89,6 +89,43 @@ export function buildCallbackMessages(leads: CallbackLead[]): OverdueMessage[] {
       teamName,
       leadIds: group.map((l) => l.id),
       text: renderCallbackReminder(teamName, items),
+    });
+  }
+  return out;
+}
+
+export interface UnassignedLead {
+  id: string;
+  sales_team_id: string | null;
+  team_name: string | null;
+  full_name: string | null;
+  phone: string;
+  created_at: string;
+}
+
+/** Gom lead chưa phân giao (tồn hàng chờ) theo phòng → 1 message mỗi phòng. */
+export function buildUnassignedMessages(leads: UnassignedLead[], now: Date): OverdueMessage[] {
+  const byTeam = new Map<string, UnassignedLead[]>();
+  for (const l of leads) {
+    if (!l.sales_team_id) continue; // không có phòng → không có group nhận
+    const arr = byTeam.get(l.sales_team_id) ?? [];
+    arr.push(l);
+    byTeam.set(l.sales_team_id, arr);
+  }
+
+  const out: OverdueMessage[] = [];
+  for (const [teamId, group] of byTeam) {
+    const teamName = group[0].team_name?.trim() || 'Phòng bán hàng';
+    const items: UnassignedItem[] = group.map((l) => ({
+      fullName: l.full_name,
+      phone: l.phone,
+      waitMinutes: Math.max(0, Math.round((now.getTime() - new Date(l.created_at).getTime()) / 60000)),
+    }));
+    out.push({
+      teamId,
+      teamName,
+      leadIds: group.map((l) => l.id),
+      text: renderUnassignedReminder(teamName, items),
     });
   }
   return out;

@@ -1,5 +1,29 @@
 import { describe, it, expect } from 'vitest';
-import { buildOverdueMessages, buildCallbackMessages, type OverdueLead, type CallbackLead } from './reminders';
+import { buildOverdueMessages, buildCallbackMessages, buildUnassignedMessages, type OverdueLead, type CallbackLead, type UnassignedLead } from './reminders';
+
+describe('buildUnassignedMessages', () => {
+  const nowC = new Date('2026-07-22T10:00:00Z');
+  it('gom theo phòng → 1 tin mỗi phòng, đúng leadIds', () => {
+    const leads: UnassignedLead[] = [
+      { id: 'a', sales_team_id: 't1', team_name: 'Phòng 1', full_name: 'X', phone: '0900000001', created_at: '2026-07-22T08:00:00Z' },
+      { id: 'b', sales_team_id: 't1', team_name: 'Phòng 1', full_name: null, phone: '0900000002', created_at: '2026-07-22T07:00:00Z' },
+      { id: 'c', sales_team_id: 't2', team_name: 'Phòng 2', full_name: 'Y', phone: '0900000003', created_at: '2026-07-22T09:00:00Z' },
+    ];
+    const msgs = buildUnassignedMessages(leads, nowC);
+    expect(msgs).toHaveLength(2);
+    const m1 = msgs.find((m) => m.teamId === 't1')!;
+    expect(m1.leadIds.sort()).toEqual(['a', 'b']);
+    expect(m1.text).toContain('Phòng 1');
+    expect(m1.text).toContain('<b>2</b>');
+  });
+
+  it('lead không có phòng → bỏ qua', () => {
+    const leads: UnassignedLead[] = [
+      { id: 'a', sales_team_id: null, team_name: null, full_name: 'X', phone: '0900000001', created_at: '2026-07-22T08:00:00Z' },
+    ];
+    expect(buildUnassignedMessages(leads, nowC)).toHaveLength(0);
+  });
+});
 
 const now = new Date('2026-06-24T10:00:00Z');
 
