@@ -7,6 +7,8 @@ import { matchProvinceShowrooms } from '@/lib/route-province';
 import { getOpenBrandIds, isBrandClosed } from '@/lib/company-brands';
 import { vnDateStr, resolveRosterTeam } from '@/lib/roster';
 import { resolveIngestScope } from '@/lib/ingest-scope';
+import { resolvePushRecipients, type PushEvent, type PushUser } from '@/lib/push-recipients';
+import { sendPushToUsers } from '@/lib/push';
 import type { IngestPayload, IngestResult } from '@/types/database';
 
 /** Cửa nạp lead chung — mọi kênh (FB webhook, n8n sau này) gọi vào đây. */
@@ -566,6 +568,36 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
         payload: { event: 'new_lead', leadId: inserted.id, target: c.target, text, ...(enrich ? { enrich } : {}) },
       }))
     );
+  }
+
+  // ── Web Push cá nhân (song song Zalo, KHÔNG chặn luồng) ────────────────────
+  // Cùng cổng chặn như Zalo: không backfill, không test, hãng/showroom tắt, không suppress.
+  if (!payload.suppress_notify && !testLead && !brandClosed && !showroomClosed && !payload.created_at_override) {
+    const pushEvent: PushEvent = assignedTo
+      ? 'new_lead_assigned'
+      : chosenTeamId
+        ? 'new_lead_unassigned'
+        : 'new_lead_no_team';
+    const displayName = (payload.full_name?.trim() || 'Khách lẻ');
+    void (async () => {
+      // Nạp user + showroom-map của công ty để resolver quyết người nhận (hàm thuần).
+      const [{ data: uRows }, { data: usRows }] = await Promise.all([
+        db.from('users').select('id, role, company_id, sales_team_id').eq('company_id', showroom.company_id),
+        db.from('user_showrooms').select('user_id, showroom_id'),
+      ]);
+      const srByUser = new Map<string, string[]>();
+      for (const r of (usRows ?? []) as { user_id: string; showroom_id: string }[]) {
+        const arr = srByUser.get(r.user_id) ?? []; arr.push(r.showroom_id); srByUser.set(r.user_id, arr);
+      }
+      const users: PushUser[] = ((uRows ?? []) as { id: string; role: string; company_id: string | null; sales_team_id: string | null }[])
+        .map((u) => ({ ...u, showroom_ids: srByUser.get(u.id) ?? [] }));
+      const userIds = resolvePushRecipients(pushEvent, {
+        company_id: showroom.company_id, sales_team_id: chosenTeamId, showroom_id: chosenShowroomId, assignee_id: assignedTo,
+      }, users);
+      await sendPushToUsers(db, showroom.company_id, userIds, {
+        title: 'Lead mới', body: `${displayName} · ${phone}`, url: '/leads', tag: `lead-${inserted.id}`,
+      });
+    })().catch(() => {});
   }
 
   return { ok: true, leadId: inserted.id, deduped: false };
