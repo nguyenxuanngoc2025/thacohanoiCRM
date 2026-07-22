@@ -108,16 +108,20 @@ export async function POST(request: NextRequest) {
   // Kênh nhóm bán hàng (theo phòng) có sự kiện 'overdue'
   const { data: channels } = await db
     .from('notification_channels')
-    .select('id, channel, target, events, sales_team_id, scope')
+    .select('id, channel, target, events, sales_team_id, sales_team_ids, scope')
     .eq('is_active', true);
 
   const inserts: Record<string, unknown>[] = [];
   const notifiedLeadIds: string[] = [];
   for (const m of messages) {
     if (m.teamId && mutedTeamIds.has(m.teamId)) continue;
-    const targets = (channels ?? []).filter(
-      (c) => (c.events ?? []).includes('overdue') && c.scope === 'sales' && c.sales_team_id === m.teamId
-    );
+    const targets = (channels ?? []).filter((c) => {
+      if (!(c.events ?? []).includes('overdue') || c.scope !== 'sales') return false;
+      // Kênh phủ NHIỀU phòng qua sales_team_ids[] (migration 0047); cột cũ sales_team_id
+      // chỉ là phần tử đầu → phải khớp theo MẢNG, không thì phòng thứ 2+ bị bỏ nhắc.
+      const ids = (c.sales_team_ids as string[] | null) ?? (c.sales_team_id ? [c.sales_team_id as string] : []);
+      return m.teamId != null && ids.includes(m.teamId);
+    });
     if (targets.length === 0) continue;
     for (const c of targets) {
       inserts.push({
