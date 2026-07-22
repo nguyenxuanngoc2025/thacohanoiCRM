@@ -89,6 +89,8 @@ export interface ReturningLeadInput {
   phone: string;
   // Kênh MỚI mà khách vừa hỏi lại (Facebook/Zalo…).
   source: string | null;
+  // Kênh BAN ĐẦU của lead cũ (khách từng đến qua kênh này). null = không rõ.
+  originalSource?: string | null;
   // Nội dung khách hỏi lần này (nếu bắt được từ intent_text).
   inquiry: string | null;
   // TVBH đang chăm hiện tại (null = chưa phân giao).
@@ -105,14 +107,20 @@ export function renderReturningLead(i: ReturningLeadInput): string {
   const platform = sourcePlatform(i.source, i.catalog);
   const detail = sourceLabel(i.source, i.catalog);
   const nguon = detail !== '—' ? `${platform} · ${detail}` : platform;
+  // Kênh ban đầu (nơi khách từng đến) — chỉ hiện khi có và KHÁC kênh mới, để thấy rõ đa kênh.
+  const origPlatform = i.originalSource ? sourcePlatform(i.originalSource, i.catalog) : null;
+  const origDetail = i.originalSource ? sourceLabel(i.originalSource, i.catalog) : '—';
+  const nguonGoc = origPlatform ? (origDetail !== '—' ? `${origPlatform} · ${origDetail}` : origPlatform) : null;
+  const showOrig = !!nguonGoc && nguonGoc !== nguon;
   const dangCham = i.assignee?.trim() ? `<b>${i.assignee.trim()}</b>` : '<b>CHƯA CÓ TVBH</b>';
   const phanLoai = i.status ? STATUS_LABEL[i.status] : 'Chưa phân loại';
   const scope = i.team?.trim() || i.showroom;
   const lines = [
     `<b>DATA KH CŨ HỎI LẠI — ${scope}</b>`,
     `KH: <b>${ten}</b> · ${maskPhone(i.phone)}`,
-    `Kênh mới: ${nguon}`,
   ];
+  if (showOrig) lines.push(`Kênh ban đầu: ${nguonGoc}`);
+  lines.push(showOrig ? `Đang hỏi thêm ở: ${nguon}` : `Kênh mới: ${nguon}`);
   const inq = i.inquiry?.trim();
   if (inq) {
     const short = inq.length > B10_NOTE_CAP ? inq.slice(0, B10_NOTE_CAP) + '…' : inq;

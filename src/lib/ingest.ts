@@ -81,7 +81,7 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
   // cùng SĐT + thương hiệu nhưng khác công ty là 2 lead riêng (KHÔNG coi là trùng).
   const { data: existing } = await db
     .from('leads')
-    .select('id, assigned_to, sales_team_id, showroom_id, status, full_name, model_id')
+    .select('id, assigned_to, sales_team_id, showroom_id, status, full_name, model_id, source')
     .eq('company_id', companyId0)
     .eq('phone', phone)
     .eq('brand_id', effBrandId)
@@ -141,6 +141,7 @@ export async function ingestLead(payload: IngestPayload): Promise<IngestResult> 
               fullName: (patch.full_name as string) ?? existing.full_name ?? null,
               phone,
               source: payload.source ?? 'facebook',
+              originalSource: existing.source ?? null,
               inquiry: inquiry ?? null,
               assignee: assigneeName,
               status: existing.status ?? null,

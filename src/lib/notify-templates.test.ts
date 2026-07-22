@@ -43,6 +43,25 @@ describe('renderReturningLead', () => {
     expect(t).toContain('Phân loại hiện tại: Chưa phân loại');
     expect(t).not.toContain('Nội dung hỏi:');
   });
+
+  it('khác kênh: hiện cả kênh ban đầu lẫn kênh hỏi thêm', () => {
+    const t = renderReturningLead({
+      showroom: 'Giải Phóng', team: 'Phòng 1', fullName: 'Nam Huy', phone: '+84934447212',
+      source: 'google', originalSource: 'facebook', inquiry: null, assignee: null, status: null,
+    });
+    expect(t).toContain('Kênh ban đầu: Facebook');
+    expect(t).toContain('Đang hỏi thêm ở: Google');
+    expect(t).not.toContain('Kênh mới:');
+  });
+
+  it('cùng kênh: chỉ hiện Kênh mới, không lặp kênh ban đầu', () => {
+    const t = renderReturningLead({
+      showroom: 'Giải Phóng', team: 'Phòng 1', fullName: 'Nam Huy', phone: '+84934447212',
+      source: 'facebook', originalSource: 'facebook', inquiry: null, assignee: null, status: null,
+    });
+    expect(t).toContain('Kênh mới: Facebook');
+    expect(t).not.toContain('Kênh ban đầu:');
+  });
 });
 
 describe('renderChannelDaily', () => {
