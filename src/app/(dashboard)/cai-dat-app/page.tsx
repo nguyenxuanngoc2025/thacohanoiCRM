@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { Monitor, Smartphone, Share, Download, CheckCircle2, MoreVertical, Plus, Info } from 'lucide-react';
 import { BRAND } from '@/lib/brand';
+import PushToggle from '@/components/settings/PushToggle';
 
 // Sự kiện cài PWA của Chrome/Edge (chỉ desktop + Android hỗ trợ).
 interface InstallPromptEvent extends Event {
@@ -49,6 +50,10 @@ export default function CaiDatAppPage() {
           <span>Bạn đang mở ở chế độ ứng dụng đã cài đặt. Không cần cài lại.</span>
         </div>
       )}
+
+      <div className="mb-4">
+        <PushToggle />
+      </div>
 
       <div className="space-y-4">
         {/* MÁY TÍNH */}
