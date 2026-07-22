@@ -60,6 +60,28 @@ const todayISO = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
+// Tỉnh (thị trường) của 1 showroom — rỗng gom vào nhóm "Chưa đặt tỉnh".
+const provinceOfSr = (id: string, showrooms: ShowroomRow[]) =>
+  ((showrooms.find((x) => x.id === id)?.province ?? '').trim() || 'Chưa đặt tỉnh');
+
+// % lưu cho từng showroom khi chia 'theo tỷ lệ': thị trường CHỈ 1 showroom = 100% (nhận toàn bộ);
+// thị trường nhiều showroom = giá trị người dùng nhập (chuẩn hoá trong cùng thị trường lúc chia).
+function buildMarketShares(
+  srIds: string[], showrooms: ShowroomRow[], srShares: Record<string, string>,
+): Record<string, number> {
+  const countByProvince = new Map<string, number>();
+  for (const id of srIds) {
+    const p = provinceOfSr(id, showrooms);
+    countByProvince.set(p, (countByProvince.get(p) ?? 0) + 1);
+  }
+  const out: Record<string, number> = {};
+  for (const id of srIds) {
+    const single = (countByProvince.get(provinceOfSr(id, showrooms)) ?? 0) < 2;
+    out[id] = single ? 100 : (Number(srShares[id]) || 0);
+  }
+  return out;
+}
+
 const emptyTabForm = (): TabForm => ({
   brandId: '', srIds: [], phoneCol: null, nameCol: null,
   sourceMode: 'fixed', source: DEFAULT_SHEET_SOURCE, sourceCol: null,
@@ -372,10 +394,10 @@ export default function GoogleSheetConnect({
           since: f.since || null,
           address_col: f.addressCol,
           address_fallback_province: f.addressCol != null ? (f.addressFallback || null) : null,
-          // Cách chia + tỷ lệ CẤP 1 (chỉ có ý nghĩa khi tab có ≥2 showroom).
+          // Cách chia + tỷ lệ CẤP 1: % chia THEO THỊ TRƯỜNG (tỉnh). Thị trường 1 showroom = 100%.
           showroom_assign_strategy: f.srStrategy,
           showroom_shares: f.srStrategy === 'weighted'
-            ? Object.fromEntries(f.srIds.map((id) => [id, Number(f.srShares[id]) || 0]))
+            ? buildMarketShares(f.srIds, showrooms, f.srShares)
             : {},
         };
       });
@@ -721,6 +743,16 @@ function TabConfigPanel({ tab, form, onField, preview, brands, models, showrooms
   const provinceOptions = Array.from(
     new Set(showrooms.map((s) => (s.province ?? '').trim()).filter(Boolean)),
   );
+  // Gom showroom đã chọn theo THỊ TRƯỜNG (tỉnh). Tỷ lệ % chỉ có ý nghĩa GIỮA các showroom cùng 1
+  // thị trường — thị trường 1 showroom nhận toàn bộ, không cần nhập %.
+  const marketGroups: { province: string; ids: string[] }[] = [];
+  for (const id of form.srIds) {
+    const p = provinceOfSr(id, showrooms);
+    let g = marketGroups.find((x) => x.province === p);
+    if (!g) { g = { province: p, ids: [] }; marketGroups.push(g); }
+    g.ids.push(id);
+  }
+  const hasMultiMarket = marketGroups.some((g) => g.ids.length >= 2);
 
   return (
     <div className="rounded-xl border border-brand/40 p-4 space-y-4 bg-white">
@@ -851,11 +883,19 @@ function TabConfigPanel({ tab, form, onField, preview, brands, models, showrooms
         )}
       </div>
 
-      {/* 8. Cách chia lead vào showroom — chỉ hiện khi tab có ≥2 showroom (giống fanpage) */}
-      {form.srIds.length >= 2 && (
+      {/* 8. Cách chia lead theo THỊ TRƯỜNG — chỉ hiện khi có thị trường nhiều showroom */}
+      {hasMultiMarket && (
         <div className="space-y-2">
-          <label className="block text-xs font-semibold text-slate-600">Cách chia lead vào các showroom</label>
-          <p className="text-[11px] text-slate-400">Áp dụng khi tab này giao lead cho nhiều showroom (vd cùng thị trường Hà Nội).</p>
+          <label className="block text-xs font-semibold text-slate-600">Cách chia lead khi thị trường có nhiều showroom</label>
+          <p className="text-[11px] text-slate-400">
+            Lead được định tuyến theo thị trường (tỉnh/thành): thị trường chỉ 1 showroom → nhận toàn bộ.
+            Chỉ thị trường nhiều showroom (vd Hà Nội) mới áp dụng cách chia dưới đây.
+          </p>
+          {form.addressCol == null && (
+            <p className="text-[11px] text-amber-600">
+              Cần bật “Định tuyến theo địa chỉ” ở trên để lead được chia đúng theo từng thị trường.
+            </p>
+          )}
           <select value={form.srStrategy} onChange={(e) => onField('srStrategy', e.target.value as AssignStrategy)}
             className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm bg-white">
             <option value="least_loaded">Chia đều (ưu tiên nơi đang ít lead nhất)</option>
@@ -864,31 +904,42 @@ function TabConfigPanel({ tab, form, onField, preview, brands, models, showrooms
           </select>
         </div>
       )}
-      {form.srIds.length >= 2 && form.srStrategy === 'weighted' && (
-        <div className="rounded-lg border border-slate-200 p-3 space-y-2">
-          <div className="text-xs font-semibold text-slate-500">Tỷ lệ phân bổ cho từng showroom</div>
-          {form.srIds.map((id) => {
-            const s = showrooms.find((x) => x.id === id);
+      {hasMultiMarket && form.srStrategy === 'weighted' && (
+        <div className="space-y-3">
+          {marketGroups.map((g) => {
+            const single = g.ids.length < 2;
+            const total = g.ids.reduce((a, id) => a + (Number(form.srShares[id]) || 0), 0);
             return (
-              <div key={id} className="flex items-center gap-2">
-                <span className="flex-1 text-sm text-slate-700 truncate">{s?.name ?? '—'}</span>
-                <input type="number" min={0} value={form.srShares[id] ?? '0'}
-                  onChange={(e) => onField('srShares', { ...form.srShares, [id]: e.target.value })}
-                  className="w-20 rounded-lg border border-slate-200 px-2 py-1.5 text-sm text-right" />
-                <span className="text-xs text-slate-400">%</span>
+              <div key={g.province} className="rounded-lg border border-slate-200 p-3 space-y-2">
+                <div className="text-xs font-semibold text-slate-600">Thị trường {g.province}</div>
+                {single ? (
+                  <p className="text-[11px] text-slate-500">
+                    {showrooms.find((x) => x.id === g.ids[0])?.name ?? '—'} → nhận toàn bộ lead thị trường này.
+                  </p>
+                ) : (
+                  <>
+                    {g.ids.map((id) => {
+                      const s = showrooms.find((x) => x.id === id);
+                      return (
+                        <div key={id} className="flex items-center gap-2">
+                          <span className="flex-1 text-sm text-slate-700 truncate">{s?.name ?? '—'}</span>
+                          <input type="number" min={0} value={form.srShares[id] ?? '0'}
+                            onChange={(e) => onField('srShares', { ...form.srShares, [id]: e.target.value })}
+                            className="w-20 rounded-lg border border-slate-200 px-2 py-1.5 text-sm text-right" />
+                          <span className="text-xs text-slate-400">%</span>
+                        </div>
+                      );
+                    })}
+                    <div className="text-xs">
+                      Tổng:{' '}
+                      <span className={total === 100 ? 'font-bold text-emerald-600' : 'font-bold text-amber-600'}>{total}%</span>
+                      {total !== 100 && <span className="text-slate-400"> (nên 100% cho thị trường này)</span>}
+                    </div>
+                  </>
+                )}
               </div>
             );
           })}
-          {(() => {
-            const total = form.srIds.reduce((a, id) => a + (Number(form.srShares[id]) || 0), 0);
-            return (
-              <div className="text-xs">
-                Tổng:{' '}
-                <span className={total === 100 ? 'font-bold text-emerald-600' : 'font-bold text-amber-600'}>{total}%</span>
-                {total !== 100 && <span className="text-slate-400"> (nên 100%)</span>}
-              </div>
-            );
-          })()}
         </div>
       )}
     </div>
