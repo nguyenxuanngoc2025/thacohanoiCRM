@@ -4,6 +4,8 @@ import { checkCronSecret } from '@/lib/cron-auth';
 import { buildOverdueMessages, buildCallbackMessages, buildUnassignedMessages, type OverdueLead, type CallbackLead, type UnassignedLead } from '@/lib/reminders';
 import { decideOverdueAction, decideCallbackReminder, decideUnassignedReminder, MAX_NO_ANSWER } from '@/lib/overdue-escalation';
 import { getMutedTeamIdsGlobal } from '@/lib/company-brands';
+import { resolvePushRecipients, type PushUser } from '@/lib/push-recipients';
+import { sendPushToUsers } from '@/lib/push';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,7 +35,7 @@ export async function POST(request: NextRequest) {
   // Thêm điều kiện chưa nhắc đủ 2 lần.
   const { data: leads, error } = await db
     .from('leads')
-    .select('id, company_id, sales_team_id, full_name, phone, assigned_to, next_contact_at, overdue_reminder_count, last_overdue_notified_at, sales_teams(name), users!assigned_to(full_name)')
+    .select('id, company_id, sales_team_id, showroom_id, full_name, phone, assigned_to, next_contact_at, overdue_reminder_count, last_overdue_notified_at, sales_teams(name), users!assigned_to(full_name)')
     .lte('next_contact_at', now.toISOString())
     .is('status', null)
     .not('assigned_to', 'is', null)
@@ -101,7 +103,7 @@ export async function POST(request: NextRequest) {
   // Ngưỡng = first_response_hours (round1) theo công ty, mốc tính từ created_at; lặp mỗi gapHours tới khi giao.
   const { data: ucLeads } = await db
     .from('leads')
-    .select('id, company_id, sales_team_id, full_name, phone, created_at, last_overdue_notified_at, sales_teams(name)')
+    .select('id, company_id, sales_team_id, showroom_id, full_name, phone, created_at, last_overdue_notified_at, sales_teams(name)')
     .is('status', null)
     .is('assigned_to', null)
     .not('sales_team_id', 'is', null);
@@ -184,6 +186,53 @@ export async function POST(request: NextRequest) {
   for (const l of ucDue) {
     if (!notifiedLeadIds.includes(l.id)) continue;
     await db.from('leads').update({ last_overdue_notified_at: now.toISOString() }).eq('id', l.id);
+  }
+
+  // ── Web Push cá nhân (song song Zalo) ─────────────────────────────────────
+  // Nhóm A (quá hạn) → TVBH + TP/TN. Nhóm C (tồn chưa giao) → TP/TN. Chỉ push lead đã thực nhắc.
+  // Nạp user + showroom-map 1 lần cho MỌI công ty xuất hiện trong danh sách nhắc (đa tenant).
+  const pushCompanyIds = [...new Set([
+    ...due.map((l) => l.company_id as string),
+    ...ucDue.map((l) => l.company_id as string),
+  ].filter(Boolean))];
+  if (pushCompanyIds.length > 0) {
+    const [{ data: uRows }, { data: usRows }] = await Promise.all([
+      db.from('users').select('id, role, company_id, sales_team_id').in('company_id', pushCompanyIds),
+      db.from('user_showrooms').select('user_id, showroom_id'),
+    ]);
+    const srByUser = new Map<string, string[]>();
+    for (const r of (usRows ?? []) as { user_id: string; showroom_id: string }[]) {
+      const arr = srByUser.get(r.user_id) ?? []; arr.push(r.showroom_id); srByUser.set(r.user_id, arr);
+    }
+    const allUsers: PushUser[] = ((uRows ?? []) as { id: string; role: string; company_id: string | null; sales_team_id: string | null }[])
+      .map((u) => ({ ...u, showroom_ids: srByUser.get(u.id) ?? [] }));
+
+    for (const l of due) {
+      if (!notifiedLeadIds.includes(l.id)) continue;
+      if (l.sales_team_id && mutedTeamIds.has(l.sales_team_id as string)) continue;
+      const cid = l.company_id as string;
+      const ids = resolvePushRecipients('overdue', {
+        company_id: cid, sales_team_id: (l.sales_team_id as string | null) ?? null,
+        showroom_id: (l.showroom_id as string | null) ?? null, assignee_id: (l.assigned_to as string | null) ?? null,
+      }, allUsers.filter((u) => u.company_id === cid));
+      await sendPushToUsers(db, cid, ids, {
+        title: 'Lead quá hạn chăm sóc', body: `${l.full_name ?? 'Khách lẻ'} · ${l.phone}`,
+        url: '/leads', tag: `overdue-${l.id}`,
+      });
+    }
+    for (const l of ucDue) {
+      if (!notifiedLeadIds.includes(l.id)) continue;
+      if (l.sales_team_id && mutedTeamIds.has(l.sales_team_id as string)) continue;
+      const cid = l.company_id as string;
+      const ids = resolvePushRecipients('unassigned_backlog', {
+        company_id: cid, sales_team_id: (l.sales_team_id as string | null) ?? null,
+        showroom_id: (l.showroom_id as string | null) ?? null, assignee_id: null,
+      }, allUsers.filter((u) => u.company_id === cid));
+      await sendPushToUsers(db, cid, ids, {
+        title: 'Lead chưa phân giao còn tồn', body: `${l.full_name ?? 'Khách lẻ'} · ${l.phone}`,
+        url: '/assign', tag: `unassigned-${l.id}`,
+      });
+    }
   }
 
   return NextResponse.json({ ok: true, sent: inserts.length, leads: notifiedLeadIds.length });
