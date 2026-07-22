@@ -1,5 +1,19 @@
 import { describe, it, expect } from 'vitest';
-import { renderNewLead, renderReturningLead, renderLeadAssigned, renderLeadsAssignedSummary, renderRosterMissing, renderOverdue, renderCallbackReminder, renderDailySr, renderDailyMgmt, maskPhone, renderChannelDaily, renderBrandReport, type ChannelReportView } from './notify-templates';
+import { renderNewLead, renderReturningLead, renderLeadAssigned, renderLeadsAssignedSummary, renderRosterMissing, renderOverdue, renderCallbackReminder, renderUnassignedReminder, renderDailySr, renderDailyMgmt, maskPhone, renderChannelDaily, renderBrandReport, type ChannelReportView } from './notify-templates';
+
+describe('renderUnassignedReminder', () => {
+  it('gom nhiều lead 1 phòng, có tiêu đề + tổng số + danh sách', () => {
+    const txt = renderUnassignedReminder('KIA MAZDA 2', [
+      { fullName: 'Anh Tiến', phone: '0900000001', waitMinutes: 90 },
+      { fullName: null, phone: '0900000002', waitMinutes: 130 },
+    ]);
+    expect(txt).toContain('CHƯA PHÂN GIAO — KIA MAZDA 2');
+    expect(txt).toContain('<b>2</b>');
+    expect(txt).toContain('Anh Tiến');
+    expect(txt).toContain('Khách lẻ');       // fullName null → nhãn mặc định
+    expect(txt).toContain('2 giờ 10 phút');   // 130 phút
+  });
+});
 
 const stats = (o: Partial<{ total: number; contacted: number; pending: number; overdue: number; KHQT: number; GDTD: number; KyHD: number; Fail: number }> = {}) =>
   ({ total: 0, contacted: 0, pending: 0, overdue: 0, KHQT: 0, GDTD: 0, KyHD: 0, Fail: 0, ...o });

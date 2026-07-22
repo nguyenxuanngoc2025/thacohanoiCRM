@@ -163,6 +163,34 @@ export function renderLeadsAssignedSummary(showroom: string, total: number, perA
   ].join('\n');
 }
 
+export interface UnassignedItem {
+  fullName: string | null;
+  phone: string;
+  waitMinutes: number; // thời gian tồn hàng chờ tính từ created_at
+}
+
+// Tin nhắc lead tồn hàng chờ chưa giao TVBH: liệt kê đầy đủ, chờ lâu nhất lên trước.
+export function renderUnassignedReminder(team: string, items: UnassignedItem[]): string {
+  const total = items.length;
+  const maxWait = items.reduce((m, it) => Math.max(m, it.waitMinutes), 0);
+  const listed = [...items]
+    .sort((a, b) => b.waitMinutes - a.waitMinutes)
+    .slice(0, OVERDUE_LIST_MAX)
+    .map((it) => {
+      const ten = it.fullName?.trim() || 'Khách lẻ';
+      return `• ${ten} ${maskPhone(it.phone)} — chờ ${formatDuration(it.waitMinutes)}`;
+    });
+  const remaining = total - listed.length;
+  const lines = [
+    `<b>CHƯA PHÂN GIAO — ${team}</b>`,
+    `<b>${total}</b> lead đang chờ phân giao (chờ lâu nhất ${formatDuration(maxWait)}):`,
+    ...listed,
+  ];
+  if (remaining > 0) lines.push(`… và ${remaining} lead khác.`);
+  lines.push('Vào hệ thống giao cho TVBH ngay.');
+  return lines.join('\n');
+}
+
 export interface OverdueItem {
   fullName: string | null;
   phone: string;
