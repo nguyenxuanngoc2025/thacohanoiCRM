@@ -13,9 +13,20 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm;
 -- unaccent KHÔNG immutable → không dùng generated column; duy trì bằng trigger.
 ALTER TABLE crm_thacoauto.leads ADD COLUMN IF NOT EXISTS search_text text;
 
+-- Chuẩn hoá SĐT về dạng nội địa (0…): bỏ ký tự không phải số, mã quốc gia 84… → 0….
+-- SĐT lưu dạng +84… nên digits ra 84…; người dùng gõ 4 số đầu kiểu 0… phải khớp được.
+CREATE OR REPLACE FUNCTION crm_thacoauto.phone_national(p_phone text)
+RETURNS text LANGUAGE sql IMMUTABLE AS $$
+  SELECT CASE
+    WHEN regexp_replace(coalesce(p_phone, ''), '\D', '', 'g') LIKE '84%'
+      THEN '0' || substring(regexp_replace(coalesce(p_phone, ''), '\D', '', 'g') FROM 3)
+    ELSE regexp_replace(coalesce(p_phone, ''), '\D', '', 'g')
+  END
+$$;
+
 CREATE OR REPLACE FUNCTION crm_thacoauto.leads_search_text(p_name text, p_phone text)
 RETURNS text LANGUAGE sql IMMUTABLE AS $$
-  SELECT lower(crm_thacoauto.unaccent(coalesce(p_name, ''))) || ' ' || regexp_replace(coalesce(p_phone, ''), '\D', '', 'g')
+  SELECT lower(crm_thacoauto.unaccent(coalesce(p_name, ''))) || ' ' || crm_thacoauto.phone_national(p_phone)
 $$;
 
 CREATE OR REPLACE FUNCTION crm_thacoauto.leads_search_text_trg()
@@ -30,10 +41,10 @@ CREATE TRIGGER leads_search_text_biu
   BEFORE INSERT OR UPDATE OF full_name, phone ON crm_thacoauto.leads
   FOR EACH ROW EXECUTE FUNCTION crm_thacoauto.leads_search_text_trg();
 
--- Backfill lead hiện có.
+-- Backfill lead hiện có (recompute khi công thức đổi → idempotent, chỉ ghi dòng lệch).
 UPDATE crm_thacoauto.leads
 SET search_text = crm_thacoauto.leads_search_text(full_name, phone)
-WHERE search_text IS NULL;
+WHERE search_text IS DISTINCT FROM crm_thacoauto.leads_search_text(full_name, phone);
 
 -- Index trigram cho ILIKE '%...%'.
 CREATE INDEX IF NOT EXISTS idx_leads_search_text ON crm_thacoauto.leads USING gin (search_text gin_trgm_ops);
@@ -93,9 +104,9 @@ BEGIN
         AND (
           (coalesce($14,'') = '' AND $15 IS NULL)
           OR ($14 <> '' AND (
-                regexp_replace(l.phone,'\D','','g') LIKE $14 || '%%'
-             OR (length($14) >= 3 AND regexp_replace(l.phone,'\D','','g') LIKE '%%' || $14)
-             OR (length($14) >= 4 AND regexp_replace(l.phone,'\D','','g') LIKE '%%' || $14 || '%%')
+                crm_thacoauto.phone_national(l.phone) LIKE $14 || '%%'
+             OR (length($14) >= 3 AND crm_thacoauto.phone_national(l.phone) LIKE '%%' || $14)
+             OR (length($14) >= 4 AND crm_thacoauto.phone_national(l.phone) LIKE '%%' || $14 || '%%')
           ))
           OR ($15 IS NOT NULL AND l.search_text ILIKE '%%' || $15 || '%%')
         )

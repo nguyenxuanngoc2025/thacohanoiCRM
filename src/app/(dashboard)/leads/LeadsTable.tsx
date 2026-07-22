@@ -472,6 +472,34 @@ function StatusPicker({ lead, variant, pending, start }: {
   );
 }
 
+// Ô tìm kiếm tách riêng + memo: giữ state gõ cục bộ, debounce 300ms mới đẩy query.
+// Nhờ tách khỏi LeadsTable, mỗi lần gõ KHÔNG re-render lại 50 dòng bảng → hết giật/lag.
+// Ref giữ callback mới nhất để timer không phụ thuộc onSearch (tránh reset debounce khi cha render lại).
+const SearchBox = React.memo(function SearchBox({
+  initial, onSearch,
+}: { initial: string; onSearch: (v: string) => void }) {
+  const [v, setV] = useState(initial);
+  const ref = React.useRef(onSearch);
+  ref.current = onSearch;
+  // Query đổi từ ngoài (đổi bộ lọc, back/forward) → đồng bộ lại ô nhập.
+  useEffect(() => { setV(initial); }, [initial]);
+  useEffect(() => {
+    const t = setTimeout(() => { if (v !== initial) ref.current(v); }, 300);
+    return () => clearTimeout(t);
+  }, [v, initial]);
+  return (
+    <div className="relative flex-1 min-w-[120px] max-w-[200px]">
+      <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+      <input
+        value={v}
+        onChange={(e) => setV(e.target.value)}
+        placeholder="Tìm tên / SĐT"
+        className="text-sm border border-slate-200 rounded-lg pl-8 pr-2.5 py-1.5 outline-none focus:border-brand w-full"
+      />
+    </div>
+  );
+});
+
 export default function LeadsTable({
   leads, query, pushQuery, models, brands, showrooms, assignees, teams,
   formBrands, formShowrooms, formTeams, fixedTeamId,
@@ -512,8 +540,6 @@ export default function LeadsTable({
   const [bulkAssignee, setBulkAssignee] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [filterMenu, setFilterMenu] = useState(false);
-  // Ô tìm kiếm: gõ vào state cục bộ, debounce 300ms rồi mới đẩy URL (tránh render lại mỗi ký tự).
-  const [qLocal, setQLocal] = useState(query.q);
   // Dropdown trong header render qua portal (card có overflow-hidden sẽ cắt mất nếu dùng absolute)
   const filterBtnRef = React.useRef<HTMLButtonElement>(null);
   const colBtnRef = React.useRef<HTMLButtonElement>(null);
@@ -555,14 +581,6 @@ export default function LeadsTable({
 
   // Bỏ chọn khi tập lead theo bộ lọc thay đổi
   useEffect(() => { setSel(new Set()); }, [leads]);
-
-  // Đồng bộ ô tìm kiếm khi URL đổi từ ngoài (điều hướng, xoá lọc).
-  useEffect(() => { setQLocal(query.q); }, [query.q]);
-  // Debounce 300ms: chỉ đẩy URL khi từ khoá thật sự khác giá trị đang áp.
-  useEffect(() => {
-    const t = setTimeout(() => { if (qLocal !== query.q) pushQuery({ ...query, q: qLocal, page: 1 }); }, 300);
-    return () => clearTimeout(t);
-  }, [qLocal]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleCol = (key: ColKey) => {
     setHidden((prev) => {
@@ -821,15 +839,7 @@ export default function LeadsTable({
 
         <div className="w-px h-5 bg-slate-200 mx-1" />
 
-        <div className="relative flex-1 min-w-[120px] max-w-[200px]">
-          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-          <input
-            value={qLocal}
-            onChange={(e) => setQLocal(e.target.value)}
-            placeholder="Tìm tên / SĐT"
-            className="text-sm border border-slate-200 rounded-lg pl-8 pr-2.5 py-1.5 outline-none focus:border-brand w-full"
-          />
-        </div>
+        <SearchBox initial={query.q} onSearch={(v) => pushQuery({ ...query, q: v, page: 1 })} />
 
         <TimeRangeFilter
           range={query.range}
