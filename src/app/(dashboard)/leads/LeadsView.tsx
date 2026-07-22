@@ -179,6 +179,7 @@ export default function LeadsView({
         total={total}
         pageSize={pageSize}
         onGo={(p) => pushQuery({ ...query, page: p })}
+        onSize={(s) => pushQuery({ ...query, size: s, page: 1 })}
       />
     </div>
   );

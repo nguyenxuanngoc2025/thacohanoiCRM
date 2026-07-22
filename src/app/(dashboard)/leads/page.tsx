@@ -8,7 +8,7 @@ import { loadSourceCatalog } from '@/lib/source-catalog';
 import { getTenant } from '@/lib/tenant';
 import { type UserRole } from '@/types/database';
 import {
-  parseLeadsQuery, splitQuery, platformToSources, presetRange, clampPage, PAGE_SIZE,
+  parseLeadsQuery, splitQuery, platformToSources, presetRange, clampPage,
 } from '@/lib/leads-query';
 
 export const dynamic = 'force-dynamic';
@@ -81,8 +81,8 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
     p_inactive_showrooms: [...inactiveSrIds],
     p_sort: query.sort,
     p_dir: query.dir,
-    p_limit: PAGE_SIZE,
-    p_offset: (query.page - 1) * PAGE_SIZE,
+    p_limit: query.size,
+    p_offset: (query.page - 1) * query.size,
     p_b10: b10Enabled,
   });
   if (rpcErr) throw new Error(rpcErr.message);
@@ -94,7 +94,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   };
   const leads: LeadRow[] = result.rows ?? [];
   const total = result.total_count ?? 0;
-  const page = clampPage(query.page, total);
+  const page = clampPage(query.page, total, query.size);
 
   // Dropdown tạo/sửa lead: chỉ hiện hãng đang mở (ẩn dòng xe/hãng/phòng của hãng đã tắt).
   const brandClosed = (bid: string | null | undefined) => isBrandClosed(openBrandIds, bid ?? null);
@@ -135,7 +135,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
       leads={leads}
       total={total}
       page={page}
-      pageSize={PAGE_SIZE}
+      pageSize={query.size}
       stats={result.stats}
       query={query}
       models={models}

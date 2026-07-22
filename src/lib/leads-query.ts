@@ -9,12 +9,14 @@ export type LeadSortKey =
   | 'time' | 'name' | 'phone' | 'showroom' | 'team' | 'brand' | 'model' | 'assignee' | 'class';
 export type RangePreset = 'all' | 'today' | 'this_week' | 'this_month' | 'last_month' | '30d' | 'custom';
 export const PAGE_SIZE = 50;
+export const PAGE_SIZES = [25, 50, 100] as const;
+export type PageSize = (typeof PAGE_SIZES)[number];
 
 export interface LeadsQuery {
   q: string; showroom: string; brand: string; model: string; source: string;
   assignee: string; status: string; team: string;
   range: RangePreset; from: string; to: string;
-  tab: LeadTab; sort: LeadSortKey; dir: 'asc' | 'desc'; page: number;
+  tab: LeadTab; sort: LeadSortKey; dir: 'asc' | 'desc'; page: number; size: PageSize;
 }
 
 const TABS: LeadTab[] = ['all', 'pending', 'contacted', 'overdue'];
@@ -24,7 +26,7 @@ export const DEFAULT_QUERY: LeadsQuery = {
   q: '', showroom: '', brand: '', model: '', source: '',
   assignee: '', status: '', team: '',
   range: 'all', from: '', to: '',
-  tab: 'all', sort: 'time', dir: 'desc', page: 1,
+  tab: 'all', sort: 'time', dir: 'desc', page: 1, size: PAGE_SIZE,
 };
 
 type SP = Record<string, string | string[] | undefined>;
@@ -37,6 +39,7 @@ export function parseLeadsQuery(sp: SP): LeadsQuery {
   const sortRaw = str(sp.sort) as LeadSortKey;
   const dirRaw = str(sp.dir);
   const pageNum = parseInt(str(sp.page), 10);
+  const sizeNum = parseInt(str(sp.size), 10);
   return {
     q: str(sp.q), showroom: str(sp.showroom), brand: str(sp.brand), model: str(sp.model),
     source: str(sp.source), assignee: str(sp.assignee), status: str(sp.status), team: str(sp.team),
@@ -45,6 +48,7 @@ export function parseLeadsQuery(sp: SP): LeadsQuery {
     sort: SORTS.includes(sortRaw) ? sortRaw : 'time',
     dir: dirRaw === 'asc' ? 'asc' : 'desc',
     page: Number.isFinite(pageNum) && pageNum > 0 ? pageNum : 1,
+    size: (PAGE_SIZES as readonly number[]).includes(sizeNum) ? (sizeNum as PageSize) : PAGE_SIZE,
   };
 }
 
@@ -59,6 +63,7 @@ export function queryToSearchParams(q: LeadsQuery): URLSearchParams {
   if (q.sort !== 'time') put('sort', q.sort);
   if (q.dir !== 'desc') put('dir', q.dir);
   if (q.page > 1) put('page', String(q.page));
+  if (q.size !== PAGE_SIZE) put('size', String(q.size));
   return sp;
 }
 

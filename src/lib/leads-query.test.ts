@@ -20,6 +20,12 @@ describe('parseLeadsQuery', () => {
     expect(q.tab).toBe('all'); expect(q.sort).toBe('time');
     expect(q.dir).toBe('desc'); expect(q.range).toBe('all');
   });
+  it('size chỉ nhận 25/50/100, khác → 50', () => {
+    expect(parseLeadsQuery({ size: '25' }).size).toBe(25);
+    expect(parseLeadsQuery({ size: '100' }).size).toBe(100);
+    expect(parseLeadsQuery({ size: '37' }).size).toBe(50);
+    expect(parseLeadsQuery({}).size).toBe(50);
+  });
 });
 
 describe('queryToSearchParams', () => {
@@ -30,6 +36,10 @@ describe('queryToSearchParams', () => {
     expect(sp.get('tab')).toBe('pending');
     expect(sp.get('range')).toBeNull(); // 'all' là mặc định → không ghi
     expect(sp.get('sort')).toBeNull();
+  });
+  it('size 50 (mặc định) không ghi, khác thì ghi', () => {
+    expect(queryToSearchParams({ ...DEFAULT_QUERY, size: 50 }).get('size')).toBeNull();
+    expect(queryToSearchParams({ ...DEFAULT_QUERY, size: 25 }).get('size')).toBe('25');
   });
 });
 
