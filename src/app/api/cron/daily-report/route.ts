@@ -3,6 +3,8 @@ import { createServiceClient } from '@/lib/supabase/server';
 import { checkCronSecret } from '@/lib/cron-auth';
 import { buildPeriodReport, buildChannelReport, buildChannelPeriodReport, buildLongPeriodReport, buildBrandReport, type ReportLead } from '@/lib/daily-report';
 import { getMutedTeamIdsGlobal, getInactiveShowroomIdsGlobal, isBrandClosed } from '@/lib/company-brands';
+import { buildDailyPushPerUser, type DailyPushUser, type DailyPushLead } from '@/lib/push-daily';
+import { sendPushToUsers } from '@/lib/push';
 
 export const dynamic = 'force-dynamic';
 
@@ -63,7 +65,7 @@ export async function POST(request: NextRequest) {
   // Lead TẠO trong kỳ (gồm cả kỳ trước để so sánh với báo cáo tuần/tháng).
   let query = db
     .from('leads')
-    .select('company_id, brand_id, showroom_id, sales_team_id, status, created_at, last_contact_at, next_contact_at, showrooms(name), sales_teams(name), brands(name), model_id, models(name), users!assigned_to(full_name)')
+    .select('company_id, brand_id, showroom_id, sales_team_id, assigned_to, status, created_at, last_contact_at, next_contact_at, showrooms(name), sales_teams(name), brands(name), model_id, models(name), users!assigned_to(full_name)')
     .gte('created_at', queryStartUtc)
     .not('showroom_id', 'is', null);
   if (endVn) query = query.lt('created_at', toUtcIso(endVn));
@@ -211,5 +213,37 @@ export async function POST(request: NextRequest) {
   }
 
   if (inserts.length > 0) await db.from('notifications').insert(inserts);
+
+  // ── Web Push cá nhân báo cáo cuối ngày (chỉ kỳ NGÀY, song song Zalo) ───────
+  if (period === 'daily') {
+    const curLeads = openLeads.filter((l) => new Date(String(l.created_at)).getTime() >= curStartUtcMs);
+    const companyIds = [...new Set(curLeads.map((l) => (l.company_id as string | null) ?? '').filter(Boolean))];
+    if (companyIds.length > 0) {
+      const [{ data: uRows }, { data: usRows }] = await Promise.all([
+        db.from('users').select('id, role, company_id, sales_team_id').in('company_id', companyIds),
+        db.from('user_showrooms').select('user_id, showroom_id'),
+      ]);
+      const srByUser = new Map<string, string[]>();
+      for (const r of (usRows ?? []) as { user_id: string; showroom_id: string }[]) {
+        const arr = srByUser.get(r.user_id) ?? []; arr.push(r.showroom_id); srByUser.set(r.user_id, arr);
+      }
+      const dpUsers: DailyPushUser[] = ((uRows ?? []) as { id: string; role: string; company_id: string | null; sales_team_id: string | null }[])
+        .map((u) => ({ ...u, showroom_ids: srByUser.get(u.id) ?? [] }));
+      const dpLeads: DailyPushLead[] = curLeads.map((l) => ({
+        company_id: (l.company_id as string | null) ?? null,
+        sales_team_id: (l.sales_team_id as string | null) ?? null,
+        showroom_id: (l.showroom_id as string | null) ?? null,
+        assignee_id: (l.assigned_to as string | null) ?? null,
+        status: (l.status as string | null) ?? null,
+        next_contact_at: (l.next_contact_at as string | null) ?? null,
+      }));
+      const msgs = buildDailyPushPerUser(dpLeads, dpUsers, now);
+      const userCompany = new Map(dpUsers.map((u) => [u.id, u.company_id]));
+      await Promise.all(msgs.map((m) =>
+        sendPushToUsers(db, userCompany.get(m.userId) ?? null, [m.userId], { title: m.title, body: m.body, url: m.url })
+      ));
+    }
+  }
+
   return NextResponse.json({ ok: true, period, sent: inserts.length });
 }
