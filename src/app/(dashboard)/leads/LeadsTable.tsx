@@ -489,7 +489,7 @@ const SearchBox = React.memo(function SearchBox({
     return () => clearTimeout(t);
   }, [v, initial]);
   return (
-    <div className="relative flex-1 min-w-[120px] max-w-[200px]">
+    <div className="relative w-full lg:flex-1 lg:min-w-[120px] lg:max-w-[200px]">
       <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
       <input
         value={v}
@@ -823,26 +823,31 @@ export default function LeadsTable({
 
   return (
     <div className="h-full flex flex-col bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-      <div className="flex items-center flex-wrap gap-2 px-3 sm:px-6 py-3 border-b border-slate-100 shrink-0">
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => pushQuery({ ...query, tab: t.key, page: 1 })}
-            className="text-sm rounded-full px-3 py-1 transition-colors"
-            style={{
-              fontWeight: tab === t.key ? 600 : 500,
-              color: tab === t.key ? (t.key === 'overdue' ? '#be123c' : t.key === 'today' ? '#b45309' : 'var(--color-brand)') : '#64748b',
-              background: tab === t.key ? (t.key === 'overdue' ? '#fff1f2' : t.key === 'today' ? '#fef3c7' : '#e6f0fa') : 'transparent',
-            }}
-          >
-            {t.label}
-          </button>
-        ))}
+      <div className="flex flex-col gap-2 px-3 sm:px-6 py-3 border-b border-slate-100 shrink-0 lg:flex-row lg:items-center lg:flex-wrap">
+        {/* Tab lọc nhanh: cuộn ngang 1 hàng trên mobile; nhập vào hàng chung ở desktop */}
+        <div className="flex items-center gap-1 overflow-x-auto -mx-3 px-3 sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0 lg:overflow-visible lg:contents [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {TABS.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => pushQuery({ ...query, tab: t.key, page: 1 })}
+              className="text-sm rounded-full px-3 py-1 transition-colors shrink-0 whitespace-nowrap"
+              style={{
+                fontWeight: tab === t.key ? 600 : 500,
+                color: tab === t.key ? (t.key === 'overdue' ? '#be123c' : t.key === 'today' ? '#b45309' : 'var(--color-brand)') : '#64748b',
+                background: tab === t.key ? (t.key === 'overdue' ? '#fff1f2' : t.key === 'today' ? '#fef3c7' : '#e6f0fa') : 'transparent',
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
 
-        <div className="w-px h-5 bg-slate-200 mx-1" />
+        <div className="hidden lg:block w-px h-5 bg-slate-200 mx-1" />
 
         <SearchBox initial={query.q} onSearch={(v) => pushQuery({ ...query, q: v, page: 1 })} />
 
+        {/* Công cụ: 1 hàng riêng trên mobile; nhập vào hàng chung ở desktop */}
+        <div className="flex items-center flex-wrap gap-2 lg:contents">
         <TimeRangeFilter
           range={query.range}
           from={query.from}
@@ -997,6 +1002,7 @@ export default function LeadsTable({
               <UserPlus size={15} /> Thêm lead
             </button>
           )}
+        </div>
         </div>
       </div>
 
