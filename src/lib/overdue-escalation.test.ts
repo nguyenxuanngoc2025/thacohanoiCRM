@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { decideOverdueAction, decideCallbackReminder, MAX_NO_ANSWER } from './overdue-escalation';
+import { decideOverdueAction, decideCallbackReminder, decideUnassignedReminder, MAX_NO_ANSWER } from './overdue-escalation';
 
 describe('decideOverdueAction', () => {
   const now = new Date('2026-06-27T10:00:00Z');
@@ -41,5 +41,38 @@ describe('decideCallbackReminder', () => {
   });
   it('nextContactAt null và chưa nhắc → không nhắc', () => {
     expect(decideCallbackReminder({ noAnswerCount: 1, nextContactAt: null, lastNotifiedAt: null, gapHours: 2 }, now).notify).toBe(false);
+  });
+});
+
+describe('decideUnassignedReminder', () => {
+  const now = new Date('2026-07-22T10:00:00Z');
+  const base = { thresholdHours: 1, gapHours: 2 };
+
+  it('chưa tới ngưỡng → không nhắc', () => {
+    // tạo lúc 09:30, ngưỡng 1h → hạn 10:30 > now
+    const r = decideUnassignedReminder(
+      { ...base, createdAt: '2026-07-22T09:30:00Z', lastNotifiedAt: null }, now);
+    expect(r.notify).toBe(false);
+  });
+
+  it('đúng/quá ngưỡng lần đầu → nhắc', () => {
+    // tạo lúc 08:00, hạn 09:00 <= now
+    const r = decideUnassignedReminder(
+      { ...base, createdAt: '2026-07-22T08:00:00Z', lastNotifiedAt: null }, now);
+    expect(r.notify).toBe(true);
+  });
+
+  it('đã nhắc, chưa đủ gap → không nhắc', () => {
+    // nhắc lúc 09:00, gap 2h → 11:00 > now
+    const r = decideUnassignedReminder(
+      { ...base, createdAt: '2026-07-22T06:00:00Z', lastNotifiedAt: '2026-07-22T09:00:00Z' }, now);
+    expect(r.notify).toBe(false);
+  });
+
+  it('đã nhắc, đủ gap → nhắc lại', () => {
+    // nhắc lúc 07:30, gap 2h → 09:30 <= now
+    const r = decideUnassignedReminder(
+      { ...base, createdAt: '2026-07-22T06:00:00Z', lastNotifiedAt: '2026-07-22T07:30:00Z' }, now);
+    expect(r.notify).toBe(true);
   });
 });

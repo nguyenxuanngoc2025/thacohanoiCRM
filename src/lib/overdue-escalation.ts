@@ -52,3 +52,25 @@ export function decideCallbackReminder(s: CallbackState, now: Date): { notify: b
   if (!s.nextContactAt) return { notify: false };
   return { notify: t >= new Date(s.nextContactAt).getTime() };
 }
+
+export interface UnassignedState {
+  createdAt: string;             // leads.created_at
+  thresholdHours: number;        // first_response_hours (round1) theo công ty
+  lastNotifiedAt: string | null; // last_overdue_notified_at
+  gapHours: number;              // follow_up_hours (round1)
+}
+
+/**
+ * Quyết định có nhắc "chưa phân giao" cho lead tồn hàng chờ lần này không.
+ * Lần đầu nhắc khi tồn quá thresholdHours tính từ createdAt; các lần sau cách
+ * lần nhắc trước >= gapHours. Tự dừng khi lead được giao (rời truy vấn ở route).
+ */
+export function decideUnassignedReminder(s: UnassignedState, now: Date): { notify: boolean } {
+  const t = now.getTime();
+  if (s.lastNotifiedAt) {
+    const last = new Date(s.lastNotifiedAt).getTime();
+    return { notify: t >= last + s.gapHours * 3600000 };
+  }
+  const dueAt = new Date(s.createdAt).getTime() + s.thresholdHours * 3600000;
+  return { notify: t >= dueAt };
+}
