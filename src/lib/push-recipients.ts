@@ -6,7 +6,8 @@ export type PushEvent =
   | 'new_lead_unassigned'  // lead mới về phòng nhưng CHƯA giao ai
   | 'new_lead_no_team'     // lead mới về showroom, CHƯA có phòng nhận
   | 'overdue'              // lead quá hạn chăm sóc
-  | 'unassigned_backlog';  // lead chưa phân giao còn tồn (nhóm C)
+  | 'unassigned_backlog'   // lead chưa phân giao còn tồn (nhóm C)
+  | 'roster_missing';      // showroom chia theo lịch trực CHƯA đặt lịch ngày kế tiếp
 
 export interface PushUser {
   id: string;
@@ -55,6 +56,7 @@ export function resolvePushRecipients(
       ids = managersOfTeam();
       break;
     case 'new_lead_no_team':
+    case 'roster_missing':
       ids = gdShowroom();
       break;
     default:

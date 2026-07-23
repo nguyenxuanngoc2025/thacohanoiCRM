@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { Play, Power, CalendarClock, AlertTriangle, RefreshCw, Eye } from 'lucide-react';
-import { presetToCalendar, type Preset } from '@/lib/cron-admin';
+import { presetToCalendar, describeCalendar, type Preset } from '@/lib/cron-admin';
 import { samplePeriodOfUnit } from '@/lib/report-sample';
 
 interface TimerView {
@@ -100,9 +100,7 @@ export default function CronManager() {
                 <thead>
                   <tr className="text-left text-xs text-slate-400 border-b border-slate-100">
                     <th className="px-4 py-2 font-medium">Tác vụ</th>
-                    <th className="px-4 py-2 font-medium">Lịch chạy</th>
-                    <th className="px-4 py-2 font-medium">Lần chạy kế</th>
-                    <th className="px-4 py-2 font-medium">Lần chạy cuối</th>
+                    <th className="px-4 py-2 font-medium">Lịch chạy (giờ VN)</th>
                     <th className="px-4 py-2 font-medium text-right">Điều khiển</th>
                   </tr>
                 </thead>
@@ -126,15 +124,8 @@ export default function CronManager() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-xs text-slate-600 font-mono">
-                        {t.calendars.length ? t.calendars.map((c, i) => <div key={i}>{c}</div>) : '—'}
-                      </td>
-                      <td className="px-4 py-3 text-xs text-slate-500">{t.nextRun || '—'}</td>
-                      <td className="px-4 py-3 text-xs text-slate-500">
-                        {t.lastRun || '—'}
-                        {t.lastResult && t.lastResult !== 'success' && (
-                          <span className="ml-1 text-rose-600">({t.lastResult})</span>
-                        )}
+                      <td className="px-4 py-3 text-xs text-slate-600">
+                        {t.calendars.length ? t.calendars.map((c, i) => <div key={i}>{describeCalendar(c)}</div>) : '—'}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5 justify-end">

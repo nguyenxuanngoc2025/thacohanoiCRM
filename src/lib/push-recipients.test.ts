@@ -28,6 +28,11 @@ describe('resolvePushRecipients', () => {
     expect(r).toEqual(['gdsr1']);
   });
 
+  it('showroom chưa đặt lịch trực ngày kế tiếp → GĐ showroom', () => {
+    const r = resolvePushRecipients('roster_missing', { ...lead, sales_team_id: null, assignee_id: null }, users);
+    expect(r).toEqual(['gdsr1']);
+  });
+
   it('quá hạn chăm sóc → TVBH + TP/TN', () => {
     const r = resolvePushRecipients('overdue', lead, users).sort();
     expect(r).toEqual(['tn1', 'tp1', 'tvbh1']);

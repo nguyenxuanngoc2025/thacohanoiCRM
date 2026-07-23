@@ -13,7 +13,7 @@ export default async function CronPage() {
       <div>
         <h1 className="text-xl font-bold text-slate-900">Tác vụ tự động (Cron)</h1>
         <p className="text-sm text-slate-400 mt-0.5">
-          Bật/tắt, đổi lịch, chạy ngay mọi tác vụ định kỳ trên máy chủ. Giờ hiển thị theo UTC (VN = UTC+7).
+          Bật/tắt, đổi lịch, chạy ngay mọi tác vụ định kỳ trên máy chủ. Giờ hiển thị theo giờ Việt Nam.
         </p>
       </div>
       <CronManager />

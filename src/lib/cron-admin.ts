@@ -95,6 +95,7 @@ const CRON_EXPLAIN: Record<string, string> = {
   'cron-weekly-report': 'Gửi báo cáo tổng kết theo tuần.',
   'cron-monthly-report': 'Gửi báo cáo tổng kết theo tháng.',
   'cron-reminders': 'Nhắc tư vấn viên chăm sóc những lead sắp/đã quá hạn liên hệ.',
+  'cron-roster-reminders': 'Chiều tối nhắc BLĐ showroom (chia lead theo lịch trực) đăng ký phòng trực cho ngày mai nếu chưa đặt — tránh lead ngày mai không có phòng nhận.',
   'cron-enrich-names': 'Dò tên khách từ Zalo để điền cho các lead còn thiếu tên.',
   'cron-google-sheets': 'Đồng bộ lead mới từ Google Sheet của agency về CRM.',
   'cron-poll-fb-messages': 'Quét tin nhắn Facebook mới, tạo thành lead trong CRM.',
@@ -134,7 +135,7 @@ const CRON_ORDER = [
   // Báo cáo (ngày → tuần → tháng → sức khoẻ)
   'cron-daily-report', 'cron-weekly-report', 'cron-monthly-report', 'cron-health-digest',
   // Nhắc việc
-  'cron-reminders',
+  'cron-reminders', 'cron-roster-reminders',
   // Canh gác / hồi phục
   'cron-watchdog', 'zca-bot-heal',
   // Dự phòng
@@ -159,6 +160,7 @@ const CRON_TITLE: Record<string, string> = {
   'cron-weekly-report': 'Báo cáo tuần',
   'cron-monthly-report': 'Báo cáo tháng',
   'cron-reminders': 'Nhắc chăm sóc lead',
+  'cron-roster-reminders': 'Nhắc đặt lịch trực',
   'cron-enrich-names': 'Bổ sung tên khách',
   'cron-google-sheets': 'Đồng bộ Google Sheet',
   'cron-poll-fb-messages': 'Quét tin nhắn Facebook',
@@ -206,6 +208,71 @@ export function presetToCalendar(p: Preset): string {
     case 'weeklyAt':
       return `${p.weekday} *-*-* ${p2(p.hour)}:${p2(p.minute)}:00 ${VN_TZ}`;
   }
+}
+
+const DOW_VN: Record<string, string> = {
+  Mon: 'Thứ 2', Tue: 'Thứ 3', Wed: 'Thứ 4', Thu: 'Thứ 5',
+  Fri: 'Thứ 6', Sat: 'Thứ 7', Sun: 'CN',
+};
+
+/** Mô tả phần thứ trong tuần: 'Mon..Sat' → "Thứ 2 đến Thứ 7"; 'Mon,Wed' → "Thứ 2, Thứ 4". */
+function describeDow(tok: string): string {
+  if (tok.includes('..')) {
+    const [a, b] = tok.split('..');
+    return `${DOW_VN[a] ?? a} đến ${DOW_VN[b] ?? b}`;
+  }
+  if (tok.includes(',')) return tok.split(',').map((d) => DOW_VN[d] ?? d).join(', ');
+  return DOW_VN[tok] ?? tok;
+}
+
+const hm = (h: string, m: string) => `${h.padStart(2, '0')}:${m.padStart(2, '0')}`;
+
+/**
+ * Đổi 1 chuỗi OnCalendar (systemd) sang mô tả tiếng Việt dễ đọc cho người vận hành.
+ * Mọi lịch giờ cố định trong hệ đều gắn TZ Asia/Ho_Chi_Minh nên giờ hiển thị là giờ VN.
+ * Không đọc được thì trả nguyên chuỗi (an toàn, không tệ hơn hiện tại).
+ */
+export function describeCalendar(cal: string): string {
+  const s = (cal ?? '').trim();
+  if (!s) return '';
+  let dow = ''; let date = ''; let time = '';
+  for (const t of s.split(/\s+/)) {
+    if (/[A-Za-z]/.test(t) && t.includes('/') && !/^\d/.test(t)) continue; // TZ (Asia/Ho_Chi_Minh)
+    if (/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)/.test(t)) { dow = t; continue; }
+    if (t.includes(':')) { time = t; continue; }
+    if (t.includes('-')) { date = t; continue; }
+  }
+  if (!time) return s;
+
+  const [hStr, mStr] = time.split(':');
+  const minStep = mStr.includes('/') ? Number(mStr.split('/')[1]) : null;
+  const minFixed = mStr.replace(/\/.*/, '');
+
+  // Nhịp theo phút / giờ (giờ = *): độc lập múi giờ.
+  if (hStr === '*') {
+    if (minStep != null) return `Mỗi ${minStep} phút`;
+    if (minFixed === '00' || minFixed === '0') return 'Mỗi giờ';
+    return `Mỗi giờ (phút ${minFixed.padStart(2, '0')})`;
+  }
+
+  // Khoảng giờ + bước phút, kèm khoảng thứ nếu có (vd nhắc chăm sóc lead).
+  if (hStr.includes('..') && minStep != null) {
+    const [a, b] = hStr.split('..');
+    const prefix = dow ? `${describeDow(dow)}, ` : '';
+    return `${prefix}${hm(a, '00')}–${hm(b, '00')}, mỗi ${minStep} phút`;
+  }
+
+  // Giờ cố định (1 mốc hoặc danh sách).
+  const timeLabel = hStr.includes(',')
+    ? hStr.split(',').map((h) => hm(h, minFixed)).join(' và ')
+    : hm(hStr, minFixed);
+
+  if (dow) return `${timeLabel} ${describeDow(dow)} hằng tuần`;
+  if (date && /-\d{1,2}$/.test(date) && !date.endsWith('*')) {
+    const day = date.slice(date.lastIndexOf('-') + 1).replace(/^0+/, '') || '0';
+    return `${timeLabel} ngày ${day} hằng tháng`;
+  }
+  return `${timeLabel} hằng ngày`;
 }
 
 /** Nội dung file drop-in override: xoá lịch cũ (OnCalendar= rỗng) rồi thêm lịch mới. */

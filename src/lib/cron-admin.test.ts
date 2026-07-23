@@ -11,6 +11,7 @@ import {
   explainCron,
   cronTitle,
   cronSortKey,
+  describeCalendar,
 } from './cron-admin';
 
 const UNIT_FILES = `apt-daily.timer              enabled  enabled
@@ -173,6 +174,41 @@ describe('cronTitle', () => {
 
   it('timer lạ, không mô tả → tên unit (bỏ .timer)', () => {
     expect(cronTitle('unknown-x.timer')).toBe('unknown-x');
+  });
+});
+
+describe('describeCalendar', () => {
+  it('hằng ngày 1 mốc (giờ VN)', () => {
+    expect(describeCalendar('*-*-* 17:00:00 Asia/Ho_Chi_Minh')).toBe('17:00 hằng ngày');
+    expect(describeCalendar('*-*-* 06:00:00 Asia/Ho_Chi_Minh')).toBe('06:00 hằng ngày');
+  });
+  it('hằng ngày nhiều mốc giờ', () => {
+    expect(describeCalendar('*-*-* 08,14:00:00 Asia/Ho_Chi_Minh')).toBe('08:00 và 14:00 hằng ngày');
+  });
+  it('mỗi N phút', () => {
+    expect(describeCalendar('*-*-* *:00/5:00')).toBe('Mỗi 5 phút');
+    expect(describeCalendar('*-*-* *:00/2:00')).toBe('Mỗi 2 phút');
+    expect(describeCalendar('*-*-* *:00/10:00')).toBe('Mỗi 10 phút');
+    expect(describeCalendar('*-*-* *:0/30:00')).toBe('Mỗi 30 phút');
+  });
+  it('mỗi giờ', () => {
+    expect(describeCalendar('*-*-* *:00:00')).toBe('Mỗi giờ');
+    expect(describeCalendar('*-*-* *:05:00')).toBe('Mỗi giờ (phút 05)');
+  });
+  it('hằng tháng ngày cố định', () => {
+    expect(describeCalendar('*-*-01 07:30:00 Asia/Ho_Chi_Minh')).toBe('07:30 ngày 1 hằng tháng');
+  });
+  it('hằng tuần thứ cố định', () => {
+    expect(describeCalendar('Mon *-*-* 07:30:00 Asia/Ho_Chi_Minh')).toBe('07:30 Thứ 2 hằng tuần');
+  });
+  it('khoảng thứ + khoảng giờ + bước phút', () => {
+    expect(describeCalendar('Mon..Sat *-*-* 08..18:00/10:00 Asia/Ho_Chi_Minh')).toBe(
+      'Thứ 2 đến Thứ 7, 08:00–18:00, mỗi 10 phút',
+    );
+  });
+  it('không đọc được → trả nguyên chuỗi', () => {
+    expect(describeCalendar('')).toBe('');
+    expect(describeCalendar('minutely')).toBe('minutely');
   });
 });
 
