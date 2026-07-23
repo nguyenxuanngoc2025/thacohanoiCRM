@@ -7,12 +7,15 @@ export const CHANNEL_LABEL: Record<ChannelCode, string> = {
   digital_other: 'Khác',
 };
 
+/** Thứ tự hiển thị kênh: Facebook → Google → Khác. */
+export const CHANNEL_ORDER: ChannelCode[] = ['facebook', 'google', 'digital_other'];
+
 export interface KpiRow {
   showroom_name: string;
   brand_name: string;
   model_name: string;
   channel: string;
-  plan_khqt: number; plan_gdtd: number; plan_khd: number; plan_ns: number;
+  plan_khqt: number; plan_gdtd: number; plan_khd: number; plan_ns: number; actual_ns: number;
   actual_khqt: number; actual_gdtd: number; actual_khd: number;
 }
 
@@ -23,9 +26,14 @@ export function pct(actual: number, plan: number): number {
 }
 
 export interface KpiTotals {
-  plan_khqt: number; plan_gdtd: number; plan_khd: number; plan_ns: number;
+  plan_khqt: number; plan_gdtd: number; plan_khd: number; plan_ns: number; actual_ns: number;
   actual_khqt: number; actual_gdtd: number; actual_khd: number;
 }
+
+const ZERO_TOTALS: KpiTotals = {
+  plan_khqt: 0, plan_gdtd: 0, plan_khd: 0, plan_ns: 0, actual_ns: 0,
+  actual_khqt: 0, actual_gdtd: 0, actual_khd: 0,
+};
 
 export function rollupTotals(rows: KpiRow[]): KpiTotals {
   return rows.reduce<KpiTotals>((t, r) => ({
@@ -33,8 +41,68 @@ export function rollupTotals(rows: KpiRow[]): KpiTotals {
     plan_gdtd: t.plan_gdtd + r.plan_gdtd,
     plan_khd: t.plan_khd + r.plan_khd,
     plan_ns: t.plan_ns + r.plan_ns,
+    actual_ns: t.actual_ns + r.actual_ns,
     actual_khqt: t.actual_khqt + r.actual_khqt,
     actual_gdtd: t.actual_gdtd + r.actual_gdtd,
     actual_khd: t.actual_khd + r.actual_khd,
-  }), { plan_khqt: 0, plan_gdtd: 0, plan_khd: 0, plan_ns: 0, actual_khqt: 0, actual_gdtd: 0, actual_khd: 0 });
+  }), { ...ZERO_TOTALS });
+}
+
+/** Ngân sách hiển thị: có thực chi thì lấy thực chi, không thì lấy kế hoạch. */
+export function budgetValue(t: KpiTotals): number {
+  return t.actual_ns > 0 ? t.actual_ns : t.plan_ns;
+}
+
+// ---- Gom nhóm cho báo cáo dạng cây (giống Bảng quản trị) -----------------
+
+export type KpiDim = 'showroom' | 'brand' | 'model' | 'channel';
+
+/** Giá trị chiều của 1 dòng: [key gom nhóm, nhãn hiển thị]. */
+export function kpiDimValue(r: KpiRow, dim: KpiDim): [string, string] {
+  switch (dim) {
+    case 'showroom': return [r.showroom_name, r.showroom_name];
+    case 'brand':    return [r.brand_name, r.brand_name];
+    case 'model':    return [`${r.brand_name}||${r.model_name}`, r.model_name];
+    case 'channel':  return [r.channel, CHANNEL_LABEL[r.channel as ChannelCode] ?? r.channel];
+  }
+}
+
+export interface KpiGroup {
+  key: string;
+  label: string;
+  dim: KpiDim;
+  rows: KpiRow[];
+  totals: KpiTotals;
+}
+
+/**
+ * Gom `rows` theo chiều `dim`. Thứ tự nhóm:
+ * - model: theo `modelOrder` (model_name -> sort_order) rồi tên — tuân thủ trang Báo cáo cho Marketing;
+ * - channel: Facebook → Google → Khác;
+ * - showroom/brand: theo tên (locale vi).
+ */
+export function groupKpiRows(
+  rows: KpiRow[],
+  dim: KpiDim,
+  modelOrder?: Map<string, number>,
+): KpiGroup[] {
+  const map = new Map<string, KpiGroup>();
+  for (const r of rows) {
+    const [key, label] = kpiDimValue(r, dim);
+    let g = map.get(key);
+    if (!g) { g = { key, label, dim, rows: [], totals: { ...ZERO_TOTALS } }; map.set(key, g); }
+    g.rows.push(r);
+  }
+  const groups = [...map.values()].map((g) => ({ ...g, totals: rollupTotals(g.rows) }));
+
+  if (dim === 'channel') {
+    const idx = (k: string) => { const i = CHANNEL_ORDER.indexOf(k as ChannelCode); return i < 0 ? 99 : i; };
+    groups.sort((a, b) => idx(a.key) - idx(b.key) || a.label.localeCompare(b.label, 'vi'));
+  } else if (dim === 'model') {
+    const ord = (label: string) => modelOrder?.get(label) ?? 9999;
+    groups.sort((a, b) => ord(a.label) - ord(b.label) || a.label.localeCompare(b.label, 'vi'));
+  } else {
+    groups.sort((a, b) => a.label.localeCompare(b.label, 'vi'));
+  }
+  return groups;
 }

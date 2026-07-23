@@ -130,6 +130,21 @@ export default function ReportsView({
   const filtered = useMemo(() => applyFilters(leads), [leads, brand, model, showroom, source, assignee, status]);
   const filteredPrev = useMemo(() => applyFilters(prevLeads), [prevLeads, brand, model, showroom, source, assignee, status]);
 
+  // Lọc dữ liệu KPI (dạng theo tên/kênh) theo bộ lọc chung — quy ID về tên, nguồn về mã kênh.
+  // TVBH & Trạng thái không áp cho KPI (không có trong dữ liệu mục tiêu).
+  const kpiFiltered = useMemo(() => {
+    const brandName = brand ? leads.find((l) => l.brand_id === brand)?.brand_name ?? null : null;
+    const modelName = model ? leads.find((l) => l.model_id === model)?.model_name ?? null : null;
+    const showroomName = showroom ? leads.find((l) => l.showroom_id === showroom)?.showroom_name ?? null : null;
+    const p = source.trim().toLowerCase();
+    const channelCode = source ? (p === 'facebook' ? 'facebook' : p === 'google' ? 'google' : 'digital_other') : null;
+    return kpiRows.filter((r) =>
+      (!brandName || r.brand_name === brandName) &&
+      (!modelName || r.model_name === modelName) &&
+      (!showroomName || r.showroom_name === showroomName) &&
+      (!channelCode || r.channel === channelCode));
+  }, [kpiRows, leads, brand, model, showroom, source]);
+
   // Hoãn dữ liệu nặng cho các tab (biểu đồ recharts) — giữ thao tác bộ lọc mượt.
   const tabLeads = useDeferredValue(filtered);
   const tabPrev = useDeferredValue(filteredPrev);
@@ -312,7 +327,7 @@ export default function ReportsView({
         <MktPlanningTab leads={leads} models={models} sourceCatalog={sourceCatalog} from={from} to={to} onPickMonth={pickMonth} />
       )}
       {tab === 'kpi-targets' && (
-        <KpiTargetsTab rows={kpiRows} year={kpiYear} month={kpiMonth} />
+        <KpiTargetsTab rows={kpiFiltered} year={kpiYear} month={kpiMonth} models={models} />
       )}
     </div>
   );

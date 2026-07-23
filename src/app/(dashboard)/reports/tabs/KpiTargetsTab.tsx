@@ -1,12 +1,209 @@
 'use client';
-import React, { useMemo } from 'react';
-import { CHANNEL_LABEL, pct, rollupTotals, type KpiRow, type ChannelCode } from '@/lib/kpi-targets';
+import React, { useMemo, useState } from 'react';
+import { Download, ChevronRight, ChevronDown } from 'lucide-react';
+import {
+  pct, rollupTotals, budgetValue, groupKpiRows,
+  type KpiRow, type KpiDim, type KpiGroup, type KpiTotals,
+} from '@/lib/kpi-targets';
+import type { ModelCatalogItem } from '@/lib/mkt-planning-report';
+import { Panel, BRAND, fmt } from '../ui';
+import { exportXlsx } from '@/lib/xlsx-export';
+import { tableSheet, type SheetCol } from '../report-export';
 
-const nf = new Intl.NumberFormat('vi-VN');
-const money = (n: number) => nf.format(Math.round(n));
+const money = (n: number) => fmt(Math.round(n));
 
-export default function KpiTargetsTab({ rows, year, month }: { rows: KpiRow[]; year: number; month: number }) {
+// Nhãn cột đầu theo chiều gốc của mỗi bảng.
+const DIM_LABEL: Record<KpiDim, string> = {
+  showroom: 'Showroom', brand: 'Thương hiệu', model: 'Dòng xe', channel: 'Kênh Marketing',
+};
+
+// Cấu trúc 3 bảng: chuỗi drill (chiều gốc → các cấp con). Dòng xe luôn sắp theo Báo cáo cho Marketing.
+const TABLES: { title: string; chain: KpiDim[] }[] = [
+  { title: 'Theo Showroom', chain: ['showroom', 'model', 'channel'] },
+  { title: 'Theo Thương hiệu', chain: ['brand', 'model', 'channel'] },
+  { title: 'Theo Kênh Marketing', chain: ['channel', 'brand', 'model'] },
+];
+
+// 3 chỉ số phễu, mỗi chỉ số 3 cột KH / TH / %TH.
+const METRICS: { label: string; plan: keyof KpiTotals; actual: keyof KpiTotals; color: string }[] = [
+  { label: 'KHQT', plan: 'plan_khqt', actual: 'actual_khqt', color: '#1d4ed8' },
+  { label: 'GDTD', plan: 'plan_gdtd', actual: 'actual_gdtd', color: '#b45309' },
+  { label: 'KHĐ', plan: 'plan_khd', actual: 'actual_khd', color: '#047857' },
+];
+
+const TOTAL_COLS = 1 /*dim*/ + 1 /*budget*/ + METRICS.length * 3;
+
+function pctColor(actual: number, plan: number): string {
+  if (!plan) return '#cbd5e1';
+  return pct(actual, plan) >= 100 ? '#047857' : '#b45309';
+}
+
+/** Nhóm 3 ô KH / TH / %TH cho 1 chỉ số. */
+function MetricCells({ t }: { t: KpiTotals }) {
+  return (
+    <>
+      {METRICS.map((m) => {
+        const plan = t[m.plan] as number;
+        const actual = t[m.actual] as number;
+        return (
+          <React.Fragment key={m.label}>
+            <td className="py-2 px-2 text-right text-slate-500">{plan ? fmt(plan) : '—'}</td>
+            <td className="py-2 px-2 text-right font-medium" style={{ color: actual ? '#0f172a' : '#cbd5e1' }}>{fmt(actual)}</td>
+            <td className="py-2 px-2 text-right font-semibold" style={{ color: pctColor(actual, plan) }}>
+              {plan ? `${pct(actual, plan)}%` : '—'}
+            </td>
+          </React.Fragment>
+        );
+      })}
+    </>
+  );
+}
+
+/** Một dòng có thể mở rộng ra cấp con (đệ quy theo chuỗi drill). */
+function DrillRow({ group, chain, depth, modelOrder }: {
+  group: KpiGroup; chain: KpiDim[]; depth: number; modelOrder: Map<string, number>;
+}) {
+  const [open, setOpen] = useState(false);
+  const childChain = chain.slice(1);
+  const canExpand = childChain.length > 0;
+  const t = group.totals;
+  return (
+    <>
+      <tr className="border-b border-slate-50 hover:bg-slate-50/60">
+        <td className="py-2 pr-3 sticky left-0 bg-inherit" style={{ paddingLeft: 4 + depth * 20 }}>
+          <div className="flex items-center gap-1.5">
+            {canExpand ? (
+              <button onClick={() => setOpen((o) => !o)} className="shrink-0 text-slate-400 hover:text-slate-700"
+                aria-label={open ? 'Thu gọn' : 'Mở rộng'}>
+                {open ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+              </button>
+            ) : (
+              <span className="shrink-0 inline-block" style={{ width: 15 }} />
+            )}
+            <span className={`truncate max-w-[220px] block ${depth === 0 ? 'text-slate-700 font-medium' : 'text-slate-500'}`}>
+              {group.label}
+            </span>
+          </div>
+        </td>
+        <td className="py-2 px-2 text-right text-slate-600">{money(budgetValue(t))}</td>
+        <MetricCells t={t} />
+      </tr>
+      {open && canExpand && (
+        <DrillGroup rows={group.rows} chain={childChain} depth={depth + 1} modelOrder={modelOrder} />
+      )}
+    </>
+  );
+}
+
+/** Gom + render các dòng của cấp hiện tại (chain[0]). */
+function DrillGroup({ rows, chain, depth, modelOrder }: {
+  rows: KpiRow[]; chain: KpiDim[]; depth: number; modelOrder: Map<string, number>;
+}) {
+  const groups = useMemo(() => groupKpiRows(rows, chain[0], modelOrder), [rows, chain, modelOrder]);
+  if (groups.length === 0) {
+    return (
+      <tr>
+        <td colSpan={TOTAL_COLS} className="py-2 text-slate-300 text-xs" style={{ paddingLeft: 4 + depth * 20 + 21 }}>
+          Không có dữ liệu cấp dưới.
+        </td>
+      </tr>
+    );
+  }
+  return (
+    <>
+      {groups.map((g) => (
+        <DrillRow key={g.key} group={g} chain={chain} depth={depth} modelOrder={modelOrder} />
+      ))}
+    </>
+  );
+}
+
+function KpiTable({ title, chain, rows, modelOrder, periodSlug }: {
+  title: string; chain: KpiDim[]; rows: KpiRow[]; modelOrder: Map<string, number>; periodSlug: string;
+}) {
+  const dim = chain[0];
+  const topGroups = useMemo(() => groupKpiRows(rows, dim, modelOrder), [rows, dim, modelOrder]);
   const totals = useMemo(() => rollupTotals(rows), [rows]);
+
+  const handleExport = () => {
+    const cols: SheetCol<KpiGroup>[] = [
+      { header: DIM_LABEL[dim], value: (g) => g.label },
+      { header: 'Ngân sách', value: (g) => Math.round(budgetValue(g.totals)) },
+    ];
+    for (const m of METRICS) {
+      cols.push({ header: `${m.label} KH`, value: (g) => g.totals[m.plan] as number });
+      cols.push({ header: `${m.label} TH`, value: (g) => g.totals[m.actual] as number });
+      cols.push({ header: `${m.label} %TH`, value: (g) => pct(g.totals[m.actual] as number, g.totals[m.plan] as number) });
+    }
+    const totalRow: (string | number)[] = ['Tổng', Math.round(budgetValue(totals))];
+    for (const m of METRICS) {
+      totalRow.push(totals[m.plan] as number, totals[m.actual] as number, pct(totals[m.actual] as number, totals[m.plan] as number));
+    }
+    exportXlsx(`kpi-${dim}-${periodSlug}`, [tableSheet(title, cols, topGroups, totalRow)]);
+  };
+
+  return (
+    <Panel
+      title={title}
+      desc="Bấm ▸ để xem chi tiết cấp dưới"
+      action={
+        <button onClick={handleExport}
+          className="inline-flex items-center gap-1.5 text-sm font-semibold rounded-lg px-3 py-1.5 text-white shadow-sm"
+          style={{ background: BRAND }}>
+          <Download size={15} /> Xuất Excel
+        </button>
+      }
+    >
+      {topGroups.length === 0 ? (
+        <div className="py-12 text-center text-slate-400 text-sm">Không có dữ liệu trong kỳ / bộ lọc.</div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm whitespace-nowrap">
+            <thead>
+              <tr className="text-[11px] uppercase tracking-wide text-slate-400 border-b border-slate-100">
+                <th className="py-2 pr-3 text-left sticky left-0 bg-white" rowSpan={2}>{DIM_LABEL[dim]}</th>
+                <th className="py-2 px-2 text-right align-bottom" rowSpan={2}>Ngân sách</th>
+                {METRICS.map((m) => (
+                  <th key={m.label} className="py-1.5 px-2 text-center border-l border-slate-100" colSpan={3} style={{ color: m.color }}>{m.label}</th>
+                ))}
+              </tr>
+              <tr className="text-[10px] uppercase tracking-wide text-slate-400 border-b border-slate-100">
+                {METRICS.map((m) => (
+                  <React.Fragment key={m.label}>
+                    <th className="py-1 px-2 text-right border-l border-slate-100 font-medium">KH</th>
+                    <th className="py-1 px-2 text-right font-medium">TH</th>
+                    <th className="py-1 px-2 text-right font-medium">%TH</th>
+                  </React.Fragment>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              <DrillGroup rows={rows} chain={chain} depth={0} modelOrder={modelOrder} />
+            </tbody>
+            <tfoot>
+              <tr className="border-t-2 border-slate-200 text-slate-800 font-semibold">
+                <td className="py-2 pr-3 sticky left-0 bg-white">Tổng</td>
+                <td className="py-2 px-2 text-right">{money(budgetValue(totals))}</td>
+                <MetricCells t={totals} />
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+export default function KpiTargetsTab({ rows, year, month, models = [] }: {
+  rows: KpiRow[]; year: number; month: number; models?: ModelCatalogItem[];
+}) {
+  // Thứ tự dòng xe: tuân thủ trang Báo cáo cho Marketing (sort_order rồi tên).
+  const modelOrder = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const it of models) if (!m.has(it.name)) m.set(it.name, it.sort_order);
+    return m;
+  }, [models]);
+  const periodSlug = `${year}-${String(month).padStart(2, '0')}`;
 
   if (rows.length === 0) {
     return (
@@ -17,51 +214,13 @@ export default function KpiTargetsTab({ rows, year, month }: { rows: KpiRow[]; y
   }
 
   return (
-    <div className="space-y-4">
-      <div className="text-sm text-slate-500">Kỳ: tháng {month}/{year} · nguồn mục tiêu: App Budget</div>
-      <div className="overflow-x-auto bg-white rounded-xl border border-slate-200 shadow-sm">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-[11px] uppercase tracking-wide text-slate-400 border-b">
-              <th className="px-3 py-2">Showroom</th>
-              <th className="px-3 py-2">Dòng xe</th>
-              <th className="px-3 py-2">Kênh</th>
-              <th className="px-3 py-2 text-right">KHQT (TH/KH)</th>
-              <th className="px-3 py-2 text-right">% đạt</th>
-              <th className="px-3 py-2 text-right">GDTD (TH/KH)</th>
-              <th className="px-3 py-2 text-right">KHĐ (TH/KH)</th>
-              <th className="px-3 py-2 text-right">% KHĐ</th>
-              <th className="px-3 py-2 text-right">Ngân sách KH</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r, i) => (
-              <tr key={i} className="border-b last:border-0 hover:bg-slate-50">
-                <td className="px-3 py-2">{r.showroom_name}</td>
-                <td className="px-3 py-2">{r.model_name} <span className="text-slate-400">· {r.brand_name}</span></td>
-                <td className="px-3 py-2">{CHANNEL_LABEL[r.channel as ChannelCode] ?? r.channel}</td>
-                <td className="px-3 py-2 text-right">{r.actual_khqt}/{r.plan_khqt}</td>
-                <td className="px-3 py-2 text-right font-semibold" style={{ color: pct(r.actual_khqt, r.plan_khqt) >= 100 ? '#047857' : '#b45309' }}>{pct(r.actual_khqt, r.plan_khqt)}%</td>
-                <td className="px-3 py-2 text-right">{r.actual_gdtd}/{r.plan_gdtd}</td>
-                <td className="px-3 py-2 text-right">{r.actual_khd}/{r.plan_khd}</td>
-                <td className="px-3 py-2 text-right font-semibold" style={{ color: pct(r.actual_khd, r.plan_khd) >= 100 ? '#047857' : '#b45309' }}>{pct(r.actual_khd, r.plan_khd)}%</td>
-                <td className="px-3 py-2 text-right text-slate-500">{money(r.plan_ns)}</td>
-              </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr className="border-t-2 font-semibold bg-slate-50">
-              <td className="px-3 py-2" colSpan={3}>Tổng</td>
-              <td className="px-3 py-2 text-right">{totals.actual_khqt}/{totals.plan_khqt}</td>
-              <td className="px-3 py-2 text-right">{pct(totals.actual_khqt, totals.plan_khqt)}%</td>
-              <td className="px-3 py-2 text-right">{totals.actual_gdtd}/{totals.plan_gdtd}</td>
-              <td className="px-3 py-2 text-right">{totals.actual_khd}/{totals.plan_khd}</td>
-              <td className="px-3 py-2 text-right">{pct(totals.actual_khd, totals.plan_khd)}%</td>
-              <td className="px-3 py-2 text-right text-slate-500">{money(totals.plan_ns)}</td>
-            </tr>
-          </tfoot>
-        </table>
+    <div className="space-y-5">
+      <div className="text-sm text-slate-500">
+        Kỳ mục tiêu: tháng {month}/{year} · Ngân sách lấy từ App Budget (ưu tiên thực chi, chưa có thì lấy kế hoạch) · KH = kế hoạch, TH = thực hiện.
       </div>
+      {TABLES.map((tbl) => (
+        <KpiTable key={tbl.title} title={tbl.title} chain={tbl.chain} rows={rows} modelOrder={modelOrder} periodSlug={periodSlug} />
+      ))}
     </div>
   );
 }
