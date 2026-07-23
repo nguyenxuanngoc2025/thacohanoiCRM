@@ -17,6 +17,9 @@ export interface KpiRow {
   channel: string;
   /** Mã dòng xe CRM tương ứng (để lọc theo mã, tránh vênh tên Budget↔CRM). NULL nếu dòng Budget chưa map. */
   crm_model_id?: string | null;
+  /** Thứ tự LẤY TỪ BUDGET: showroom theo weight (xếp GIẢM dần), dòng xe theo master_models.sort_order (TĂNG dần). */
+  showroom_sort?: number | null;
+  model_sort?: number | null;
   plan_khqt: number; plan_gdtd: number; plan_khd: number; plan_ns: number; actual_ns: number;
   actual_khqt: number; actual_gdtd: number; actual_khd: number;
 }
@@ -78,15 +81,17 @@ export interface KpiGroup {
 }
 
 /**
- * Gom `rows` theo chiều `dim`. Thứ tự nhóm:
- * - model: theo `modelOrder` (model_name -> sort_order) rồi tên — tuân thủ trang Báo cáo cho Marketing;
+ * Gom `rows` theo chiều `dim`. Thứ tự nhóm — LẤY TỪ BUDGET làm chuẩn:
+ * - showroom: theo `showroomOrder` (rank weight giảm dần); thiếu → theo tên (locale vi);
+ * - model: theo `modelOrder` (model_name -> master_models.sort_order) rồi tên;
  * - channel: Facebook → Google → Khác;
- * - showroom/brand: theo tên (locale vi).
+ * - brand: theo tên (locale vi).
  */
 export function groupKpiRows(
   rows: KpiRow[],
   dim: KpiDim,
   modelOrder?: Map<string, number>,
+  showroomOrder?: Map<string, number>,
 ): KpiGroup[] {
   const map = new Map<string, KpiGroup>();
   for (const r of rows) {
@@ -103,8 +108,29 @@ export function groupKpiRows(
   } else if (dim === 'model') {
     const ord = (label: string) => modelOrder?.get(label) ?? 9999;
     groups.sort((a, b) => ord(a.label) - ord(b.label) || a.label.localeCompare(b.label, 'vi'));
+  } else if (dim === 'showroom' && showroomOrder) {
+    const ord = (label: string) => showroomOrder.get(label) ?? 9999;
+    groups.sort((a, b) => ord(a.label) - ord(b.label) || a.label.localeCompare(b.label, 'vi'));
   } else {
     groups.sort((a, b) => a.label.localeCompare(b.label, 'vi'));
   }
   return groups;
+}
+
+/** Rank showroom theo Budget: weight GIẢM dần → index 0,1,2… (dùng cho groupKpiRows). */
+export function buildShowroomOrder(rows: KpiRow[]): Map<string, number> {
+  const w = new Map<string, number>();
+  for (const r of rows) if (r.showroom_sort != null) w.set(r.showroom_name, r.showroom_sort);
+  const order = new Map<string, number>();
+  [...w.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'vi'))
+    .forEach(([name], i) => order.set(name, i));
+  return order;
+}
+
+/** Thứ tự dòng xe theo Budget: model_name -> master_models.sort_order. */
+export function buildModelOrder(rows: KpiRow[]): Map<string, number> {
+  const m = new Map<string, number>();
+  for (const r of rows) if (r.model_sort != null && !m.has(r.model_name)) m.set(r.model_name, r.model_sort);
+  return m;
 }

@@ -2,10 +2,9 @@
 import React, { useMemo, useState } from 'react';
 import { Download, ChevronRight, ChevronDown } from 'lucide-react';
 import {
-  pct, rollupTotals, budgetValue, groupKpiRows,
+  pct, rollupTotals, budgetValue, groupKpiRows, buildShowroomOrder, buildModelOrder,
   type KpiRow, type KpiDim, type KpiGroup, type KpiTotals,
 } from '@/lib/kpi-targets';
-import type { ModelCatalogItem } from '@/lib/mkt-planning-report';
 import { Panel, BRAND, fmt } from '../ui';
 import { exportXlsx } from '@/lib/xlsx-export';
 import { tableSheet, type SheetCol } from '../report-export';
@@ -56,8 +55,8 @@ function MetricCells({ t }: { t: KpiTotals }) {
 }
 
 /** Một dòng có thể mở rộng ra cấp con (đệ quy theo chuỗi drill). */
-function DrillRow({ group, chain, depth, modelOrder }: {
-  group: KpiGroup; chain: KpiDim[]; depth: number; modelOrder: Map<string, number>;
+function DrillRow({ group, chain, depth, modelOrder, showroomOrder }: {
+  group: KpiGroup; chain: KpiDim[]; depth: number; modelOrder: Map<string, number>; showroomOrder: Map<string, number>;
 }) {
   const [open, setOpen] = useState(false);
   const childChain = chain.slice(1);
@@ -85,17 +84,17 @@ function DrillRow({ group, chain, depth, modelOrder }: {
         <MetricCells t={t} />
       </tr>
       {open && canExpand && (
-        <DrillGroup rows={group.rows} chain={childChain} depth={depth + 1} modelOrder={modelOrder} />
+        <DrillGroup rows={group.rows} chain={childChain} depth={depth + 1} modelOrder={modelOrder} showroomOrder={showroomOrder} />
       )}
     </>
   );
 }
 
 /** Gom + render các dòng của cấp hiện tại (chain[0]). */
-function DrillGroup({ rows, chain, depth, modelOrder }: {
-  rows: KpiRow[]; chain: KpiDim[]; depth: number; modelOrder: Map<string, number>;
+function DrillGroup({ rows, chain, depth, modelOrder, showroomOrder }: {
+  rows: KpiRow[]; chain: KpiDim[]; depth: number; modelOrder: Map<string, number>; showroomOrder: Map<string, number>;
 }) {
-  const groups = useMemo(() => groupKpiRows(rows, chain[0], modelOrder), [rows, chain, modelOrder]);
+  const groups = useMemo(() => groupKpiRows(rows, chain[0], modelOrder, showroomOrder), [rows, chain, modelOrder, showroomOrder]);
   if (groups.length === 0) {
     return (
       <tr>
@@ -108,17 +107,17 @@ function DrillGroup({ rows, chain, depth, modelOrder }: {
   return (
     <>
       {groups.map((g) => (
-        <DrillRow key={g.key} group={g} chain={chain} depth={depth} modelOrder={modelOrder} />
+        <DrillRow key={g.key} group={g} chain={chain} depth={depth} modelOrder={modelOrder} showroomOrder={showroomOrder} />
       ))}
     </>
   );
 }
 
-function KpiTable({ title, chain, rows, modelOrder, periodSlug }: {
-  title: string; chain: KpiDim[]; rows: KpiRow[]; modelOrder: Map<string, number>; periodSlug: string;
+function KpiTable({ title, chain, rows, modelOrder, showroomOrder, periodSlug }: {
+  title: string; chain: KpiDim[]; rows: KpiRow[]; modelOrder: Map<string, number>; showroomOrder: Map<string, number>; periodSlug: string;
 }) {
   const dim = chain[0];
-  const topGroups = useMemo(() => groupKpiRows(rows, dim, modelOrder), [rows, dim, modelOrder]);
+  const topGroups = useMemo(() => groupKpiRows(rows, dim, modelOrder, showroomOrder), [rows, dim, modelOrder, showroomOrder]);
   const totals = useMemo(() => rollupTotals(rows), [rows]);
 
   const handleExport = () => {
@@ -183,7 +182,7 @@ function KpiTable({ title, chain, rows, modelOrder, periodSlug }: {
               </tr>
             </thead>
             <tbody>
-              <DrillGroup rows={rows} chain={chain} depth={0} modelOrder={modelOrder} />
+              <DrillGroup rows={rows} chain={chain} depth={0} modelOrder={modelOrder} showroomOrder={showroomOrder} />
             </tbody>
             <tfoot>
               <tr className="border-t-2 border-slate-300 text-slate-800 font-semibold bg-slate-50/50">
@@ -199,15 +198,13 @@ function KpiTable({ title, chain, rows, modelOrder, periodSlug }: {
   );
 }
 
-export default function KpiTargetsTab({ rows, year, month, models = [] }: {
-  rows: KpiRow[]; year: number; month: number; models?: ModelCatalogItem[];
+export default function KpiTargetsTab({ rows, year, month }: {
+  rows: KpiRow[]; year: number; month: number;
 }) {
-  // Thứ tự dòng xe: tuân thủ trang Báo cáo cho Marketing (sort_order rồi tên).
-  const modelOrder = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const it of models) if (!m.has(it.name)) m.set(it.name, it.sort_order);
-    return m;
-  }, [models]);
+  // Thứ tự showroom + dòng xe LẤY TỪ BUDGET làm chuẩn:
+  // showroom theo weight (giảm dần), dòng xe theo master_models.sort_order (tăng dần).
+  const modelOrder = useMemo(() => buildModelOrder(rows), [rows]);
+  const showroomOrder = useMemo(() => buildShowroomOrder(rows), [rows]);
   const periodSlug = `${year}-${String(month).padStart(2, '0')}`;
 
   if (rows.length === 0) {
@@ -224,7 +221,7 @@ export default function KpiTargetsTab({ rows, year, month, models = [] }: {
         Kỳ mục tiêu: tháng {month}/{year} · Ngân sách lấy từ App Budget (ưu tiên thực chi, chưa có thì lấy kế hoạch) · KH = kế hoạch, TH = thực hiện.
       </div>
       {TABLES.map((tbl) => (
-        <KpiTable key={tbl.title} title={tbl.title} chain={tbl.chain} rows={rows} modelOrder={modelOrder} periodSlug={periodSlug} />
+        <KpiTable key={tbl.title} title={tbl.title} chain={tbl.chain} rows={rows} modelOrder={modelOrder} showroomOrder={showroomOrder} periodSlug={periodSlug} />
       ))}
     </div>
   );

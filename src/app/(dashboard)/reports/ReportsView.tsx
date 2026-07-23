@@ -329,7 +329,7 @@ export default function ReportsView({
         <MktPlanningTab leads={leads} models={models} sourceCatalog={sourceCatalog} from={from} to={to} onPickMonth={pickMonth} />
       )}
       {tab === 'kpi-targets' && (
-        <KpiTargetsTab rows={kpiFiltered} year={kpiYear} month={kpiMonth} models={models} />
+        <KpiTargetsTab rows={kpiFiltered} year={kpiYear} month={kpiMonth} />
       )}
     </div>
   );
