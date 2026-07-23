@@ -34,7 +34,7 @@ const TAB_LABELS: Record<ReportTab, string> = {
   management: 'Bảng quản trị',
   tables: 'Bảng chi tiết',
   'mkt-planning': 'Báo cáo cho Marketing',
-  'kpi-targets': 'Mục tiêu vs Thực hiện',
+  'kpi-targets': 'Báo cáo theo KPI',
 };
 
 const TAB_ICONS: Record<ReportTab, React.ReactNode> = {
