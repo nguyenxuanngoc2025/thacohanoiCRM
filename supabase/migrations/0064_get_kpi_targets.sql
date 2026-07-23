@@ -68,10 +68,10 @@ AS $$
     GROUP BY sr.name, l.model_id, 3
   )
   SELECT
-    COALESCE(t.showroom_name, a.showroom_name) AS showroom_name,
-    b.name AS brand_name,
-    m.name AS model_name,
-    COALESCE(t.channel, a.channel) AS channel,
+    COALESCE(t.showroom_name, a.showroom_name)::text AS showroom_name,
+    b.name::text AS brand_name,
+    m.name::text AS model_name,
+    COALESCE(t.channel, a.channel)::text AS channel,
     COALESCE(t.plan_khqt,0), COALESCE(t.plan_gdtd,0), COALESCE(t.plan_khd,0), COALESCE(t.plan_ns,0),
     COALESCE(a.actual_khqt,0), COALESCE(a.actual_gdtd,0), COALESCE(a.actual_khd,0)
   FROM targets t
