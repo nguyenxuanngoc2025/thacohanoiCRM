@@ -238,9 +238,9 @@ describe('notify-templates', () => {
   it('renderLeadsAssignedSummary: tổng đậm + liệt kê TVBH/số lead + lời nhắc đậm', () => {
     const t = renderLeadsAssignedSummary('KIA Hà Nội', 5, [{ name: 'An', count: 2 }, { name: 'Bình', count: 3 }]);
     expect(t).toContain('<b>PHÂN GIAO — KIA Hà Nội</b>');
-    expect(t).toContain('<b>5</b> lead vừa được giao:');
-    expect(t).toContain('• An — 2 lead');
-    expect(t).toContain('• Bình — 3 lead');
+    expect(t).toContain('<b>5</b> Lead vừa được giao:');
+    expect(t).toContain('• An — 2 Lead');
+    expect(t).toContain('• Bình — 3 Lead');
     expect(t).toContain('<b>Yêu cầu các TVBH vào chăm sóc ngay.</b>');
   });
 
@@ -250,7 +250,7 @@ describe('notify-templates', () => {
       { fullName: null, phone: '+84909876543', assignee: null, overdueMinutes: 12 * 60 },
     ]);
     expect(t).toContain('QUÁ HẠN LIÊN HỆ');
-    expect(t).toContain('Tổng <b>2</b> lead');
+    expect(t).toContain('Tổng <b>2</b> Lead');
     expect(t).toContain('Chưa phân giao 1 · Đã giao 1');
     expect(t).toContain('Quá hạn lâu nhất: 12 giờ');   // lấy max
     expect(t).toContain('Khách lẻ');
@@ -265,10 +265,10 @@ describe('notify-templates', () => {
       fullName: `KH ${i}`, phone: '+84901234567', assignee: 'B', overdueMinutes: (i + 1) * 60,
     }));
     const t = renderOverdue('KIA Hà Nội', items);
-    expect(t).toContain('Tổng <b>92</b> lead');     // số liệu tổng đúng
+    expect(t).toContain('Tổng <b>92</b> Lead');     // số liệu tổng đúng
     const lineCount = t.split('\n').filter((l) => l.startsWith('•')).length;
     expect(lineCount).toBe(30);                        // liệt kê tới ngưỡng an toàn 30
-    expect(t).toContain('… và 62 lead khác.');        // phần dư (92-30) gói gọn
+    expect(t).toContain('… và 62 Lead khác.');        // phần dư (92-30) gói gọn
     expect(t).toContain('92 giờ');                    // gấp nhất (chờ lâu nhất) nêu đầu tiên
   });
 
@@ -279,7 +279,7 @@ describe('notify-templates', () => {
     const t = renderOverdue('KIA Hà Nội', items);
     const lineCount = t.split('\n').filter((l) => l.startsWith('•')).length;
     expect(lineCount).toBe(8);                         // liệt kê toàn bộ 8 KH
-    expect(t).not.toContain('lead khác.');            // không dư → không gói
+    expect(t).not.toContain('Lead khác.');            // không dư → không gói
   });
 
   it('renderCallbackReminder: nhắc gọi lại, nêu số lần gọi hụt, SĐT che, tinh tế', () => {

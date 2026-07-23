@@ -21,7 +21,7 @@ export function maskPhone(phone: string): string {
 export function renderRosterMissing(showroom: string, ddmm: string): string {
   return [
     `<b>NHẮC LỊCH PHÒNG NHẬN — ${showroom}</b>`,
-    `Hôm nay (${ddmm}) chưa đặt phòng trực nhận lead. Lead mới đang chờ, <b>CHƯA phân giao</b>.`,
+    `Hôm nay (${ddmm}) chưa đặt phòng trực nhận Lead. Lead mới đang chờ, <b>CHƯA phân giao</b>.`,
     '<i>Vào Cài đặt → Phân giao để đặt phòng nhận cho hôm nay.</i>',
   ].join('\n');
 }
@@ -162,10 +162,10 @@ export interface AssignedCount {
 
 // Tin tóm tắt phân giao hàng loạt (bulkReassign / autoDistribute) — 1 tin/phòng, chống dội nhóm.
 export function renderLeadsAssignedSummary(showroom: string, total: number, perAssignee: AssignedCount[]): string {
-  const rows = perAssignee.map((a) => `• ${a.name} — ${a.count} lead`);
+  const rows = perAssignee.map((a) => `• ${a.name} — ${a.count} Lead`);
   return [
     `<b>PHÂN GIAO — ${showroom}</b>`,
-    `<b>${total}</b> lead vừa được giao:`,
+    `<b>${total}</b> Lead vừa được giao:`,
     ...rows,
     '<b>Yêu cầu các TVBH vào chăm sóc ngay.</b>',
   ].join('\n');
@@ -191,10 +191,10 @@ export function renderUnassignedReminder(team: string, items: UnassignedItem[]):
   const remaining = total - listed.length;
   const lines = [
     `<b>CHƯA PHÂN GIAO — ${team}</b>`,
-    `<b>${total}</b> lead đang chờ phân giao (chờ lâu nhất ${formatDuration(maxWait)}):`,
+    `<b>${total}</b> Lead đang chờ phân giao (chờ lâu nhất ${formatDuration(maxWait)}):`,
     ...listed,
   ];
-  if (remaining > 0) lines.push(`… và ${remaining} lead khác.`);
+  if (remaining > 0) lines.push(`… và ${remaining} Lead khác.`);
   lines.push('Vào hệ thống giao cho TVBH ngay.');
   return lines.join('\n');
 }
@@ -242,13 +242,13 @@ export function renderOverdue(showroom: string, items: OverdueItem[]): string {
 
   const lines = [
     `<b>QUÁ HẠN LIÊN HỆ — ${showroom}</b>`,
-    `Tổng <b>${total}</b> lead · Chưa phân giao ${unassigned} · Đã giao ${assigned}`,
+    `Tổng <b>${total}</b> Lead · Chưa phân giao ${unassigned} · Đã giao ${assigned}`,
     `Quá hạn lâu nhất: ${formatDuration(maxOverdue)}`,
     '',
     'Danh sách KH quá hạn (gấp nhất trước):',
     ...listed,
   ];
-  if (remaining > 0) lines.push(`… và ${remaining} lead khác.`);
+  if (remaining > 0) lines.push(`… và ${remaining} Lead khác.`);
   lines.push('Vào hệ thống để phân giao và liên hệ ngay.');
   return lines.join('\n');
 }
@@ -309,9 +309,9 @@ function dailyHeadline(s: DailySrStats): string {
   return `Tổng Lead: <b>${s.total}</b>, trong đó đã liên hệ <b>${s.contacted}</b>. Có <b>${s.KHQT}</b> KHQT`;
 }
 
-// Dòng tổng KỲ DÀI (tuần/tháng): tổng + so kỳ trước, nhấn số Ký HĐ.
+// Dòng tổng KỲ DÀI (tuần/tháng): tổng + so kỳ trước, nhấn số KHĐ (ký hợp đồng).
 function periodHeadline(cur: DailySrStats, prev: DailySrStats): string {
-  return `Tổng Lead: <b>${cur.total}</b> (${deltaStr(cur.total, prev.total)} so kỳ trước), trong đó đã liên hệ <b>${cur.contacted}</b>. Ký HĐ <b>${cur.KyHD}</b>`;
+  return `Tổng Lead: <b>${cur.total}</b> (${deltaStr(cur.total, prev.total)} so kỳ trước), trong đó đã liên hệ <b>${cur.contacted}</b>. KHĐ <b>${cur.KyHD}</b>`;
 }
 
 // 1 dòng bullet cho báo cáo NGÀY (thương hiệu / dòng xe / phòng): tên đậm + số đậm.
@@ -319,32 +319,23 @@ function dailyBreakLine(name: string, s: DailySrStats): string {
   return `• <b>${name}</b>: <b>${s.total}</b> Lead · Đã LH <b>${s.contacted}</b> · KHQT <b>${s.KHQT}</b>`;
 }
 
-// 1 dòng bullet cho báo cáo KỲ DÀI (thương hiệu / dòng xe / phòng): nhấn Ký HĐ.
+// 1 dòng bullet cho báo cáo KỲ DÀI (thương hiệu / dòng xe / phòng): nhấn KHĐ.
 function periodBreakLine(name: string, s: DailySrStats): string {
-  return `• <b>${name}</b>: <b>${s.total}</b> Lead · Ký HĐ <b>${s.KyHD}</b>`;
+  return `• <b>${name}</b>: <b>${s.total}</b> Lead · KHĐ <b>${s.KyHD}</b>`;
 }
 
-// Khối chi tiết hãng/dòng xe cho nhóm BLĐ (LUÔN hiện dù chỉ 1 mục — đây là nội dung chính).
-function mgmtBreakBlock(brands: BrandBreakView[], byModel: boolean, kind: 'daily' | 'period'): string[] {
-  if (brands.length === 0) return [];
+// Khối chi tiết hãng/dòng xe cho MỌI báo cáo.
+// - kind: 'daily' nhấn KHQT / 'period' nhấn KHĐ.
+// - always=true (nhóm BLĐ): LUÔN hiện dù chỉ 1 mục (đây là nội dung chính).
+//   always=false (phòng/showroom): chỉ nêu khi đáng — nhiều thương hiệu, hoặc bất kỳ dòng xe
+//   nào (phòng Tải Bus); 1 hãng duy nhất → bỏ để tin gọn.
+function breakBlock(
+  brands: BrandBreakView[], byModel: boolean, kind: 'daily' | 'period', always: boolean,
+): string[] {
+  if (always ? brands.length === 0 : (byModel ? brands.length === 0 : brands.length <= 1)) return [];
   const head = byModel ? 'Theo dòng xe' : 'Theo thương hiệu';
   const line = kind === 'daily' ? dailyBreakLine : periodBreakLine;
   return [SEP, `<b>${head}</b>`, ...brands.map((b) => line(b.name, b.stats))];
-}
-
-// Khối chi tiết hãng/dòng xe (báo cáo NGÀY). Chỉ nêu khi đáng: nhiều thương hiệu, hoặc
-// bất kỳ dòng xe nào (phòng Tải Bus). 1 hãng duy nhất → bỏ để tin gọn.
-function dailyBreakBlock(brands: BrandBreakView[], byModel: boolean): string[] {
-  if (byModel ? brands.length === 0 : brands.length <= 1) return [];
-  const head = byModel ? 'Theo dòng xe' : 'Theo thương hiệu';
-  return [SEP, `<b>${head}</b>`, ...brands.map((b) => dailyBreakLine(b.name, b.stats))];
-}
-
-// Khối chi tiết hãng/dòng xe (báo cáo KỲ DÀI).
-function periodBreakBlock(brands: BrandBreakView[], byModel: boolean): string[] {
-  if (byModel ? brands.length === 0 : brands.length <= 1) return [];
-  const head = byModel ? 'Theo dòng xe' : 'Theo thương hiệu';
-  return [SEP, `<b>${head}</b>`, ...brands.map((b) => periodBreakLine(b.name, b.stats))];
 }
 
 // Gộp danh sách "chưa tuân thủ" của nhiều phòng theo tên TVBH (cộng số lead quá hạn).
@@ -382,7 +373,7 @@ export function renderDailySr(
   return [
     ...reportHeader(dateLabel, showroom),
     dailyHeadline(s),
-    ...dailyBreakBlock(brands, byModel),
+    ...breakBlock(brands, byModel, 'daily', false),
     nonCompliantBlock(nonCompliant),
   ].join('\n');
 }
@@ -394,7 +385,7 @@ export function renderDailyMgmt(
   return [
     ...reportHeader(dateLabel, 'TỔNG HỢP BAN LÃNH ĐẠO'),
     dailyHeadline(stats),
-    ...mgmtBreakBlock(brands, byModel, 'daily'),
+    ...breakBlock(brands, byModel, 'daily', true),
   ].join('\n');
 }
 
@@ -419,7 +410,7 @@ export interface ChannelReportView {
 }
 
 // ————— BÁO CÁO KỲ DÀI (TUẦN / THÁNG): tập trung KẾT QUẢ, KHÔNG "quá hạn / chưa tuân thủ" —————
-// Kỳ đã kết thúc nên chỉ nhìn kết quả tích luỹ: tổng lead, đã liên hệ, số Ký HĐ, SO SÁNH kỳ trước.
+// Kỳ đã kết thúc nên chỉ nhìn kết quả tích luỹ: tổng Lead, đã liên hệ, số KHĐ, SO SÁNH kỳ trước.
 
 // So sánh 1 chỉ số với kỳ trước: ↑ tăng, ↓ giảm, → không đổi.
 export function deltaStr(cur: number, prev: number): string {
@@ -431,7 +422,7 @@ export function deltaStr(cur: number, prev: number): string {
 
 // Dòng chốt "Kỳ trước" — nhắc lại số kỳ liền trước (in nghiêng) để đối chiếu nhanh.
 function renderPrevFoot(prevLabel: string, prev: DailySrStats): string {
-  return `${SEP}\n<i>Kỳ trước (${prevLabel}): ${prev.total} Lead · Ký HĐ ${prev.KyHD}</i>`;
+  return `${SEP}\n<i>Kỳ trước (${prevLabel}): ${prev.total} Lead · KHĐ ${prev.KyHD}</i>`;
 }
 
 // Báo cáo TUẦN/THÁNG của 1 showroom (gửi nhóm BLĐ showroom). dateLabel/prevLabel đã gồm từ chỉ kỳ.
@@ -442,7 +433,7 @@ export function renderPeriodSr(
   return [
     ...reportHeader(dateLabel, showroom),
     periodHeadline(cur, prev),
-    ...periodBreakBlock(brands, byModel),
+    ...breakBlock(brands, byModel, 'period', false),
     renderPrevFoot(prevLabel, prev),
   ].join('\n');
 }
@@ -474,7 +465,7 @@ export function renderChannelPeriod(r: ChannelPeriodView): string {
   const parts: string[] = [
     ...reportHeader(r.dateLabel, single ? r.phongs[0].name : r.headerName),
     periodHeadline(cur, prev),
-    ...periodBreakBlock(brands, byModel),
+    ...breakBlock(brands, byModel, 'period', false),
   ];
   if (!single) {
     parts.push(SEP, '<b>Theo phòng bán hàng</b>');
@@ -492,7 +483,7 @@ export function renderPeriodMgmt(
   return [
     ...reportHeader(dateLabel, 'TỔNG HỢP BAN LÃNH ĐẠO'),
     periodHeadline(curTotals, prevTotals),
-    ...mgmtBreakBlock(brands, byModel, 'period'),
+    ...breakBlock(brands, byModel, 'period', true),
     renderPrevFoot(prevLabel, prevTotals),
   ].join('\n');
 }
@@ -534,7 +525,7 @@ export function renderChannelDaily(r: ChannelReportView): string {
   const parts: string[] = [
     ...reportHeader(r.dateLabel, single ? r.phongs[0].name : r.headerName),
     dailyHeadline(stats),
-    ...dailyBreakBlock(brands, byModel),
+    ...breakBlock(brands, byModel, 'daily', false),
   ];
   if (!single) {
     parts.push(SEP, '<b>Theo phòng bán hàng</b>');

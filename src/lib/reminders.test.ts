@@ -41,7 +41,7 @@ describe('reminders', () => {
     const t1 = out.find((o) => o.teamId === 't1')!;
     expect(t1.leadIds).toEqual(['1', '2']);
     expect(t1.teamName).toBe('Phòng KIA 1');
-    expect(t1.text).toContain('Tổng <b>2</b> lead');
+    expect(t1.text).toContain('Tổng <b>2</b> Lead');
     expect(t1.text).toContain('Quá hạn lâu nhất: 5 giờ'); // max = lead1 (5 giờ)
     expect(t1.text).toContain('2 giờ 30 phút');            // lead2
     expect(t1.text).not.toContain('0 giờ');

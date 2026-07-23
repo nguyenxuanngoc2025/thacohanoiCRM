@@ -24,7 +24,7 @@ export interface ReportLead {
 }
 
 export interface ScopedReport {
-  // id = showroom_id (perShowroom) hoặc sales_team_id (perTeam)
+  // id = showroom_id (perShowroom)
   id: string;
   name: string;
   stats: DailySrStats;
@@ -32,8 +32,6 @@ export interface ScopedReport {
 }
 
 export interface PeriodReport {
-  // Báo cáo từng phòng bán hàng → gửi vào group của phòng (kênh scope='sales').
-  perTeam: ScopedReport[];
   // Báo cáo từng showroom → gửi nhóm BLĐ showroom (kênh scope='management' có showroom_id).
   perShowroom: ScopedReport[];
   // Bảng tổng hợp toàn công ty → gửi nhóm BLĐ công ty (kênh scope='management' showroom_id null).
@@ -43,7 +41,6 @@ export interface PeriodReport {
 // Phòng/showroom đã cấu hình group nhận báo cáo → luôn xuất hiện trong báo cáo
 // (kèm số 0 nếu kỳ này không có lead), để group đã tạo vẫn nhận báo cáo đều.
 export interface ReportSeed {
-  teams?: { id: string; name: string }[];
   showrooms?: { id: string; name: string }[];
 }
 
@@ -170,8 +167,7 @@ function modelShowroomIds(leads: ReportLead[], modelBreakBrandIds: Set<string>):
 }
 
 /**
- * Từ danh sách lead trong kỳ → báo cáo 3 cấp:
- *  - perTeam: thống kê từng phòng bán hàng (chỉ lead có sales_team_id).
+ * Từ danh sách lead trong kỳ → báo cáo 2 cấp:
  *  - perShowroom: thống kê từng showroom.
  *  - management: bảng tổng hợp toàn công ty.
  * dateLabel đã gồm từ chỉ kỳ ('NGÀY 24/06' | 'TUẦN ...' | 'THÁNG ...').
@@ -197,15 +193,13 @@ export function buildPeriodReport(
     g.byModel = modelSr.has(id);
     return g;
   };
-  const teams = new Map<string, Bucket>();
   const showrooms = new Map<string, Bucket>();
   // Bucket tổng toàn công ty (nhóm BLĐ công ty) — chi tiết theo thương hiệu / dòng xe.
   const company = newBucket('TỔNG HỢP BAN LÃNH ĐẠO');
   company.byModel = companyByModel(leads, modelBreakBrandIds);
 
-  // Tạo sẵn bucket rỗng cho phòng/showroom đã có group → có lead thì cộng dồn,
+  // Tạo sẵn bucket rỗng cho showroom đã có group → có lead thì cộng dồn,
   // không có lead vẫn ra báo cáo "0 lead" cho group đó.
-  for (const t of seed?.teams ?? []) teams.set(t.id, newBucket(t.name));
   for (const s of seed?.showrooms ?? []) showrooms.set(s.id, mkSr(s.id, s.name));
 
   for (const l of leads) {
@@ -213,18 +207,7 @@ export function buildPeriodReport(
     accumulate(sg, l, now);
     showrooms.set(l.showroom_id, sg);
     accumulate(company, l, now);
-
-    if (l.sales_team_id) {
-      const tg = teams.get(l.sales_team_id) ?? newBucket(l.team_name?.trim() || l.showroom_name);
-      accumulate(tg, l, now);
-      teams.set(l.sales_team_id, tg);
-    }
   }
-
-  const perTeam: ScopedReport[] = [...teams.entries()].map(([id, g]) => ({
-    id, name: g.name, stats: g.stats,
-    text: renderDailySr(g.name, dateLabel, g.stats, nonCompliantOf(g), brandBreaks(g), g.byModel),
-  }));
 
   const perShowroom: ScopedReport[] = [];
   for (const [showroomId, g] of showrooms) {
@@ -235,7 +218,6 @@ export function buildPeriodReport(
   }
 
   return {
-    perTeam,
     perShowroom,
     management: renderDailyMgmt(dateLabel, company.stats, brandBreaks(company), company.byModel),
   };

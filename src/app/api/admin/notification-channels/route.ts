@@ -82,7 +82,7 @@ async function buildTestReportText(
   } else if (ch.scope === 'management' && ch.showroom_id) {
     const seedSr = (await service.from('showrooms').select('id, name').eq('id', ch.showroom_id).maybeSingle()).data;
     const report = buildPeriodReport(mapped, dateLabel, now, {
-      teams: [], showrooms: seedSr ? [{ id: seedSr.id, name: seedSr.name }] : [],
+      showrooms: seedSr ? [{ id: seedSr.id, name: seedSr.name }] : [],
     });
     body = report.perShowroom.find((s) => s.id === ch.showroom_id)?.text ?? report.management;
   } else {

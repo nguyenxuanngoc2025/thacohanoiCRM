@@ -154,7 +154,7 @@ export async function POST(request: NextRequest) {
   const showroomSeed = (srRows ?? []).map((s) => ({ id: s.id, name: s.name }));
   // NGÀY: bố cục theo dõi vận hành (quá hạn, chưa tuân thủ). TUẦN/THÁNG: tập trung kết quả + so kỳ trước.
   const report = period === 'daily'
-    ? buildPeriodReport(mapped, dateLabel, now, { teams: [], showrooms: showroomSeed })
+    ? buildPeriodReport(mapped, dateLabel, now, { showrooms: showroomSeed }, modelBreakBrandIds)
     : buildLongPeriodReport(mapped, mappedPrev, dateLabel, prevLabel, now, { showrooms: showroomSeed }, modelBreakBrandIds);
 
   const inserts: Record<string, unknown>[] = [];

@@ -81,7 +81,7 @@ export function buildSampleReport(period: SamplePeriod, now: Date): SampleSectio
       teams: [{ id: TEAM_A, name: 'Phòng KIA–Mazda 1', brand_ids: [B_KIA, B_MAZDA] }],
       brands: brandsCatalog,
     });
-    const rep = buildPeriodReport(cur, dateLabel, now, { teams: [], showrooms: SHOWROOM_SEED });
+    const rep = buildPeriodReport(cur, dateLabel, now, { showrooms: SHOWROOM_SEED });
     return [
       { label: 'Nhóm Zalo phòng bán hàng', text: renderChannelDaily(chan) },
       { label: 'Nhóm BLĐ showroom (Showroom Hà Nội 1)', text: rep.perShowroom[0]?.text ?? '' },
