@@ -3,7 +3,7 @@
 import React, { useMemo, useRef, useState, useDeferredValue } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
-import { Users, PhoneCall, TrendingUp, FileSignature, Clock, Percent, LayoutDashboard, Table2, BarChart2, GitBranch, ListFilter, ClipboardList } from 'lucide-react';
+import { Users, PhoneCall, TrendingUp, FileSignature, Clock, Percent, LayoutDashboard, Table2, BarChart2, GitBranch, ListFilter, ClipboardList, Target } from 'lucide-react';
 import { compareKpis, type ReportLead, type ReportLevel } from '@/lib/reports';
 import { type RangeKey } from '@/lib/report-range';
 import { sourcePlatform, type SourceCatalog } from '@/lib/source';
@@ -15,6 +15,8 @@ import TablesTab from './TablesTab';
 import RankingTab from './tabs/RankingTab';
 import ManagementTab from './tabs/ManagementTab';
 import MktPlanningTab from './tabs/MktPlanningTab';
+import KpiTargetsTab from './tabs/KpiTargetsTab';
+import { type KpiRow } from '@/lib/kpi-targets';
 import { type ModelCatalogItem } from '@/lib/mkt-planning-report';
 
 const RANGE_OPTS: Opt[] = [
@@ -32,6 +34,7 @@ const TAB_LABELS: Record<ReportTab, string> = {
   management: 'Bảng quản trị',
   tables: 'Bảng chi tiết',
   'mkt-planning': 'Báo cáo cho Marketing',
+  'kpi-targets': 'Mục tiêu vs Thực hiện',
 };
 
 const TAB_ICONS: Record<ReportTab, React.ReactNode> = {
@@ -40,10 +43,12 @@ const TAB_ICONS: Record<ReportTab, React.ReactNode> = {
   management: <GitBranch size={15} />,
   tables: <Table2 size={15} />,
   'mkt-planning': <ClipboardList size={15} />,
+  'kpi-targets': <Target size={15} />,
 };
 
 export default function ReportsView({
   leads, prevLeads, sourceCatalog, range, from, to, fromMs, toMs, showB10, reportLevel, models = [], showMktPlanning = false,
+  kpiRows = [], kpiYear = 0, kpiMonth = 0,
 }: {
   leads: ReportLead[];
   prevLeads: ReportLead[];
@@ -57,11 +62,18 @@ export default function ReportsView({
   reportLevel: ReportLevel;
   models?: ModelCatalogItem[];
   showMktPlanning?: boolean;
+  kpiRows?: KpiRow[];
+  kpiYear?: number;
+  kpiMonth?: number;
 }) {
   const router = useRouter();
   const nowMs = useMemo(() => Date.now(), []);
 
-  const tabs: ReportTab[] = [...tabsForLevel(reportLevel), ...(showMktPlanning ? (['mkt-planning'] as ReportTab[]) : [])];
+  const tabs: ReportTab[] = [
+    ...tabsForLevel(reportLevel),
+    ...(showMktPlanning ? (['mkt-planning'] as ReportTab[]) : []),
+    ...(kpiYear > 0 ? (['kpi-targets'] as ReportTab[]) : []),
+  ];
   const [tab, setTab] = useState<ReportTab>(defaultTab(reportLevel));
   const [brand, setBrand] = useState('');
   const [model, setModel] = useState('');
@@ -298,6 +310,9 @@ export default function ReportsView({
       )}
       {tab === 'mkt-planning' && (
         <MktPlanningTab leads={leads} models={models} sourceCatalog={sourceCatalog} from={from} to={to} onPickMonth={pickMonth} />
+      )}
+      {tab === 'kpi-targets' && (
+        <KpiTargetsTab rows={kpiRows} year={kpiYear} month={kpiMonth} />
       )}
     </div>
   );

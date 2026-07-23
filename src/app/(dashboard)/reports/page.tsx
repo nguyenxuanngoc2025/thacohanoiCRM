@@ -7,6 +7,7 @@ import { getTenant } from '@/lib/tenant';
 import type { UserRole } from '@/types/database';
 import type { ReportLead } from '@/lib/reports';
 import type { ModelCatalogItem } from '@/lib/mkt-planning-report';
+import type { KpiRow } from '@/lib/kpi-targets';
 import ReportsView from './ReportsView';
 import { resolveRange, isRangeKey } from '@/lib/report-range';
 import { roleToReportLevel } from './report-level';
@@ -137,6 +138,22 @@ export default async function ReportsPage({
 
   const sourceCatalog = await loadSourceCatalog(supabase);
 
+  // Tab KPI Mục tiêu vs Thực hiện — chỉ marketing + admin, chỉ tenant Thaco Auto HN (có budget).
+  const KPI_ROLES: UserRole[] = ['admin', 'platform_owner', 'mkt_cty', 'mkt_brand', 'mkt_showroom'];
+  const HN_COMPANY = 'ec6b9c22-1317-4884-a496-cf0793d6c7b8';
+  const showKpi = KPI_ROLES.includes(me.role as UserRole) && me.company_id === HN_COMPANY;
+  // KPI theo tháng của kỳ đang xem (dùng toMs).
+  const kpiDate = new Date(toMs);
+  const kpiYear = showKpi ? kpiDate.getUTCFullYear() : 0;
+  const kpiMonth = showKpi ? kpiDate.getUTCMonth() + 1 : 0;
+  let kpiRows: KpiRow[] = [];
+  if (showKpi) {
+    const { data: kpiData } = await supabase.rpc('get_kpi_targets', {
+      p_company_id: HN_COMPANY, p_year: kpiYear, p_month: kpiMonth,
+    });
+    kpiRows = (kpiData ?? []) as KpiRow[];
+  }
+
   return (
     <ReportsView
       leads={leads}
@@ -151,6 +168,9 @@ export default async function ReportsPage({
       reportLevel={reportLevel}
       models={models}
       showMktPlanning={showMktPlanning}
+      kpiRows={kpiRows}
+      kpiYear={kpiYear}
+      kpiMonth={kpiMonth}
     />
   );
 }
