@@ -11,6 +11,7 @@ import type { KpiRow } from '@/lib/kpi-targets';
 import ReportsView from './ReportsView';
 import { resolveRange, isRangeKey } from '@/lib/report-range';
 import { roleToReportLevel } from './report-level';
+import { resolveCreatorScope } from '@/lib/lead-scope';
 
 export const dynamic = 'force-dynamic';
 
@@ -151,7 +152,23 @@ export default async function ReportsPage({
     const { data: kpiData } = await supabase.rpc('get_kpi_targets', {
       p_company_id: HN_COMPANY, p_year: kpiYear, p_month: kpiMonth,
     });
-    kpiRows = (kpiData ?? []) as KpiRow[];
+    let rows = (kpiData ?? []) as KpiRow[];
+    // Co giãn theo vai trò: MKT showroom chỉ thấy showroom mình phụ trách; MKT hãng chỉ thấy hãng mình.
+    // Tên Budget↔CRM có thể vênh hoa-thường ⇒ so tên đã chuẩn hoá lower(trim).
+    const scope = await resolveCreatorScope(supabase, user.id);
+    const norm = (s: string) => s.trim().toLowerCase();
+    if (scope?.kind === 'showroom' && scope.showroomIds) {
+      const { data: srs } = await supabase.from('showrooms').select('name')
+        .in('id', scope.showroomIds.length ? scope.showroomIds : ['00000000-0000-0000-0000-000000000000']);
+      const allow = new Set((srs ?? []).map((s) => norm(s.name as string)));
+      rows = rows.filter((r) => allow.has(norm(r.showroom_name)));
+    } else if (scope?.kind === 'brand' && scope.brandIds) {
+      const { data: brs } = await supabase.from('brands').select('name')
+        .in('id', scope.brandIds.length ? scope.brandIds : ['00000000-0000-0000-0000-000000000000']);
+      const allow = new Set((brs ?? []).map((b) => norm(b.name as string)));
+      rows = rows.filter((r) => allow.has(norm(r.brand_name)));
+    }
+    kpiRows = rows;
   }
 
   return (
