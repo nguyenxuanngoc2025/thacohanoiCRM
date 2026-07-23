@@ -19,7 +19,7 @@ const DIM_LABEL: Record<KpiDim, string> = {
 
 // Cấu trúc 3 bảng: chuỗi drill (chiều gốc → các cấp con). Dòng xe luôn sắp theo Báo cáo cho Marketing.
 const TABLES: { title: string; chain: KpiDim[] }[] = [
-  { title: 'Theo Showroom', chain: ['showroom', 'model', 'channel'] },
+  { title: 'Theo Showroom', chain: ['showroom', 'brand', 'model', 'channel'] },
   { title: 'Theo Thương hiệu', chain: ['brand', 'model', 'channel'] },
   { title: 'Theo Kênh Marketing', chain: ['channel', 'brand', 'model'] },
 ];
