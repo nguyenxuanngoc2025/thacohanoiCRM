@@ -44,11 +44,6 @@ export async function POST(request: NextRequest) {
     for (const entry of body.entry ?? []) {
       const pageId = String(entry.id);
 
-      // Chẩn đoán: ghi rõ mỗi entry có nhánh nào (giúp soi tin nhắn về standby hay messaging).
-      console.log(
-        `[fb-webhook] entry page=${pageId} changes=${(entry.changes ?? []).length} messaging=${(entry.messaging ?? []).length} standby=${(entry.standby ?? []).length}`,
-      );
-
       // a) Lead Ads (form) — leadgen
       // b) Comment công khai có SĐT — field 'feed', item 'comment'
       for (const change of entry.changes ?? []) {
