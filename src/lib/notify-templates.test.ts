@@ -88,36 +88,36 @@ describe('renderChannelDaily', () => {
       ],
     };
     const t = renderChannelDaily(view);
-    expect(t).toContain('BÁO CÁO NGÀY 11/07 — Showroom PVD');
-    expect(t).toContain('<b>TỔNG QUAN</b>');
-    expect(t).toContain('Chi tiết theo thương hiệu:');
-    expect(t).toContain('· KIA — Tổng 2');
-    expect(t).toContain('<b>PHÒNG Phòng 1</b>');
-    expect(t).toContain('<b>PHÒNG Phòng 2</b>');
+    expect(t).toContain('<b>BÁO CÁO NGÀY 11/07</b>');
+    expect(t).toContain('<b>Showroom PVD</b>');
+    expect(t).toContain('<b>Theo thương hiệu</b>');
+    expect(t).toContain('• <b>KIA</b>: <b>2</b> Lead');
+    expect(t).toContain('<b>Theo phòng bán hàng</b>');
+    expect(t).toContain('• <b>Phòng 1</b>: <b>2</b> Lead');
+    expect(t).toContain('• <b>Phòng 2</b>: <b>1</b> Lead');
   });
 
-  it('kênh 1 phòng: bỏ TỔNG QUAN, hiện thẳng 1 khối', () => {
+  it('kênh 1 phòng: hiện thẳng 1 khối theo tên phòng, không có mục Theo phòng', () => {
     const view: ChannelReportView = {
       dateLabel: 'NGÀY 11/07', headerName: 'SR',
       overview: { stats: stats({ total: 1 }), brands: [], byModel: false },
       phongs: [{ name: 'Phòng Duy Nhất', stats: stats({ total: 1, contacted: 1 }), brands: [], byModel: false, nonCompliant: [] }],
     };
     const t = renderChannelDaily(view);
-    expect(t).toContain('BÁO CÁO NGÀY 11/07 — Phòng Duy Nhất');
-    expect(t).not.toContain('TỔNG QUAN');
+    expect(t).toContain('<b>Phòng Duy Nhất</b>');
+    expect(t).not.toContain('Theo phòng bán hàng');
   });
 
-  it('1 hãng: vẫn hiện chi tiết theo thương hiệu (không rút gọn)', () => {
+  it('1 hãng (không phải Tải Bus): bỏ mục chi tiết cho tin gọn', () => {
     const view: ChannelReportView = {
       dateLabel: 'NGÀY 11/07', headerName: 'SR',
       overview: { stats: stats({ total: 1 }), brands: [], byModel: false },
-      phongs: [{ name: 'P1', stats: stats({ total: 0 }), brands: [
-        { name: 'KIA', stats: stats({ total: 0 }) },
+      phongs: [{ name: 'P1', stats: stats({ total: 1 }), brands: [
+        { name: 'KIA', stats: stats({ total: 1 }) },
       ], byModel: false, nonCompliant: [] }],
     };
     const t = renderChannelDaily(view);
-    expect(t).toContain('Chi tiết theo thương hiệu:');
-    expect(t).toContain('· KIA — Tổng 0');
+    expect(t).not.toContain('Theo thương hiệu');
   });
 });
 
@@ -307,37 +307,48 @@ describe('notify-templates', () => {
     expect(t).toContain('… và 7 khách khác.');
   });
 
-  it('renderDailySr: tổng lead, tỷ lệ LH, phân loại, dòng chưa tuân thủ', () => {
+  it('renderDailySr: tổng Lead in đậm, có KHQT, dòng chưa tuân thủ (tên đậm)', () => {
     const t = renderDailySr('KIA Hà Nội', 'NGÀY 24/06', {
       total: 10, contacted: 6, pending: 4, overdue: 2,
       KHQT: 3, GDTD: 2, KyHD: 1, Fail: 1,
     }, [{ name: 'Trần B', overdue: 2 }]);
     expect(t).toContain('BÁO CÁO NGÀY 24/06');
-    expect(t).toContain('Tổng lead: 10');
-    expect(t).toContain('Đã LH: 6 (60%)');
-    expect(t).toContain('Quá hạn: 2');
-    expect(t).toContain('KHQT 3');
-    expect(t).toContain('Chưa tuân thủ: Trần B (2 lead quá hạn)');
+    expect(t).toContain('<b>KIA Hà Nội</b>');
+    expect(t).toContain('Tổng Lead: <b>10</b>');
+    expect(t).toContain('đã liên hệ <b>6</b>');
+    expect(t).toContain('Có <b>3</b> KHQT');
+    expect(t).toContain('<b>Chưa tuân thủ</b>');
+    expect(t).toContain('• <b>Trần B</b> — 2 Lead quá hạn chưa liên hệ');
   });
 
-  it('renderDailySr: không ai quá hạn → "Chưa tuân thủ: không có"', () => {
+  it('renderDailySr: không ai quá hạn → "Không có Lead quá hạn"', () => {
     const t = renderDailySr('KIA HN', 'NGÀY 24/06', {
       total: 5, contacted: 5, pending: 0, overdue: 0, KHQT: 0, GDTD: 0, KyHD: 0, Fail: 0,
     }, []);
-    expect(t).toContain('Chưa tuân thủ: không có');
+    expect(t).toContain('• Không có Lead quá hạn chưa liên hệ');
   });
 
-  it('renderDailyMgmt: dòng TỔNG + tỷ lệ LH + đánh dấu SR cần chú ý', () => {
-    const t = renderDailyMgmt('NGÀY 24/06', [
-      { showroom: 'KIA HN', total: 10, contacted: 9, pending: 1, overdue: 0, contactRate: 90 },
-      { showroom: 'Mazda HN', total: 8, contacted: 2, pending: 6, overdue: 4, contactRate: 25 },
-    ], { total: 18, contacted: 11, overdue: 4 });
+  it('renderDailyMgmt: dòng tổng + chi tiết Theo thương hiệu', () => {
+    const t = renderDailyMgmt('NGÀY 24/06',
+      stats({ total: 18, contacted: 11, overdue: 4, KHQT: 5 }),
+      [
+        { name: 'KIA', stats: stats({ total: 10, contacted: 9, KHQT: 3 }) },
+        { name: 'Mazda', stats: stats({ total: 8, contacted: 2, KHQT: 2 }) },
+      ]);
     expect(t).toContain('BÁO CÁO NGÀY 24/06');
-    expect(t).toContain('TỔNG: 18 lead · Đã LH 11 (61%) · Quá hạn 4');
-    expect(t).toContain('KIA HN');
-    expect(t).toContain('Mazda HN');
-    expect(t).toContain('25%');
-    expect(t).toContain('[cần chú ý]');
+    expect(t).toContain('TỔNG HỢP BAN LÃNH ĐẠO');
+    expect(t).toContain('Tổng Lead: <b>18</b>');
+    expect(t).toContain('<b>Theo thương hiệu</b>');
+    expect(t).toContain('• <b>KIA</b>: <b>10</b> Lead');
+    expect(t).toContain('• <b>Mazda</b>: <b>8</b> Lead');
+  });
+
+  it('renderDailyMgmt: byModel → mục Theo dòng xe', () => {
+    const t = renderDailyMgmt('NGÀY 24/06',
+      stats({ total: 5 }),
+      [{ name: 'Xe Tải', stats: stats({ total: 5 }) }], true);
+    expect(t).toContain('<b>Theo dòng xe</b>');
+    expect(t).toContain('• <b>Xe Tải</b>: <b>5</b> Lead');
   });
 });
 
@@ -350,30 +361,27 @@ describe('renderBrandReport', () => {
         brandName: 'KIA',
         stats: stats({ total: 3, contacted: 1, pending: 2, overdue: 1, KHQT: 1 }),
         models: [{ name: 'Sonet', stats: stats({ total: 2 }) }],
-        showrooms: [{ name: 'SR A', stats: stats({ total: 2 }) }],
       },
       {
         brandName: 'Mazda',
         stats: stats({ total: 0 }),
         models: [],
-        showrooms: [],
       },
     ],
   };
 
-  it('tiêu đề khối + 2 mục theo dòng xe/showroom', () => {
+  it('tiêu đề khối + mục theo dòng xe', () => {
     const t = renderBrandReport(view);
-    expect(t).toContain('<b>BÁO CÁO NGÀY 20/07 — BLĐ KIA-Mazda · KIA</b>');
-    expect(t).toContain('Tổng lead: 3');
-    expect(t).toContain('Theo dòng xe:');
-    expect(t).toContain('· Sonet — Tổng 2');
-    expect(t).toContain('Theo showroom:');
-    expect(t).toContain('· SR A — Tổng 2');
+    expect(t).toContain('<b>BÁO CÁO NGÀY 20/07</b>');
+    expect(t).toContain('<b>BLĐ KIA-Mazda · KIA</b>');
+    expect(t).toContain('Tổng Lead: <b>3</b>');
+    expect(t).toContain('<b>Theo dòng xe</b>');
+    expect(t).toContain('• <b>Sonet</b>: <b>2</b> Lead');
   });
 
   it('hãng 0 lead: vẫn có khối + "chưa có" cho danh sách rỗng', () => {
     const t = renderBrandReport(view);
-    expect(t).toContain('<b>BÁO CÁO NGÀY 20/07 — BLĐ KIA-Mazda · Mazda</b>');
-    expect(t).toContain('· chưa có');
+    expect(t).toContain('<b>BLĐ KIA-Mazda · Mazda</b>');
+    expect(t).toContain('• chưa có');
   });
 });

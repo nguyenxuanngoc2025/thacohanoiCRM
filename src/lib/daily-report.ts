@@ -1,6 +1,6 @@
 import {
   renderDailySr, renderDailyMgmt, renderPeriodSr, renderPeriodMgmt,
-  type DailySrStats, type MgmtRow, type NonCompliant, type PeriodMgmtRow,
+  type DailySrStats, type NonCompliant,
 } from './notify-templates';
 
 export interface ReportLead {
@@ -57,7 +57,6 @@ export interface BrandBlock {
   brandName: string;
   stats: DailySrStats;
   models: BrandBreak[];     // theo dòng xe (name + stats)
-  showrooms: BrandBreak[];  // theo showroom (name + stats)
 }
 
 export interface BrandReport {
@@ -177,19 +176,43 @@ function modelShowroomIds(leads: ReportLead[], modelBreakBrandIds: Set<string>):
  *  - management: bảng tổng hợp toàn công ty.
  * dateLabel đã gồm từ chỉ kỳ ('NGÀY 24/06' | 'TUẦN ...' | 'THÁNG ...').
  */
-export function buildPeriodReport(leads: ReportLead[], dateLabel: string, now: Date, seed?: ReportSeed): PeriodReport {
+// Cấp toàn công ty gom chi tiết theo DÒNG XE khi MỌI lead có hãng đều thuộc tập cờ report_by_model
+// (không lẫn hãng thường). Ngược lại → theo THƯƠNG HIỆU.
+function companyByModel(leads: ReportLead[], modelBreakBrandIds: Set<string>): boolean {
+  let hasFlagged = false, hasOther = false;
+  for (const l of leads) {
+    if (!l.brand_id) continue;
+    if (modelBreakBrandIds.has(l.brand_id)) hasFlagged = true; else hasOther = true;
+  }
+  return hasFlagged && !hasOther;
+}
+
+export function buildPeriodReport(
+  leads: ReportLead[], dateLabel: string, now: Date, seed?: ReportSeed,
+  modelBreakBrandIds: Set<string> = new Set(),
+): PeriodReport {
+  const modelSr = modelShowroomIds(leads, modelBreakBrandIds);
+  const mkSr = (id: string, name: string): Bucket => {
+    const g = newBucket(name);
+    g.byModel = modelSr.has(id);
+    return g;
+  };
   const teams = new Map<string, Bucket>();
   const showrooms = new Map<string, Bucket>();
+  // Bucket tổng toàn công ty (nhóm BLĐ công ty) — chi tiết theo thương hiệu / dòng xe.
+  const company = newBucket('TỔNG HỢP BAN LÃNH ĐẠO');
+  company.byModel = companyByModel(leads, modelBreakBrandIds);
 
   // Tạo sẵn bucket rỗng cho phòng/showroom đã có group → có lead thì cộng dồn,
   // không có lead vẫn ra báo cáo "0 lead" cho group đó.
   for (const t of seed?.teams ?? []) teams.set(t.id, newBucket(t.name));
-  for (const s of seed?.showrooms ?? []) showrooms.set(s.id, newBucket(s.name));
+  for (const s of seed?.showrooms ?? []) showrooms.set(s.id, mkSr(s.id, s.name));
 
   for (const l of leads) {
-    const sg = showrooms.get(l.showroom_id) ?? newBucket(l.showroom_name);
+    const sg = showrooms.get(l.showroom_id) ?? mkSr(l.showroom_id, l.showroom_name);
     accumulate(sg, l, now);
     showrooms.set(l.showroom_id, sg);
+    accumulate(company, l, now);
 
     if (l.sales_team_id) {
       const tg = teams.get(l.sales_team_id) ?? newBucket(l.team_name?.trim() || l.showroom_name);
@@ -200,42 +223,28 @@ export function buildPeriodReport(leads: ReportLead[], dateLabel: string, now: D
 
   const perTeam: ScopedReport[] = [...teams.entries()].map(([id, g]) => ({
     id, name: g.name, stats: g.stats,
-    text: renderDailySr(g.name, dateLabel, g.stats, nonCompliantOf(g)),
+    text: renderDailySr(g.name, dateLabel, g.stats, nonCompliantOf(g), brandBreaks(g), g.byModel),
   }));
 
   const perShowroom: ScopedReport[] = [];
-  const mgmtRows: MgmtRow[] = [];
-  let tTotal = 0, tContacted = 0, tOverdue = 0;
   for (const [showroomId, g] of showrooms) {
     perShowroom.push({
       id: showroomId, name: g.name, stats: g.stats,
-      text: renderDailySr(g.name, dateLabel, g.stats, nonCompliantOf(g)),
+      text: renderDailySr(g.name, dateLabel, g.stats, nonCompliantOf(g), brandBreaks(g), g.byModel),
     });
-    mgmtRows.push({
-      showroom: g.name, total: g.stats.total, contacted: g.stats.contacted,
-      pending: g.stats.pending, overdue: g.stats.overdue,
-      contactRate: g.stats.total ? Math.round((g.stats.contacted / g.stats.total) * 100) : 0,
-    });
-    tTotal += g.stats.total; tContacted += g.stats.contacted; tOverdue += g.stats.overdue;
   }
 
   return {
     perTeam,
     perShowroom,
-    management: renderDailyMgmt(dateLabel, mgmtRows, { total: tTotal, contacted: tContacted, overdue: tOverdue }),
+    management: renderDailyMgmt(dateLabel, company.stats, brandBreaks(company), company.byModel),
   };
-}
-
-// Cộng dồn mọi trường của 1 stats vào accumulator (dùng tính TỔNG toàn công ty).
-function sumInto(acc: DailySrStats, s: DailySrStats): void {
-  acc.total += s.total; acc.contacted += s.contacted; acc.pending += s.pending;
-  acc.overdue += s.overdue; acc.KHQT += s.KHQT; acc.GDTD += s.GDTD; acc.KyHD += s.KyHD; acc.Fail += s.Fail;
 }
 
 export interface LongPeriodReport {
   // Báo cáo từng showroom (kèm so kỳ trước) → gửi nhóm BLĐ showroom.
   perShowroom: ScopedReport[];
-  // Bảng tổng hợp toàn công ty (xếp hạng showroom + so kỳ trước) → gửi nhóm BLĐ công ty.
+  // Bảng tổng hợp toàn công ty (chi tiết theo thương hiệu + so kỳ trước) → gửi nhóm BLĐ công ty.
   management: string;
 }
 
@@ -261,32 +270,36 @@ export function buildLongPeriodReport(
   };
   const cur = new Map<string, Bucket>();
   const prev = new Map<string, Bucket>();
+  // Bucket tổng toàn công ty (nhóm BLĐ công ty) — chi tiết theo thương hiệu / dòng xe, so kỳ trước.
+  const companyCur = newBucket('TỔNG HỢP BAN LÃNH ĐẠO');
+  const companyPrev = newBucket('TỔNG HỢP BAN LÃNH ĐẠO');
+  companyCur.byModel = companyByModel([...current, ...previous], modelBreakBrandIds);
   // Seed showroom đã cấu hình group → luôn ra báo cáo (kể cả 0 lead).
   for (const s of seed?.showrooms ?? []) { cur.set(s.id, mkSr(s.id, s.name)); prev.set(s.id, mkSr(s.id, s.name)); }
   for (const l of current) {
     const g = cur.get(l.showroom_id) ?? mkSr(l.showroom_id, l.showroom_name);
     accumulate(g, l, now); cur.set(l.showroom_id, g);
+    accumulate(companyCur, l, now);
   }
   for (const l of previous) {
     const g = prev.get(l.showroom_id) ?? mkSr(l.showroom_id, l.showroom_name);
     accumulate(g, l, now); prev.set(l.showroom_id, g);
+    accumulate(companyPrev, l, now);
   }
 
   const perShowroom: ScopedReport[] = [];
-  const rows: PeriodMgmtRow[] = [];
-  const curTotals = emptyStats();
-  const prevTotals = emptyStats();
   for (const [id, g] of cur) {
     const p = prev.get(id) ?? newBucket(g.name);
     perShowroom.push({
       id, name: g.name, stats: g.stats,
       text: renderPeriodSr(g.name, dateLabel, prevLabel, g.stats, p.stats, brandBreaks(g), g.byModel),
     });
-    rows.push({ showroom: g.name, cur: g.stats, prev: p.stats });
-    sumInto(curTotals, g.stats); sumInto(prevTotals, p.stats);
   }
 
-  return { perShowroom, management: renderPeriodMgmt(dateLabel, prevLabel, rows, curTotals, prevTotals) };
+  return {
+    perShowroom,
+    management: renderPeriodMgmt(dateLabel, prevLabel, companyCur.stats, companyPrev.stats, brandBreaks(companyCur), companyCur.byModel),
+  };
 }
 
 // Danh sách chi tiết của 1 bucket. Theo dòng xe (byModel) → sắp tổng giảm dần rồi theo tên;
@@ -434,11 +447,10 @@ export function buildBrandReport(
     brandName: string;
     stats: DailySrStats;
     models: Map<string, { name: string; stats: DailySrStats }>;
-    showrooms: Map<string, { name: string; stats: DailySrStats }>;
   }
   const byBrand = new Map<string, Acc>();
   for (const b of seed.brands) {
-    byBrand.set(b.id, { brandId: b.id, brandName: b.name, stats: emptyStats(), models: new Map(), showrooms: new Map() });
+    byBrand.set(b.id, { brandId: b.id, brandName: b.name, stats: emptyStats(), models: new Map() });
   }
   for (const l of leads) {
     if (!l.brand_id) continue;
@@ -449,16 +461,12 @@ export function buildBrandReport(
     const mSub = acc.models.get(mKey) ?? { name: l.model_name?.trim() || 'Chưa xác định', stats: emptyStats() };
     addStats(mSub.stats, l, now);
     acc.models.set(mKey, mSub);
-    const sKey = `s:${l.showroom_id}`;
-    const sSub = acc.showrooms.get(sKey) ?? { name: l.showroom_name?.trim() || 'Showroom', stats: emptyStats() };
-    addStats(sSub.stats, l, now);
-    acc.showrooms.set(sKey, sSub);
   }
   const sortBreaks = (m: Map<string, { name: string; stats: DailySrStats }>): BrandBreak[] =>
     [...m.values()].sort((a, b) => b.stats.total - a.stats.total || a.name.localeCompare(b.name));
   const blocks: BrandBlock[] = seed.brands.map((b) => {
     const acc = byBrand.get(b.id)!;
-    return { brandId: acc.brandId, brandName: acc.brandName, stats: acc.stats, models: sortBreaks(acc.models), showrooms: sortBreaks(acc.showrooms) };
+    return { brandId: acc.brandId, brandName: acc.brandName, stats: acc.stats, models: sortBreaks(acc.models) };
   });
   return { dateLabel, headerName: seed.headerName, blocks };
 }

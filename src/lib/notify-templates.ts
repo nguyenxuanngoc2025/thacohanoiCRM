@@ -296,54 +296,106 @@ export interface DailySrStats {
 export const pct = (part: number, total: number): number =>
   total > 0 ? Math.round((part / total) * 100) : 0;
 
+// Đường kẻ ngăn cách các phần trong tin — làm báo cáo dễ đọc, gọn mắt.
+const SEP = '───────────────';
+
 export interface NonCompliant {
   name: string;       // tên TVBH, hoặc 'Chưa phân'
   overdue: number;    // số lead quá hạn của người này
 }
 
-// Dòng "Chưa tuân thủ": top 3 TVBH có lead quá hạn nhiều nhất, dư thì "…+N nữa".
-function renderNonCompliant(list: NonCompliant[]): string {
-  if (list.length === 0) return 'Chưa tuân thủ: không có';
-  const top = list.slice(0, 3).map((x, idx) =>
-    idx === 0 ? `${x.name} (${x.overdue} lead quá hạn)` : `${x.name} (${x.overdue})`);
-  const extra = list.length > 3 ? `…+${list.length - 3} nữa` : '';
-  return `Chưa tuân thủ: ${[...top, extra].filter(Boolean).join(', ')}`;
+// Dòng tổng NGÀY: chỉ 3 con số cốt lõi (in đậm), nhấn liên hệ + khách quan tâm.
+function dailyHeadline(s: DailySrStats): string {
+  return `Tổng Lead: <b>${s.total}</b>, trong đó đã liên hệ <b>${s.contacted}</b>. Có <b>${s.KHQT}</b> KHQT`;
+}
+
+// Dòng tổng KỲ DÀI (tuần/tháng): tổng + so kỳ trước, nhấn số Ký HĐ.
+function periodHeadline(cur: DailySrStats, prev: DailySrStats): string {
+  return `Tổng Lead: <b>${cur.total}</b> (${deltaStr(cur.total, prev.total)} so kỳ trước), trong đó đã liên hệ <b>${cur.contacted}</b>. Ký HĐ <b>${cur.KyHD}</b>`;
+}
+
+// 1 dòng bullet cho báo cáo NGÀY (thương hiệu / dòng xe / phòng): tên đậm + số đậm.
+function dailyBreakLine(name: string, s: DailySrStats): string {
+  return `• <b>${name}</b>: <b>${s.total}</b> Lead · Đã LH <b>${s.contacted}</b> · KHQT <b>${s.KHQT}</b>`;
+}
+
+// 1 dòng bullet cho báo cáo KỲ DÀI (thương hiệu / dòng xe / phòng): nhấn Ký HĐ.
+function periodBreakLine(name: string, s: DailySrStats): string {
+  return `• <b>${name}</b>: <b>${s.total}</b> Lead · Ký HĐ <b>${s.KyHD}</b>`;
+}
+
+// Khối chi tiết hãng/dòng xe cho nhóm BLĐ (LUÔN hiện dù chỉ 1 mục — đây là nội dung chính).
+function mgmtBreakBlock(brands: BrandBreakView[], byModel: boolean, kind: 'daily' | 'period'): string[] {
+  if (brands.length === 0) return [];
+  const head = byModel ? 'Theo dòng xe' : 'Theo thương hiệu';
+  const line = kind === 'daily' ? dailyBreakLine : periodBreakLine;
+  return [SEP, `<b>${head}</b>`, ...brands.map((b) => line(b.name, b.stats))];
+}
+
+// Khối chi tiết hãng/dòng xe (báo cáo NGÀY). Chỉ nêu khi đáng: nhiều thương hiệu, hoặc
+// bất kỳ dòng xe nào (phòng Tải Bus). 1 hãng duy nhất → bỏ để tin gọn.
+function dailyBreakBlock(brands: BrandBreakView[], byModel: boolean): string[] {
+  if (byModel ? brands.length === 0 : brands.length <= 1) return [];
+  const head = byModel ? 'Theo dòng xe' : 'Theo thương hiệu';
+  return [SEP, `<b>${head}</b>`, ...brands.map((b) => dailyBreakLine(b.name, b.stats))];
+}
+
+// Khối chi tiết hãng/dòng xe (báo cáo KỲ DÀI).
+function periodBreakBlock(brands: BrandBreakView[], byModel: boolean): string[] {
+  if (byModel ? brands.length === 0 : brands.length <= 1) return [];
+  const head = byModel ? 'Theo dòng xe' : 'Theo thương hiệu';
+  return [SEP, `<b>${head}</b>`, ...brands.map((b) => periodBreakLine(b.name, b.stats))];
+}
+
+// Gộp danh sách "chưa tuân thủ" của nhiều phòng theo tên TVBH (cộng số lead quá hạn).
+function mergeNonCompliant(lists: NonCompliant[][]): NonCompliant[] {
+  const m = new Map<string, number>();
+  for (const list of lists) for (const nc of list) m.set(nc.name, (m.get(nc.name) ?? 0) + nc.overdue);
+  return [...m.entries()].map(([name, overdue]) => ({ name, overdue })).sort((a, b) => b.overdue - a.overdue);
+}
+
+// Khối "Chưa tuân thủ": tên TVBH đậm + số lead quá hạn. Rỗng → ghi rõ đã tuân thủ.
+const NON_COMPLIANT_MAX = 8;
+function nonCompliantBlock(list: NonCompliant[]): string {
+  const lines = [SEP, '<b>Chưa tuân thủ</b>'];
+  if (list.length === 0) {
+    lines.push('• Không có Lead quá hạn chưa liên hệ');
+    return lines.join('\n');
+  }
+  for (const x of list.slice(0, NON_COMPLIANT_MAX)) {
+    lines.push(`• <b>${x.name}</b> — ${x.overdue} Lead quá hạn chưa liên hệ`);
+  }
+  if (list.length > NON_COMPLIANT_MAX) lines.push(`• …và ${list.length - NON_COMPLIANT_MAX} người khác`);
+  return lines.join('\n');
+}
+
+// Tiêu đề 2 dòng: tên báo cáo (kỳ) + phạm vi (phòng/showroom/nhóm) — đều in đậm.
+function reportHeader(dateLabel: string, scope: string): string[] {
+  return [`<b>BÁO CÁO ${dateLabel}</b>`, `<b>${scope}</b>`, SEP];
 }
 
 // dateLabel đã gồm từ chỉ kỳ: 'NGÀY 24/06' | 'TUẦN 23/06–29/06' | 'THÁNG 06/2026'.
-export function renderDailySr(showroom: string, dateLabel: string, s: DailySrStats, nonCompliant: NonCompliant[]): string {
+export function renderDailySr(
+  showroom: string, dateLabel: string, s: DailySrStats, nonCompliant: NonCompliant[],
+  brands: BrandBreakView[] = [], byModel = false,
+): string {
   return [
-    `BÁO CÁO ${dateLabel} — ${showroom}`,
-    `Tổng lead: ${s.total} · Đã LH: ${s.contacted} (${pct(s.contacted, s.total)}%) · Chưa LH: ${s.pending} · Quá hạn: ${s.overdue}`,
-    `Phân loại: KHQT ${s.KHQT} · GDTD ${s.GDTD} · Ký HĐ ${s.KyHD} · Loại ${s.Fail}`,
-    renderNonCompliant(nonCompliant),
+    ...reportHeader(dateLabel, showroom),
+    dailyHeadline(s),
+    ...dailyBreakBlock(brands, byModel),
+    nonCompliantBlock(nonCompliant),
   ].join('\n');
 }
 
-export interface MgmtRow {
-  showroom: string;
-  total: number;
-  contacted: number;
-  pending: number;
-  overdue: number;
-  contactRate: number; // %
-}
-
-export interface MgmtTotals {
-  total: number;
-  contacted: number;
-  overdue: number;
-}
-
-export function renderDailyMgmt(dateLabel: string, rows: MgmtRow[], totals: MgmtTotals): string {
-  const head = `BÁO CÁO ${dateLabel} — TỔNG HỢP BLĐ`;
-  const totalLine = `TỔNG: ${totals.total} lead · Đã LH ${totals.contacted} (${pct(totals.contacted, totals.total)}%) · Quá hạn ${totals.overdue}`;
-  const sorted = [...rows].sort((a, b) => b.contactRate - a.contactRate);
-  const body = sorted.map((r) => {
-    const flag = r.overdue >= 3 || r.contactRate < 50 ? ' [cần chú ý]' : '';
-    return `${r.showroom}: mới ${r.total} · LH ${r.contactRate}% · quá hạn ${r.overdue}${flag}`;
-  });
-  return [head, totalLine, '———', ...body].join('\n');
+// Báo cáo NGÀY nhóm BLĐ toàn công ty: dòng tổng + chi tiết Theo thương hiệu (hoặc dòng xe).
+export function renderDailyMgmt(
+  dateLabel: string, stats: DailySrStats, brands: BrandBreakView[], byModel = false,
+): string {
+  return [
+    ...reportHeader(dateLabel, 'TỔNG HỢP BAN LÃNH ĐẠO'),
+    dailyHeadline(stats),
+    ...mgmtBreakBlock(brands, byModel, 'daily'),
+  ].join('\n');
 }
 
 export interface BrandBreakView {
@@ -366,29 +418,8 @@ export interface ChannelReportView {
   phongs: ChannelPhongView[];
 }
 
-// 1 dòng chi tiết 1 thương hiệu — đủ số như dòng tổng.
-function renderBrandLine(b: BrandBreakView): string {
-  const s = b.stats;
-  return `· ${b.name} — Tổng ${s.total} · Đã LH ${s.contacted} · Chưa LH ${s.pending} · Quá hạn ${s.overdue} · KHQT ${s.KHQT} · GDTD ${s.GDTD} · Ký HĐ ${s.KyHD} · Loại ${s.Fail}`;
-}
-
-// Khối 1 phạm vi (tổng quan / 1 phòng): dòng tổng + phân loại + LUÔN chi tiết hãng.
-// Chi tiết hãng bắt buộc hiện cho MỌI hãng phòng bán (kể cả 0 lead) — seed từ brand_ids.
-function renderScopedStats(s: DailySrStats, brands: BrandBreakView[], byModel = false): string[] {
-  const lines = [
-    `Tổng lead: ${s.total} · Đã LH: ${s.contacted} (${pct(s.contacted, s.total)}%) · Chưa LH: ${s.pending} · Quá hạn: ${s.overdue}`,
-    `Phân loại: KHQT ${s.KHQT} · GDTD ${s.GDTD} · Ký HĐ ${s.KyHD} · Loại ${s.Fail}`,
-  ];
-  if (brands.length > 0) {
-    lines.push(byModel ? 'Chi tiết theo dòng xe:' : 'Chi tiết theo thương hiệu:');
-    for (const b of brands) lines.push(renderBrandLine(b));
-  }
-  return lines;
-}
-
 // ————— BÁO CÁO KỲ DÀI (TUẦN / THÁNG): tập trung KẾT QUẢ, KHÔNG "quá hạn / chưa tuân thủ" —————
-// Kỳ đã kết thúc nên chỉ nhìn kết quả tích luỹ: tổng lead, tỷ lệ liên hệ, phễu chốt
-// (KHQT → Đàm phán → Ký HĐ), tỷ lệ chốt và SO SÁNH kỳ trước.
+// Kỳ đã kết thúc nên chỉ nhìn kết quả tích luỹ: tổng lead, đã liên hệ, số Ký HĐ, SO SÁNH kỳ trước.
 
 // So sánh 1 chỉ số với kỳ trước: ↑ tăng, ↓ giảm, → không đổi.
 export function deltaStr(cur: number, prev: number): string {
@@ -398,28 +429,9 @@ export function deltaStr(cur: number, prev: number): string {
   return '→0';
 }
 
-// Khối kết quả 1 phạm vi kỳ dài (showroom / phòng / tổng quan): tổng + so kỳ trước,
-// đã liên hệ, phễu chốt, tỷ lệ chốt, chi tiết hãng. KHÔNG "quá hạn / chưa tuân thủ".
-function renderPeriodScopedStats(cur: DailySrStats, prev: DailySrStats, brands: BrandBreakView[], byModel = false): string[] {
-  const winRate = pct(cur.KyHD, cur.total);
-  const lines = [
-    `Tổng lead: <b>${cur.total}</b> (${deltaStr(cur.total, prev.total)} so kỳ trước)`,
-    `Đã liên hệ: ${cur.contacted} (${pct(cur.contacted, cur.total)}%)`,
-    `Phễu bán hàng: KHQT ${cur.KHQT} → Đàm phán ${cur.GDTD} → Ký HĐ <b>${cur.KyHD}</b>`,
-    `Tỷ lệ ký HĐ: <b>${winRate}%</b> · Đã loại: ${cur.Fail}`,
-  ];
-  if (brands.length > 0) {
-    lines.push(byModel ? 'Chi tiết theo dòng xe:' : 'Chi tiết theo thương hiệu:');
-    for (const b of brands) {
-      lines.push(`· ${b.name}: ${b.stats.total} lead · Ký HĐ ${b.stats.KyHD} (${pct(b.stats.KyHD, b.stats.total)}%)`);
-    }
-  }
-  return lines;
-}
-
-// Dòng chốt "Kỳ trước" — nhắc lại số kỳ liền trước để đối chiếu nhanh.
+// Dòng chốt "Kỳ trước" — nhắc lại số kỳ liền trước (in nghiêng) để đối chiếu nhanh.
 function renderPrevFoot(prevLabel: string, prev: DailySrStats): string {
-  return `—— Kỳ trước (${prevLabel}): ${prev.total} lead · Ký HĐ ${prev.KyHD} (${pct(prev.KyHD, prev.total)}%)`;
+  return `${SEP}\n<i>Kỳ trước (${prevLabel}): ${prev.total} Lead · Ký HĐ ${prev.KyHD}</i>`;
 }
 
 // Báo cáo TUẦN/THÁNG của 1 showroom (gửi nhóm BLĐ showroom). dateLabel/prevLabel đã gồm từ chỉ kỳ.
@@ -428,8 +440,9 @@ export function renderPeriodSr(
   cur: DailySrStats, prev: DailySrStats, brands: BrandBreakView[], byModel = false,
 ): string {
   return [
-    `<b>BÁO CÁO ${dateLabel} — ${showroom}</b>`,
-    ...renderPeriodScopedStats(cur, prev, brands, byModel),
+    ...reportHeader(dateLabel, showroom),
+    periodHeadline(cur, prev),
+    ...periodBreakBlock(brands, byModel),
     renderPrevFoot(prevLabel, prev),
   ].join('\n');
 }
@@ -450,60 +463,44 @@ export interface ChannelPeriodView {
   phongs: ChannelPeriodPhongView[];
 }
 
-// Báo cáo TUẦN/THÁNG của 1 kênh Zalo nhóm bán hàng (nhiều phòng). Tập trung KẾT QUẢ + so kỳ trước.
-// Kênh 1 phòng → bỏ TỔNG QUAN, hiện thẳng 1 khối; nhiều phòng → TỔNG QUAN + từng phòng.
+// Báo cáo TUẦN/THÁNG của 1 kênh Zalo nhóm bán hàng. Tập trung KẾT QUẢ + so kỳ trước.
+// 1 phòng → 1 khối gọn; nhiều phòng → tổng quan + mục "Theo phòng bán hàng".
 export function renderChannelPeriod(r: ChannelPeriodView): string {
-  if (r.phongs.length === 1) {
-    const p = r.phongs[0];
-    return [
-      `<b>BÁO CÁO ${r.dateLabel} — ${p.name}</b>`,
-      ...renderPeriodScopedStats(p.cur, p.prev, p.brands, p.byModel),
-      renderPrevFoot(r.prevLabel, p.prev),
-    ].join('\n');
-  }
+  const single = r.phongs.length === 1;
+  const cur = single ? r.phongs[0].cur : r.overview.cur;
+  const prev = single ? r.phongs[0].prev : r.overview.prev;
+  const brands = single ? r.phongs[0].brands : r.overview.brands;
+  const byModel = single ? r.phongs[0].byModel : r.overview.byModel;
   const parts: string[] = [
-    `<b>BÁO CÁO ${r.dateLabel} — ${r.headerName}</b>`,
-    '',
-    '<b>TỔNG QUAN</b>',
-    ...renderPeriodScopedStats(r.overview.cur, r.overview.prev, r.overview.brands, r.overview.byModel),
+    ...reportHeader(r.dateLabel, single ? r.phongs[0].name : r.headerName),
+    periodHeadline(cur, prev),
+    ...periodBreakBlock(brands, byModel),
   ];
-  for (const p of r.phongs) {
-    parts.push('───────────────');
-    parts.push(`<b>PHÒNG ${p.name}</b>`);
-    parts.push(...renderPeriodScopedStats(p.cur, p.prev, p.brands, p.byModel));
+  if (!single) {
+    parts.push(SEP, '<b>Theo phòng bán hàng</b>');
+    for (const p of r.phongs) parts.push(periodBreakLine(p.name, p.cur));
   }
-  parts.push('───────────────');
-  parts.push(renderPrevFoot(r.prevLabel, r.overview.prev));
+  parts.push(renderPrevFoot(r.prevLabel, prev));
   return parts.join('\n');
 }
 
-export interface PeriodMgmtRow {
-  showroom: string;
-  cur: DailySrStats;
-  prev: DailySrStats;
-}
-
-// Bảng tổng hợp BLĐ toàn công ty cho kỳ TUẦN/THÁNG: dòng TỔNG (kèm so kỳ trước) + xếp hạng showroom theo Ký HĐ.
+// Báo cáo TUẦN/THÁNG nhóm BLĐ toàn công ty: dòng tổng (so kỳ trước) + chi tiết Theo thương hiệu (hoặc dòng xe).
 export function renderPeriodMgmt(
   dateLabel: string, prevLabel: string,
-  rows: PeriodMgmtRow[], curTotals: DailySrStats, prevTotals: DailySrStats,
+  curTotals: DailySrStats, prevTotals: DailySrStats, brands: BrandBreakView[], byModel = false,
 ): string {
-  const winRate = pct(curTotals.KyHD, curTotals.total);
-  const head = `<b>BÁO CÁO ${dateLabel} — TỔNG HỢP BLĐ</b>`;
-  const totalLine = `TỔNG: <b>${curTotals.total}</b> lead (${deltaStr(curTotals.total, prevTotals.total)}) · Ký HĐ <b>${curTotals.KyHD}</b> (${deltaStr(curTotals.KyHD, prevTotals.KyHD)}) · Tỷ lệ ký HĐ ${winRate}%`;
-  const contactLine = `Đã liên hệ ${curTotals.contacted} (${pct(curTotals.contacted, curTotals.total)}%) · KHQT ${curTotals.KHQT} · Đàm phán ${curTotals.GDTD}`;
-  const sorted = [...rows].sort((a, b) => b.cur.KyHD - a.cur.KyHD || b.cur.total - a.cur.total);
-  const body = sorted.map((r, i) =>
-    `${i + 1}. ${r.showroom}: ${r.cur.total} lead · Ký HĐ ${r.cur.KyHD} (${pct(r.cur.KyHD, r.cur.total)}%)`);
-  const foot = `—— Kỳ trước (${prevLabel}): ${prevTotals.total} lead · Ký HĐ ${prevTotals.KyHD}`;
-  return [head, totalLine, contactLine, '———', 'Xếp hạng showroom (theo Ký HĐ):', ...body, foot].join('\n');
+  return [
+    ...reportHeader(dateLabel, 'TỔNG HỢP BAN LÃNH ĐẠO'),
+    periodHeadline(curTotals, prevTotals),
+    ...mgmtBreakBlock(brands, byModel, 'period'),
+    renderPrevFoot(prevLabel, prevTotals),
+  ].join('\n');
 }
 
 export interface BrandBlockView {
   brandName: string;
   stats: DailySrStats;
   models: BrandBreakView[];
-  showrooms: BrandBreakView[];
 }
 
 export interface BrandReportView {
@@ -513,45 +510,37 @@ export interface BrandReportView {
 }
 
 // Báo cáo nhóm BLĐ thương hiệu: mỗi hãng 1 khối, nối bằng dòng trống. KHÔNG so kỳ trước.
-// Danh sách rỗng → in tiêu đề + "· chưa có" để nhất quán (không để trống khó hiểu).
 export function renderBrandReport(r: BrandReportView): string {
   const blocks = r.blocks.map((b) => {
-    const s = b.stats;
     const lines = [
-      `<b>BÁO CÁO ${r.dateLabel} — ${r.headerName} · ${b.brandName}</b>`,
-      `Tổng lead: ${s.total} · Đã LH: ${s.contacted} (${pct(s.contacted, s.total)}%) · Chưa LH: ${s.pending} · Quá hạn: ${s.overdue}`,
-      `Phân loại: KHQT ${s.KHQT} · GDTD ${s.GDTD} · Ký HĐ ${s.KyHD} · Loại ${s.Fail}`,
-      'Theo dòng xe:',
-      ...(b.models.length ? b.models.map(renderBrandLine) : ['· chưa có']),
-      'Theo showroom:',
-      ...(b.showrooms.length ? b.showrooms.map(renderBrandLine) : ['· chưa có']),
+      ...reportHeader(r.dateLabel, `${r.headerName} · ${b.brandName}`),
+      dailyHeadline(b.stats),
+      SEP,
+      '<b>Theo dòng xe</b>',
+      ...(b.models.length ? b.models.map((m) => dailyBreakLine(m.name, m.stats)) : ['• chưa có']),
     ];
     return lines.join('\n');
   });
   return blocks.join('\n\n');
 }
 
-// Báo cáo ngày của 1 kênh Zalo nhiều phòng. Kênh 1 phòng → bỏ TỔNG QUAN, hiện thẳng 1 khối.
+// Báo cáo NGÀY của 1 kênh Zalo. 1 phòng → 1 khối gọn; nhiều phòng → tổng quan +
+// mục "Theo phòng bán hàng" + "Chưa tuân thủ" gộp toàn kênh.
 export function renderChannelDaily(r: ChannelReportView): string {
-  if (r.phongs.length === 1) {
-    const p = r.phongs[0];
-    return [
-      `BÁO CÁO ${r.dateLabel} — ${p.name}`,
-      ...renderScopedStats(p.stats, p.brands, p.byModel),
-      renderNonCompliant(p.nonCompliant),
-    ].join('\n');
-  }
+  const single = r.phongs.length === 1;
+  const stats = single ? r.phongs[0].stats : r.overview.stats;
+  const brands = single ? r.phongs[0].brands : r.overview.brands;
+  const byModel = single ? r.phongs[0].byModel : r.overview.byModel;
   const parts: string[] = [
-    `BÁO CÁO ${r.dateLabel} — ${r.headerName}`,
-    '',
-    '<b>TỔNG QUAN</b>',
-    ...renderScopedStats(r.overview.stats, r.overview.brands, r.overview.byModel),
+    ...reportHeader(r.dateLabel, single ? r.phongs[0].name : r.headerName),
+    dailyHeadline(stats),
+    ...dailyBreakBlock(brands, byModel),
   ];
-  for (const p of r.phongs) {
-    parts.push('───────────────');
-    parts.push(`<b>PHÒNG ${p.name}</b>`);
-    parts.push(...renderScopedStats(p.stats, p.brands, p.byModel));
-    parts.push(renderNonCompliant(p.nonCompliant));
+  if (!single) {
+    parts.push(SEP, '<b>Theo phòng bán hàng</b>');
+    for (const p of r.phongs) parts.push(dailyBreakLine(p.name, p.stats));
   }
+  const nc = single ? r.phongs[0].nonCompliant : mergeNonCompliant(r.phongs.map((p) => p.nonCompliant));
+  parts.push(nonCompliantBlock(nc));
   return parts.join('\n');
 }
