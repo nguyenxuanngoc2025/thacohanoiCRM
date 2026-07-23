@@ -25,20 +25,18 @@ const TABLES: { title: string; chain: KpiDim[] }[] = [
 ];
 
 // 3 chỉ số phễu, mỗi chỉ số 3 cột KH / TH / %TH.
-const METRICS: { label: string; plan: keyof KpiTotals; actual: keyof KpiTotals; color: string }[] = [
-  { label: 'KHQT', plan: 'plan_khqt', actual: 'actual_khqt', color: '#1d4ed8' },
-  { label: 'GDTD', plan: 'plan_gdtd', actual: 'actual_gdtd', color: '#b45309' },
-  { label: 'KHĐ', plan: 'plan_khd', actual: 'actual_khd', color: '#047857' },
+const METRICS: { label: string; plan: keyof KpiTotals; actual: keyof KpiTotals }[] = [
+  { label: 'KHQT', plan: 'plan_khqt', actual: 'actual_khqt' },
+  { label: 'GDTD', plan: 'plan_gdtd', actual: 'actual_gdtd' },
+  { label: 'KHĐ', plan: 'plan_khd', actual: 'actual_khd' },
 ];
 
 const TOTAL_COLS = 1 /*dim*/ + 1 /*budget*/ + METRICS.length * 3;
 
-function pctColor(actual: number, plan: number): string {
-  if (!plan) return '#cbd5e1';
-  return pct(actual, plan) >= 100 ? '#047857' : '#b45309';
-}
+// Đường phân khu giữa các nhóm cột.
+const SEP = 'border-l border-slate-300';
 
-/** Nhóm 3 ô KH / TH / %TH cho 1 chỉ số. */
+/** Nhóm 3 ô KH / TH / %TH cho từng chỉ số (ô KH mở đầu nhóm có vạch ngăn). */
 function MetricCells({ t }: { t: KpiTotals }) {
   return (
     <>
@@ -47,11 +45,9 @@ function MetricCells({ t }: { t: KpiTotals }) {
         const actual = t[m.actual] as number;
         return (
           <React.Fragment key={m.label}>
-            <td className="py-2 px-2 text-right text-slate-500">{plan ? fmt(plan) : '—'}</td>
-            <td className="py-2 px-2 text-right font-medium" style={{ color: actual ? '#0f172a' : '#cbd5e1' }}>{fmt(actual)}</td>
-            <td className="py-2 px-2 text-right font-semibold" style={{ color: pctColor(actual, plan) }}>
-              {plan ? `${pct(actual, plan)}%` : '—'}
-            </td>
+            <td className={`py-2 px-3 text-right text-slate-400 ${SEP}`}>{plan ? fmt(plan) : '—'}</td>
+            <td className="py-2 px-3 text-right text-slate-800">{fmt(actual)}</td>
+            <td className="py-2 px-3 text-right font-semibold text-slate-700">{plan ? `${pct(actual, plan)}%` : '—'}</td>
           </React.Fragment>
         );
       })}
@@ -70,7 +66,7 @@ function DrillRow({ group, chain, depth, modelOrder }: {
   return (
     <>
       <tr className="border-b border-slate-50 hover:bg-slate-50/60">
-        <td className="py-2 pr-3 sticky left-0 bg-inherit" style={{ paddingLeft: 4 + depth * 20 }}>
+        <td className="py-2 pr-3 sticky left-0 bg-inherit" style={{ paddingLeft: 8 + depth * 20 }}>
           <div className="flex items-center gap-1.5">
             {canExpand ? (
               <button onClick={() => setOpen((o) => !o)} className="shrink-0 text-slate-400 hover:text-slate-700"
@@ -80,12 +76,12 @@ function DrillRow({ group, chain, depth, modelOrder }: {
             ) : (
               <span className="shrink-0 inline-block" style={{ width: 15 }} />
             )}
-            <span className={`truncate max-w-[220px] block ${depth === 0 ? 'text-slate-700 font-medium' : 'text-slate-500'}`}>
+            <span className={`truncate block ${depth === 0 ? 'text-slate-700 font-medium' : 'text-slate-500'}`}>
               {group.label}
             </span>
           </div>
         </td>
-        <td className="py-2 px-2 text-right text-slate-600">{money(budgetValue(t))}</td>
+        <td className={`py-2 px-3 text-right text-slate-600 ${SEP}`}>{money(budgetValue(t))}</td>
         <MetricCells t={t} />
       </tr>
       {open && canExpand && (
@@ -103,7 +99,7 @@ function DrillGroup({ rows, chain, depth, modelOrder }: {
   if (groups.length === 0) {
     return (
       <tr>
-        <td colSpan={TOTAL_COLS} className="py-2 text-slate-300 text-xs" style={{ paddingLeft: 4 + depth * 20 + 21 }}>
+        <td colSpan={TOTAL_COLS} className="py-2 text-slate-300 text-xs" style={{ paddingLeft: 8 + depth * 20 + 21 }}>
           Không có dữ liệu cấp dưới.
         </td>
       </tr>
@@ -158,21 +154,30 @@ function KpiTable({ title, chain, rows, modelOrder, periodSlug }: {
         <div className="py-12 text-center text-slate-400 text-sm">Không có dữ liệu trong kỳ / bộ lọc.</div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-sm whitespace-nowrap">
+          <table className="w-full text-sm table-fixed min-w-[860px]">
+            <colgroup>
+              <col style={{ width: 220 }} />
+              <col style={{ width: 104 }} />
+              {METRICS.map((m) => (
+                <React.Fragment key={m.label}>
+                  <col /><col /><col />
+                </React.Fragment>
+              ))}
+            </colgroup>
             <thead>
-              <tr className="text-[11px] uppercase tracking-wide text-slate-400 border-b border-slate-100">
-                <th className="py-2 pr-3 text-left sticky left-0 bg-white" rowSpan={2}>{DIM_LABEL[dim]}</th>
-                <th className="py-2 px-2 text-right align-bottom" rowSpan={2}>Ngân sách</th>
+              <tr className="text-[11px] uppercase tracking-wide text-slate-500 bg-slate-50 border-y border-slate-200">
+                <th className="py-2.5 px-3 text-left sticky left-0 bg-slate-50" rowSpan={2}>{DIM_LABEL[dim]}</th>
+                <th className={`py-2.5 px-3 text-right align-bottom ${SEP}`} rowSpan={2}>Ngân sách</th>
                 {METRICS.map((m) => (
-                  <th key={m.label} className="py-1.5 px-2 text-center border-l border-slate-100" colSpan={3} style={{ color: m.color }}>{m.label}</th>
+                  <th key={m.label} className={`py-2 px-3 text-center font-bold text-slate-700 ${SEP}`} colSpan={3}>{m.label}</th>
                 ))}
               </tr>
-              <tr className="text-[10px] uppercase tracking-wide text-slate-400 border-b border-slate-100">
+              <tr className="text-[10px] uppercase tracking-wide text-slate-400 bg-slate-50 border-b border-slate-200">
                 {METRICS.map((m) => (
                   <React.Fragment key={m.label}>
-                    <th className="py-1 px-2 text-right border-l border-slate-100 font-medium">KH</th>
-                    <th className="py-1 px-2 text-right font-medium">TH</th>
-                    <th className="py-1 px-2 text-right font-medium">%TH</th>
+                    <th className={`py-1.5 px-3 text-right font-medium ${SEP}`}>KH</th>
+                    <th className="py-1.5 px-3 text-right font-medium">TH</th>
+                    <th className="py-1.5 px-3 text-right font-medium">%TH</th>
                   </React.Fragment>
                 ))}
               </tr>
@@ -181,9 +186,9 @@ function KpiTable({ title, chain, rows, modelOrder, periodSlug }: {
               <DrillGroup rows={rows} chain={chain} depth={0} modelOrder={modelOrder} />
             </tbody>
             <tfoot>
-              <tr className="border-t-2 border-slate-200 text-slate-800 font-semibold">
-                <td className="py-2 pr-3 sticky left-0 bg-white">Tổng</td>
-                <td className="py-2 px-2 text-right">{money(budgetValue(totals))}</td>
+              <tr className="border-t-2 border-slate-300 text-slate-800 font-semibold bg-slate-50/50">
+                <td className="py-2 px-3 sticky left-0 bg-slate-50">Tổng</td>
+                <td className={`py-2 px-3 text-right ${SEP}`}>{money(budgetValue(totals))}</td>
                 <MetricCells t={totals} />
               </tr>
             </tfoot>
