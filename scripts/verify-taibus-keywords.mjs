@@ -25,7 +25,9 @@ function detectModel(text, models) {
     const keys = [m.name, ...m.keywords].map(normalizeForMatch).filter((k) => k.length > 0);
     if (keys.some((k) => keyHit(haystack, k))) matched.push(m.name);
   }
-  return matched.length === 1 ? matched[0] : (matched.length === 0 ? null : `AMBIGUOUS[${matched.join('|')}]`);
+  // Giống hệt production: chỉ trả model khi khớp ĐÚNG 1; 0 hoặc >=2 -> null (không đoán).
+  if (matched.length !== 1 && matched.length >= 2) console.log(`   (info) >=2 khớp -> null: [${matched.join(' | ')}]`);
+  return matched.length === 1 ? matched[0] : null;
 }
 
 const models = [
@@ -33,9 +35,9 @@ const models = [
   { name: 'Tải nhẹ máy xăng', keywords: ['towner800','lăn bánh tf','tf230','thacohanoi tf230','thông tin tf','tf220230','towner990','lái thử tf','tf220','thacohanoi tf220','towner t','towner tải'] },
   { name: 'Tải nhẹ máy dầu', keywords: ['thacohanoi kia','k250l','k200','k200l','lăn bánh kia','k250','lái thử kia','frontier','kia frontier','k200s','k200sd'] },
   { name: 'Tải trung - Ben trung', keywords: ['linker','canter','fuso','forland','auman c240','auman c160','tf2800','tf4.9','tf7.5','tf8.5','fa140','fi170','fj285','fd120','fd490','fd600','fd700','fd150'] },
-  { name: 'Đầu kéo - Tải nặng - Ben nặng', keywords: ['sinotruk','auman est','auman etx','auman gtl','auman c300','auman c340','smrm','đầu kéo','rơ moóc'] },
-  { name: 'Bus', keywords: [] },
-  { name: 'Mini Bus', keywords: [] },
+  { name: 'Đầu kéo - Tải nặng - Ben nặng', keywords: ['sinotruk','auman est','auman etx','auman gtl','auman c300','auman c340','smrm','đầu kéo','rơ moóc','fv400'] },
+  { name: 'Bus', keywords: ['thaco cruizer','cruizer','bus ghế','bus giường','tb81','tb87','tb91','tb95','tb110','tb120','tb140','o 500 rs'] },
+  { name: 'Mini Bus', keywords: ['iveco','iveco daily','daily'] },
 ];
 
 // A) từ khoá tổng quát
@@ -61,8 +63,16 @@ const cases = [
   ['Auman EST C300', 'Đầu kéo - Tải nặng - Ben nặng'],
   ['SMRM Xương', 'Đầu kéo - Tải nặng - Ben nặng'],
   ['xe đầu kéo', 'Đầu kéo - Tải nặng - Ben nặng'],
+  ['đầu kéo FV400', 'Đầu kéo - Tải nặng - Ben nặng'],
   ['Auman', null],
   ['0912345678', null],
+  ['Thaco Cruizer 78S', 'Bus'],
+  ['xe bus 29 chỗ', 'Bus'],
+  ['TB120S47D1', 'Bus'],
+  ['bus giường nằm', 'Bus'],
+  ['IVECO Daily 16 chỗ', 'Mini Bus'],
+  ['iveco daily plus', 'Mini Bus'],
+  ['mini bus', null],
 ];
 
 // B) ĐÁP ÁN FORM THẬT của 6 lead null-model (dò lại theo trường "dòng xe")
