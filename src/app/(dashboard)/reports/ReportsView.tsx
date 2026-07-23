@@ -133,15 +133,17 @@ export default function ReportsView({
   // Lọc dữ liệu KPI (dạng theo tên/kênh) theo bộ lọc chung — quy ID về tên, nguồn về mã kênh.
   // TVBH & Trạng thái không áp cho KPI (không có trong dữ liệu mục tiêu).
   const kpiFiltered = useMemo(() => {
+    // Tên Budget vênh tên CRM (hoa/thường, dấu cách) → thương hiệu/showroom so KHÔNG phân biệt
+    // hoa-thường; dòng xe lọc theo MÃ (crm_model_id) khớp đúng id CRM.
+    const norm = (s: string) => s.trim().toLowerCase();
     const brandName = brand ? leads.find((l) => l.brand_id === brand)?.brand_name ?? null : null;
-    const modelName = model ? leads.find((l) => l.model_id === model)?.model_name ?? null : null;
     const showroomName = showroom ? leads.find((l) => l.showroom_id === showroom)?.showroom_name ?? null : null;
     const p = source.trim().toLowerCase();
     const channelCode = source ? (p === 'facebook' ? 'facebook' : p === 'google' ? 'google' : 'digital_other') : null;
     return kpiRows.filter((r) =>
-      (!brandName || r.brand_name === brandName) &&
-      (!modelName || r.model_name === modelName) &&
-      (!showroomName || r.showroom_name === showroomName) &&
+      (!brandName || norm(r.brand_name) === norm(brandName)) &&
+      (!model || r.crm_model_id === model) &&
+      (!showroomName || norm(r.showroom_name) === norm(showroomName)) &&
       (!channelCode || r.channel === channelCode));
   }, [kpiRows, leads, brand, model, showroom, source]);
 

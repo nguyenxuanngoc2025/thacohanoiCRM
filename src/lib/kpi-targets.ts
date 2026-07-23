@@ -15,6 +15,8 @@ export interface KpiRow {
   brand_name: string;
   model_name: string;
   channel: string;
+  /** Mã dòng xe CRM tương ứng (để lọc theo mã, tránh vênh tên Budget↔CRM). NULL nếu dòng Budget chưa map. */
+  crm_model_id?: string | null;
   plan_khqt: number; plan_gdtd: number; plan_khd: number; plan_ns: number; actual_ns: number;
   actual_khqt: number; actual_gdtd: number; actual_khd: number;
 }
