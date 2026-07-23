@@ -31,8 +31,8 @@ describe('computeKpis', () => {
     expect(k.total).toBe(4);
     expect(k.contacted).toBe(2);
     expect(k.contactRate).toBe(50);
-    expect(k.interested).toBe(0); // không có KHQT trong tập này
-    expect(k.following).toBe(1);
+    expect(k.interested).toBe(2); // luỹ tiến: đạt KHQT trở lên = KHĐ + GDTD
+    expect(k.following).toBe(2); // luỹ tiến: đạt GDTD trở lên = KHĐ + GDTD
     expect(k.won).toBe(1);
     expect(k.winRate).toBe(25);
     expect(k.fail).toBe(1);
@@ -70,7 +70,7 @@ describe('effectiveStatus — trạng thái cuối cho báo cáo (best app vs B1
     ];
     const k = computeKpis(leads, NOW);
     expect(k.won).toBe(1);
-    expect(k.following).toBe(1);
+    expect(k.following).toBe(2); // luỹ tiến: KHĐ (theo B10) + GDTD (theo B10)
   });
 });
 
@@ -146,8 +146,8 @@ describe('groupBySource', () => {
     expect(fb.share).toBe(80); // 4/5
     expect(fb.contacted).toBe(2);
     expect(fb.contactRate).toBe(50);
-    expect(fb.interested).toBe(1); // KHQT
-    expect(fb.following).toBe(1); // GDTD
+    expect(fb.interested).toBe(2); // luỹ tiến: đạt KHQT trở lên = GDTD + KHQT
+    expect(fb.following).toBe(1); // luỹ tiến: đạt GDTD trở lên = GDTD
     expect(fb.fail).toBe(1);
     expect(fb.failRate).toBe(25);
     expect(fb.overdue).toBe(1);
@@ -301,8 +301,8 @@ describe('chỉ số B10', () => {
     const k = computeKpis(leads, NOW);
     expect(k.b10On).toBe(4);
     expect(k.b10Rate).toBe(80); // 4/5
-    expect(k.b10Interested).toBe(1); // KHQT·B10
-    expect(k.b10Following).toBe(1);  // GDTD·B10
+    expect(k.b10Interested).toBe(3); // luỹ tiến B10: đạt KHQT trở lên = KHĐ + KHQT + GDTD
+    expect(k.b10Following).toBe(2);  // luỹ tiến B10: đạt GDTD trở lên = KHĐ + GDTD
     expect(k.b10Won).toBe(1);        // KHĐ·B10
     expect(k.b10Loai).toBe(1);       // Loại·B10
   });

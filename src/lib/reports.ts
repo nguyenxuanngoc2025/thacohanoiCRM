@@ -1,6 +1,6 @@
 import { STATUS_LABEL, type LeadStatus } from './lead-status';
 import { sourcePlatform, sourceLabel, type SourceCatalog } from './source';
-import { bestB10Status } from './b10';
+import { bestB10Status, B10_RANK } from './b10';
 import { isLeadOverdue } from './overdue';
 
 /** Lead tối giản cho tính toán báo cáo (lấy từ bảng leads, đã join tên brand/showroom/TVBH). */
@@ -38,6 +38,13 @@ export const isContacted = (l: ReportLead): boolean => l.last_contact_at != null
 /** Còn trong pipeline: chưa chốt (KHĐ) và chưa loại (Fail). */
 export const isOpen = (l: ReportLead): boolean => { const s = effectiveStatus(l); return s !== 'KHĐ' && s !== 'Fail'; };
 
+/** Rank luỹ tiến của 1 trạng thái (NULL = 0, Chưa LH=1, Fail=2, KHQT=3, GDTD=4, KHĐ=5). */
+const rankOf = (s: LeadStatus | null): number => (s ? B10_RANK[s] : 0);
+/** Phễu LUỸ TIẾN: đã đạt tối thiểu nấc KHQT (gồm cả người đã lên GDTD, KHĐ). */
+export const reachedKHQT = (l: ReportLead): boolean => rankOf(effectiveStatus(l)) >= 3;
+/** Phễu LUỸ TIẾN: đã đạt tối thiểu nấc GDTD (gồm cả KHĐ). */
+export const reachedGDTD = (l: ReportLead): boolean => rankOf(effectiveStatus(l)) >= 4;
+
 /** Quá hạn liên hệ: đã giao TVBH, chưa chuyển trạng thái, hạn SLA đã trôi qua. */
 export function isOverdue(l: ReportLead, nowMs: number): boolean {
   return isLeadOverdue(l, nowMs);
@@ -67,14 +74,14 @@ export interface Kpis {
 export function computeKpis(leads: ReportLead[], nowMs: number): Kpis {
   const total = leads.length;
   const contacted = leads.filter(isContacted).length;
-  const interested = leads.filter((l) => effectiveStatus(l) === 'KHQT').length;
-  const following = leads.filter((l) => effectiveStatus(l) === 'GDTD').length;
+  const interested = leads.filter(reachedKHQT).length;
+  const following = leads.filter(reachedGDTD).length;
   const won = leads.filter(isWon).length;
   const fail = leads.filter(isFail).length;
   const overdue = leads.filter((l) => isOverdue(l, nowMs)).length;
   const b10On = leads.filter((l) => l.b10_on).length;
-  const b10Interested = leads.filter((l) => l.b10_status === 'KHQT').length;
-  const b10Following = leads.filter((l) => l.b10_status === 'GDTD').length;
+  const b10Interested = leads.filter((l) => rankOf(l.b10_status) >= 3).length;
+  const b10Following = leads.filter((l) => rankOf(l.b10_status) >= 4).length;
   const b10Won = leads.filter((l) => l.b10_status === 'KHĐ').length;
   const b10Loai = leads.filter((l) => l.b10_status === 'Fail').length;
   return {
@@ -178,15 +185,14 @@ function groupBy(
     }
     row.leads += 1;
     if (isContacted(l)) row.contacted += 1;
-    const es = effectiveStatus(l);
-    if (es === 'KHQT') row.interested += 1;
-    if (es === 'GDTD') row.following += 1;
+    if (reachedKHQT(l)) row.interested += 1;
+    if (reachedGDTD(l)) row.following += 1;
     if (isWon(l)) row.won += 1;
     if (isFail(l)) row.fail += 1;
     if (isOverdue(l, nowMs)) row.overdue += 1;
     if (l.b10_on) row.b10On += 1;
-    if (l.b10_status === 'KHQT') row.b10Interested += 1;
-    if (l.b10_status === 'GDTD') row.b10Following += 1;
+    if (rankOf(l.b10_status) >= 3) row.b10Interested += 1;
+    if (rankOf(l.b10_status) >= 4) row.b10Following += 1;
     if (l.b10_status === 'KHĐ') row.b10Won += 1;
     if (l.b10_status === 'Fail') row.b10Loai += 1;
   }
