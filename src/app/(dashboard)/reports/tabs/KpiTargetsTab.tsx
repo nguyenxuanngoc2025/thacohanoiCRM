@@ -9,7 +9,8 @@ import { Panel, BRAND, fmt } from '../ui';
 import { exportXlsx } from '@/lib/xlsx-export';
 import { tableSheet, type SheetCol } from '../report-export';
 
-const money = (n: number) => fmt(Math.round(n));
+// Ngân sách hiển thị theo triệu, giữ 1 số thập phân (vd 9,5).
+const money = (n: number) => n.toLocaleString('vi-VN', { maximumFractionDigits: 1 });
 
 // Nhãn cột đầu theo chiều gốc của mỗi bảng.
 const DIM_LABEL: Record<KpiDim, string> = {
@@ -123,14 +124,14 @@ function KpiTable({ title, chain, rows, modelOrder, showroomOrder, periodSlug }:
   const handleExport = () => {
     const cols: SheetCol<KpiGroup>[] = [
       { header: DIM_LABEL[dim], value: (g) => g.label },
-      { header: 'Ngân sách', value: (g) => Math.round(budgetValue(g.totals)) },
+      { header: 'Ngân sách', value: (g) => budgetValue(g.totals) },
     ];
     for (const m of METRICS) {
       cols.push({ header: `${m.label} KH`, value: (g) => g.totals[m.plan] as number });
       cols.push({ header: `${m.label} TH`, value: (g) => g.totals[m.actual] as number });
       cols.push({ header: `${m.label} %TH`, value: (g) => pct(g.totals[m.actual] as number, g.totals[m.plan] as number) });
     }
-    const totalRow: (string | number)[] = ['Tổng', Math.round(budgetValue(totals))];
+    const totalRow: (string | number)[] = ['Tổng', budgetValue(totals)];
     for (const m of METRICS) {
       totalRow.push(totals[m.plan] as number, totals[m.actual] as number, pct(totals[m.actual] as number, totals[m.plan] as number));
     }
