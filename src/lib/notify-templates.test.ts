@@ -86,10 +86,11 @@ describe('renderChannelDaily', () => {
           { name: 'KIA', stats: stats({ total: 1 }) },
         ], byModel: false, nonCompliant: [] },
       ],
+      uncontacted: [],
     };
     const t = renderChannelDaily(view);
-    expect(t).toContain('<b>BÁO CÁO NGÀY 11/07</b>');
-    expect(t).toContain('<b>Showroom PVD</b>');
+    expect(t).toContain('Em xin kính gửi Báo cáo Ngày 11/07');
+    expect(t).toContain('<b>Kính gửi Quý Anh/Chị Showroom PVD</b>');
     expect(t).toContain('<b>Theo thương hiệu</b>');
     expect(t).toContain('• <b>KIA</b>: <b>2</b> Lead');
     expect(t).toContain('<b>Theo phòng bán hàng</b>');
@@ -102,9 +103,10 @@ describe('renderChannelDaily', () => {
       dateLabel: 'NGÀY 11/07', headerName: 'SR',
       overview: { stats: stats({ total: 1 }), brands: [], byModel: false },
       phongs: [{ name: 'Phòng Duy Nhất', stats: stats({ total: 1, contacted: 1 }), brands: [], byModel: false, nonCompliant: [] }],
+      uncontacted: [],
     };
     const t = renderChannelDaily(view);
-    expect(t).toContain('<b>Phòng Duy Nhất</b>');
+    expect(t).toContain('<b>Kính gửi Quý Anh/Chị Phòng Duy Nhất</b>');
     expect(t).not.toContain('Theo phòng bán hàng');
   });
 
@@ -115,9 +117,64 @@ describe('renderChannelDaily', () => {
       phongs: [{ name: 'P1', stats: stats({ total: 1 }), brands: [
         { name: 'KIA', stats: stats({ total: 1 }) },
       ], byModel: false, nonCompliant: [] }],
+      uncontacted: [],
     };
     const t = renderChannelDaily(view);
     expect(t).not.toContain('Theo thương hiệu');
+  });
+
+  it('có lead + tồn đọng: hiện mục "Chưa liên hệ (tồn đọng)" gom theo TVBH, sắp giảm dần', () => {
+    const view: ChannelReportView = {
+      dateLabel: 'NGÀY 24/07', headerName: 'SR',
+      overview: { stats: stats({ total: 1 }), brands: [], byModel: false },
+      phongs: [{ name: 'Phòng 1', stats: stats({ total: 1, contacted: 1 }), brands: [], byModel: false, nonCompliant: [] }],
+      uncontacted: [{ name: 'Nguyễn A', count: 3 }, { name: 'Trần B', count: 2 }],
+    };
+    const t = renderChannelDaily(view);
+    expect(t).toContain('<b>Chưa liên hệ (tồn đọng)</b>');
+    expect(t).toContain('• <b>Nguyễn A</b> — 3 KH');
+    expect(t).toContain('• <b>Trần B</b> — 2 KH');
+    expect(t.indexOf('Nguyễn A')).toBeLessThan(t.indexOf('Trần B'));
+  });
+
+  it('nhiều phòng: ẨN phòng 0 lead trong "Theo phòng bán hàng"', () => {
+    const view: ChannelReportView = {
+      dateLabel: 'NGÀY 24/07', headerName: 'SR',
+      overview: { stats: stats({ total: 2 }), brands: [], byModel: false },
+      phongs: [
+        { name: 'Phòng Có', stats: stats({ total: 2, contacted: 1 }), brands: [], byModel: false, nonCompliant: [] },
+        { name: 'Phòng Rỗng', stats: stats({ total: 0 }), brands: [], byModel: false, nonCompliant: [] },
+      ],
+      uncontacted: [],
+    };
+    const t = renderChannelDaily(view);
+    expect(t).toContain('• <b>Phòng Có</b>');
+    expect(t).not.toContain('Phòng Rỗng');
+  });
+
+  it('0 lead + còn tồn đọng: tin an ủi + rà soát khách chưa liên hệ', () => {
+    const view: ChannelReportView = {
+      dateLabel: 'NGÀY 24/07', headerName: 'SR',
+      overview: { stats: stats({ total: 0 }), brands: [], byModel: false },
+      phongs: [{ name: 'Phòng KIA 1', stats: stats({ total: 0 }), brands: [], byModel: false, nonCompliant: [] }],
+      uncontacted: [{ name: 'Nguyễn A', count: 3 }],
+    };
+    const t = renderChannelDaily(view);
+    expect(t).toContain('<b>Kính gửi Quý Anh/Chị Phòng KIA 1</b>');
+    expect(t).toContain('Hôm nay không có Lead mới. Kính đề nghị Quý Anh/Chị rà soát các khách chưa được liên hệ dưới đây:');
+    expect(t).toContain('• <b>Nguyễn A</b> — 3 KH');
+  });
+
+  it('0 lead + 0 tồn đọng: tin an ủi "đã được liên hệ chăm sóc đầy đủ"', () => {
+    const view: ChannelReportView = {
+      dateLabel: 'NGÀY 24/07', headerName: 'SR',
+      overview: { stats: stats({ total: 0 }), brands: [], byModel: false },
+      phongs: [{ name: 'Phòng KIA 1', stats: stats({ total: 0 }), brands: [], byModel: false, nonCompliant: [] }],
+      uncontacted: [],
+    };
+    const t = renderChannelDaily(view);
+    expect(t).toContain('Hôm nay không có Lead mới. Toàn bộ khách cũ đã được liên hệ chăm sóc đầy đủ.');
+    expect(t).not.toContain('Chưa liên hệ (tồn đọng)');
   });
 });
 
@@ -312,8 +369,8 @@ describe('notify-templates', () => {
       total: 10, contacted: 6, pending: 4, overdue: 2,
       KHQT: 3, GDTD: 2, KyHD: 1, Fail: 1,
     }, [{ name: 'Trần B', overdue: 2 }]);
-    expect(t).toContain('BÁO CÁO NGÀY 24/06');
-    expect(t).toContain('<b>KIA Hà Nội</b>');
+    expect(t).toContain('Em xin kính gửi Báo cáo Ngày 24/06');
+    expect(t).toContain('<b>Kính gửi Quý Anh/Chị KIA Hà Nội</b>');
     expect(t).toContain('Tổng Lead: <b>10</b>');
     expect(t).toContain('đã liên hệ <b>6</b>');
     expect(t).toContain('Có <b>3</b> KHQT');
@@ -321,11 +378,20 @@ describe('notify-templates', () => {
     expect(t).toContain('• <b>Trần B</b> — 2 Lead quá hạn chưa liên hệ');
   });
 
-  it('renderDailySr: không ai quá hạn → "Không có Lead quá hạn"', () => {
+  it('renderDailySr: không ai quá hạn → ẨN hẳn mục "Chưa tuân thủ"', () => {
     const t = renderDailySr('KIA HN', 'NGÀY 24/06', {
       total: 5, contacted: 5, pending: 0, overdue: 0, KHQT: 0, GDTD: 0, KyHD: 0, Fail: 0,
     }, []);
-    expect(t).toContain('• Không có Lead quá hạn chưa liên hệ');
+    expect(t).not.toContain('Chưa tuân thủ');
+    expect(t).not.toContain('Không có Lead quá hạn');
+  });
+
+  it('renderDailySr: 0 lead → tin an ủi trang trọng', () => {
+    const t = renderDailySr('KIA HN', 'NGÀY 24/06', {
+      total: 0, contacted: 0, pending: 0, overdue: 0, KHQT: 0, GDTD: 0, KyHD: 0, Fail: 0,
+    }, []);
+    expect(t).toContain('<b>Kính gửi Quý Anh/Chị KIA HN</b>');
+    expect(t).toContain('Hôm nay không có Lead mới. Toàn bộ khách cũ đã được liên hệ chăm sóc đầy đủ.');
   });
 
   it('renderDailyMgmt: dòng tổng + chi tiết Theo thương hiệu', () => {
@@ -335,8 +401,8 @@ describe('notify-templates', () => {
         { name: 'KIA', stats: stats({ total: 10, contacted: 9, KHQT: 3 }) },
         { name: 'Mazda', stats: stats({ total: 8, contacted: 2, KHQT: 2 }) },
       ]);
-    expect(t).toContain('BÁO CÁO NGÀY 24/06');
-    expect(t).toContain('TỔNG HỢP BAN LÃNH ĐẠO');
+    expect(t).toContain('Em xin kính gửi Báo cáo Ngày 24/06');
+    expect(t).toContain('Kính gửi Quý Ban lãnh đạo cùng các Anh/Chị');
     expect(t).toContain('Tổng Lead: <b>18</b>');
     expect(t).toContain('<b>Theo thương hiệu</b>');
     expect(t).toContain('• <b>KIA</b>: <b>10</b> Lead');
@@ -372,8 +438,8 @@ describe('renderBrandReport', () => {
 
   it('tiêu đề khối + mục theo dòng xe', () => {
     const t = renderBrandReport(view);
-    expect(t).toContain('<b>BÁO CÁO NGÀY 20/07</b>');
-    expect(t).toContain('<b>BLĐ KIA-Mazda · KIA</b>');
+    expect(t).toContain('Em xin kính gửi Báo cáo Ngày 20/07');
+    expect(t).toContain('<b>Kính gửi Quý Anh/Chị PKD Thương hiệu KIA</b>');
     expect(t).toContain('Tổng Lead: <b>3</b>');
     expect(t).toContain('<b>Theo dòng xe</b>');
     expect(t).toContain('• <b>Sonet</b>: <b>2</b> Lead');
@@ -381,7 +447,7 @@ describe('renderBrandReport', () => {
 
   it('hãng 0 lead: vẫn có khối + "chưa có" cho danh sách rỗng', () => {
     const t = renderBrandReport(view);
-    expect(t).toContain('<b>BLĐ KIA-Mazda · Mazda</b>');
+    expect(t).toContain('<b>Kính gửi Quý Anh/Chị PKD Thương hiệu Mazda</b>');
     expect(t).toContain('• chưa có');
   });
 });

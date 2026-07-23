@@ -23,7 +23,7 @@ describe('buildSampleReport — tin NGÀY', () => {
     expect(s[2].label).toContain('công ty');
   });
   it('tin ngày có nhãn NGÀY và số liệu quá hạn', () => {
-    expect(s[0].text).toContain('NGÀY 20/07');
+    expect(s[0].text).toContain('Ngày 20/07');
     expect(s.some((x) => /[Qq]uá hạn/.test(x.text))).toBe(true);
   });
 });
@@ -34,7 +34,7 @@ describe('buildSampleReport — tin TUẦN/THÁNG', () => {
     expect(s).toHaveLength(3);
     expect(s[0].label).toContain('phòng bán hàng');
     const all = s.map((x) => x.text).join('\n');
-    expect(all).toContain('TUẦN 13/07–19/07');
+    expect(all).toContain('Tuần 13/07–19/07');
     expect(all).toContain('Tổng Lead');
     expect(all).toContain('KHĐ');
     expect(all).toContain('Kỳ trước');
@@ -44,7 +44,7 @@ describe('buildSampleReport — tin TUẦN/THÁNG', () => {
   it('tháng: nhãn THÁNG kỳ hiện tại + kỳ trước', () => {
     const s = buildSampleReport('monthly', NOW);
     const all = s.map((x) => x.text).join('\n');
-    expect(all).toContain('THÁNG 06/2026');
+    expect(all).toContain('Tháng 06/2026');
     expect(all).toContain('THÁNG 05/2026');
   });
 });

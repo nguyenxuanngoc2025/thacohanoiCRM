@@ -1,6 +1,6 @@
 import {
   renderDailySr, renderDailyMgmt, renderPeriodSr, renderPeriodMgmt,
-  type DailySrStats, type NonCompliant,
+  type DailySrStats, type NonCompliant, type NonContacted,
 } from './notify-templates';
 
 export interface ReportLead {
@@ -70,11 +70,18 @@ export interface ChannelPhong {
   nonCompliant: NonCompliant[];
 }
 
+// Lead tồn đọng chưa liên hệ (query riêng, KHÔNG giới hạn ngày) — để gom theo TVBH.
+export interface UncontactedLead {
+  sales_team_id: string | null;
+  assignee_name: string | null;
+}
+
 export interface ChannelReport {
   dateLabel: string;
   headerName: string;
   overview: { stats: DailySrStats; brands: BrandBreak[]; byModel: boolean };
   phongs: ChannelPhong[];
+  uncontacted: NonContacted[];
 }
 
 export interface ChannelReportSeed {
@@ -299,9 +306,21 @@ function brandBreaks(g: Bucket): BrandBreak[] {
  * tách hãng) + từng PHÒNG (kèm tách hãng). Chỉ gom lead có sales_team_id thuộc seed.teams.
  * Phòng trong seed nhưng 0 lead vẫn xuất hiện (báo cáo số 0).
  */
+// Gom lead tồn đọng theo TVBH, chỉ giữ lead thuộc các phòng của kênh. Sắp giảm dần theo số KH.
+function uncontactedByTeams(uncontacted: UncontactedLead[], teamIds: Set<string>): NonContacted[] {
+  const m = new Map<string, number>();
+  for (const u of uncontacted) {
+    if (!u.sales_team_id || !teamIds.has(u.sales_team_id)) continue;
+    const who = u.assignee_name?.trim() || 'Chưa rõ';
+    m.set(who, (m.get(who) ?? 0) + 1);
+  }
+  return [...m.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
+}
+
 export function buildChannelReport(
   leads: ReportLead[], dateLabel: string, now: Date, seed: ChannelReportSeed,
   modelBreakBrandIds: Set<string> = new Set(),
+  uncontacted: UncontactedLead[] = [],
 ): ChannelReport {
   const teamIds = new Set(seed.teams.map((t) => t.id));
   const brandName = new Map((seed.brands ?? []).map((b) => [b.id, b.name]));
@@ -341,6 +360,7 @@ export function buildChannelReport(
     phongs: [...teamBuckets.values()].map((b) => ({
       name: b.name, stats: b.stats, brands: brandBreaks(b), byModel: b.byModel, nonCompliant: nonCompliantOf(b),
     })),
+    uncontacted: uncontactedByTeams(uncontacted, teamIds),
   };
 }
 

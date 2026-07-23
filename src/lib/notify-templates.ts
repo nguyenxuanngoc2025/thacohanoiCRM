@@ -304,6 +304,11 @@ export interface NonCompliant {
   overdue: number;    // số lead quá hạn của người này
 }
 
+export interface NonContacted {
+  name: string;   // tên TVBH
+  count: number;  // số KH tồn đọng chưa liên hệ
+}
+
 // Dòng tổng NGÀY: chỉ 3 con số cốt lõi (in đậm), nhấn liên hệ + khách quan tâm.
 function dailyHeadline(s: DailySrStats): string {
   return `Tổng Lead: <b>${s.total}</b>, trong đó đã liên hệ <b>${s.contacted}</b>. Có <b>${s.KHQT}</b> KHQT`;
@@ -345,24 +350,35 @@ function mergeNonCompliant(lists: NonCompliant[][]): NonCompliant[] {
   return [...m.entries()].map(([name, overdue]) => ({ name, overdue })).sort((a, b) => b.overdue - a.overdue);
 }
 
-// Khối "Chưa tuân thủ": tên TVBH đậm + số lead quá hạn. Rỗng → ghi rõ đã tuân thủ.
+// Khối "Chưa tuân thủ": tên TVBH đậm + số lead quá hạn. Rỗng → ẩn hẳn (chỉ nêu bất cập thực).
 const NON_COMPLIANT_MAX = 8;
-function nonCompliantBlock(list: NonCompliant[]): string {
+function nonCompliantBlock(list: NonCompliant[]): string[] {
+  if (list.length === 0) return [];
   const lines = [SEP, '<b>Chưa tuân thủ</b>'];
-  if (list.length === 0) {
-    lines.push('• Không có Lead quá hạn chưa liên hệ');
-    return lines.join('\n');
-  }
   for (const x of list.slice(0, NON_COMPLIANT_MAX)) {
     lines.push(`• <b>${x.name}</b> — ${x.overdue} Lead quá hạn chưa liên hệ`);
   }
   if (list.length > NON_COMPLIANT_MAX) lines.push(`• …và ${list.length - NON_COMPLIANT_MAX} người khác`);
-  return lines.join('\n');
+  return lines;
 }
 
-// Tiêu đề 2 dòng: tên báo cáo (kỳ) + phạm vi (phòng/showroom/nhóm) — đều in đậm.
+// Khối "Chưa liên hệ (tồn đọng)": gom theo TVBH. Rỗng → ẩn hẳn.
+function uncontactedBlock(list: NonContacted[]): string[] {
+  if (list.length === 0) return [];
+  const lines = [SEP, '<b>Chưa liên hệ (tồn đọng)</b>'];
+  for (const x of list.slice(0, NON_COMPLIANT_MAX)) lines.push(`• <b>${x.name}</b> — ${x.count} KH`);
+  if (list.length > NON_COMPLIANT_MAX) lines.push(`• …và ${list.length - NON_COMPLIANT_MAX} người khác`);
+  return lines;
+}
+
+// Từ chỉ kỳ IN HOA → Hoa đầu để ghép câu "Em xin kính gửi Báo cáo ...".
+function reportName(dateLabel: string): string {
+  return dateLabel.replace(/^NGÀY/, 'Ngày').replace(/^TUẦN/, 'Tuần').replace(/^THÁNG/, 'Tháng');
+}
+
+// Tiêu đề 2 dòng: người nhận (đậm) + dòng dẫn "Em xin kính gửi Báo cáo <kỳ>".
 function reportHeader(dateLabel: string, scope: string): string[] {
-  return [`<b>BÁO CÁO ${dateLabel}</b>`, `<b>${scope}</b>`, SEP];
+  return [`<b>${scope}</b>`, `Em xin kính gửi Báo cáo ${reportName(dateLabel)}`, SEP];
 }
 
 // dateLabel đã gồm từ chỉ kỳ: 'NGÀY 24/06' | 'TUẦN 23/06–29/06' | 'THÁNG 06/2026'.
@@ -370,11 +386,15 @@ export function renderDailySr(
   showroom: string, dateLabel: string, s: DailySrStats, nonCompliant: NonCompliant[],
   brands: BrandBreakView[] = [], byModel = false,
 ): string {
+  const header = reportHeader(dateLabel, `Kính gửi Quý Anh/Chị ${showroom}`);
+  if (s.total === 0) {
+    return [...header, 'Hôm nay không có Lead mới. Toàn bộ khách cũ đã được liên hệ chăm sóc đầy đủ.'].join('\n');
+  }
   return [
-    ...reportHeader(dateLabel, showroom),
+    ...header,
     dailyHeadline(s),
     ...breakBlock(brands, byModel, 'daily', false),
-    nonCompliantBlock(nonCompliant),
+    ...nonCompliantBlock(nonCompliant),
   ].join('\n');
 }
 
@@ -383,7 +403,7 @@ export function renderDailyMgmt(
   dateLabel: string, stats: DailySrStats, brands: BrandBreakView[], byModel = false,
 ): string {
   return [
-    ...reportHeader(dateLabel, 'TỔNG HỢP BAN LÃNH ĐẠO'),
+    ...reportHeader(dateLabel, 'Kính gửi Quý Ban lãnh đạo cùng các Anh/Chị'),
     dailyHeadline(stats),
     ...breakBlock(brands, byModel, 'daily', true),
   ].join('\n');
@@ -407,6 +427,7 @@ export interface ChannelReportView {
   headerName: string;
   overview: { stats: DailySrStats; brands: BrandBreakView[]; byModel: boolean };
   phongs: ChannelPhongView[];
+  uncontacted: NonContacted[];
 }
 
 // ————— BÁO CÁO KỲ DÀI (TUẦN / THÁNG): tập trung KẾT QUẢ, KHÔNG "quá hạn / chưa tuân thủ" —————
@@ -431,7 +452,7 @@ export function renderPeriodSr(
   cur: DailySrStats, prev: DailySrStats, brands: BrandBreakView[], byModel = false,
 ): string {
   return [
-    ...reportHeader(dateLabel, showroom),
+    ...reportHeader(dateLabel, `Kính gửi Quý Anh/Chị ${showroom}`),
     periodHeadline(cur, prev),
     ...breakBlock(brands, byModel, 'period', false),
     renderPrevFoot(prevLabel, prev),
@@ -463,7 +484,7 @@ export function renderChannelPeriod(r: ChannelPeriodView): string {
   const brands = single ? r.phongs[0].brands : r.overview.brands;
   const byModel = single ? r.phongs[0].byModel : r.overview.byModel;
   const parts: string[] = [
-    ...reportHeader(r.dateLabel, single ? r.phongs[0].name : r.headerName),
+    ...reportHeader(r.dateLabel, `Kính gửi Quý Anh/Chị ${single ? r.phongs[0].name : r.headerName}`),
     periodHeadline(cur, prev),
     ...breakBlock(brands, byModel, 'period', false),
   ];
@@ -481,7 +502,7 @@ export function renderPeriodMgmt(
   curTotals: DailySrStats, prevTotals: DailySrStats, brands: BrandBreakView[], byModel = false,
 ): string {
   return [
-    ...reportHeader(dateLabel, 'TỔNG HỢP BAN LÃNH ĐẠO'),
+    ...reportHeader(dateLabel, 'Kính gửi Quý Ban lãnh đạo cùng các Anh/Chị'),
     periodHeadline(curTotals, prevTotals),
     ...breakBlock(brands, byModel, 'period', true),
     renderPrevFoot(prevLabel, prevTotals),
@@ -504,7 +525,7 @@ export interface BrandReportView {
 export function renderBrandReport(r: BrandReportView): string {
   const blocks = r.blocks.map((b) => {
     const lines = [
-      ...reportHeader(r.dateLabel, `${r.headerName} · ${b.brandName}`),
+      ...reportHeader(r.dateLabel, `Kính gửi Quý Anh/Chị PKD Thương hiệu ${b.brandName}`),
       dailyHeadline(b.stats),
       SEP,
       '<b>Theo dòng xe</b>',
@@ -522,16 +543,26 @@ export function renderChannelDaily(r: ChannelReportView): string {
   const stats = single ? r.phongs[0].stats : r.overview.stats;
   const brands = single ? r.phongs[0].brands : r.overview.brands;
   const byModel = single ? r.phongs[0].byModel : r.overview.byModel;
-  const parts: string[] = [
-    ...reportHeader(r.dateLabel, single ? r.phongs[0].name : r.headerName),
-    dailyHeadline(stats),
-    ...breakBlock(brands, byModel, 'daily', false),
-  ];
-  if (!single) {
-    parts.push(SEP, '<b>Theo phòng bán hàng</b>');
-    for (const p of r.phongs) parts.push(dailyBreakLine(p.name, p.stats));
-  }
   const nc = single ? r.phongs[0].nonCompliant : mergeNonCompliant(r.phongs.map((p) => p.nonCompliant));
-  parts.push(nonCompliantBlock(nc));
+  const unc = r.uncontacted;
+  const header = reportHeader(r.dateLabel, `Kính gửi Quý Anh/Chị ${single ? r.phongs[0].name : r.headerName}`);
+  if (stats.total === 0) {
+    if (unc.length > 0) {
+      return [
+        ...header,
+        'Hôm nay không có Lead mới. Kính đề nghị Quý Anh/Chị rà soát các khách chưa được liên hệ dưới đây:',
+        ...uncontactedBlock(unc),
+      ].join('\n');
+    }
+    return [...header, 'Hôm nay không có Lead mới. Toàn bộ khách cũ đã được liên hệ chăm sóc đầy đủ.'].join('\n');
+  }
+  const parts: string[] = [...header, dailyHeadline(stats), ...breakBlock(brands, byModel, 'daily', false)];
+  const withLeads = r.phongs.filter((p) => p.stats.total > 0);
+  if (!single && withLeads.length > 0) {
+    parts.push(SEP, '<b>Theo phòng bán hàng</b>');
+    for (const p of withLeads) parts.push(dailyBreakLine(p.name, p.stats));
+  }
+  parts.push(...nonCompliantBlock(nc));
+  parts.push(...uncontactedBlock(unc));
   return parts.join('\n');
 }

@@ -28,8 +28,8 @@ describe('daily-report', () => {
     expect(sr.stats.overdue).toBe(1);
     expect(sr.stats.KHQT).toBe(1);
     expect(sr.stats.KyHD).toBe(1);
-    expect(sr.text).toContain('BÁO CÁO NGÀY 24/06');
-    expect(sr.text).toContain('<b>KIA HN</b>');
+    expect(sr.text).toContain('Em xin kính gửi Báo cáo Ngày 24/06');
+    expect(sr.text).toContain('<b>Kính gửi Quý Anh/Chị KIA HN</b>');
     expect(sr.text).toContain('Tổng Lead: <b>3</b>');
     expect(sr.text).toContain('đã liên hệ <b>2</b>');
   });
@@ -50,10 +50,11 @@ describe('daily-report', () => {
     expect(sr.text).toContain('• <b>Chưa phân</b> — 1 Lead quá hạn chưa liên hệ');
   });
 
-  it('không có ai quá hạn → "Không có Lead quá hạn"', () => {
+  it('không có ai quá hạn → ẨN hẳn mục "Chưa tuân thủ"', () => {
     const now = new Date('2026-06-24T18:00:00Z');
     const sr = buildPeriodReport([L({ last_contact_at: '2026-06-24T09:00:00Z', assignee_name: 'Nguyễn A' })], 'NGÀY 24/06', now).perShowroom[0];
-    expect(sr.text).toContain('• Không có Lead quá hạn chưa liên hệ');
+    expect(sr.text).not.toContain('Chưa tuân thủ');
+    expect(sr.text).not.toContain('Không có Lead quá hạn');
   });
 
   it('bảng BLĐ: dòng tổng + chi tiết Theo thương hiệu', () => {
@@ -63,7 +64,7 @@ describe('daily-report', () => {
       L({ showroom_id: 'sr2', showroom_name: 'Mazda HN', brand_id: 'maz', brand_name: 'Mazda', next_contact_at: '2026-06-24T08:00:00Z', status: null }),
     ];
     const r = buildPeriodReport(leads, 'NGÀY 24/06', now);
-    expect(r.management).toContain('TỔNG HỢP BAN LÃNH ĐẠO');
+    expect(r.management).toContain('Kính gửi Quý Ban lãnh đạo cùng các Anh/Chị');
     expect(r.management).toContain('Tổng Lead: <b>2</b>');
     expect(r.management).toContain('<b>Theo thương hiệu</b>');
     expect(r.management).toContain('• <b>KIA</b>: <b>1</b> Lead');
@@ -73,7 +74,7 @@ describe('daily-report', () => {
   it('không có lead → perShowroom rỗng, management vẫn có tiêu đề + tổng 0', () => {
     const r = buildPeriodReport([], 'NGÀY 24/06', new Date());
     expect(r.perShowroom).toEqual([]);
-    expect(r.management).toContain('BÁO CÁO NGÀY 24/06');
+    expect(r.management).toContain('Em xin kính gửi Báo cáo Ngày 24/06');
     expect(r.management).toContain('Tổng Lead: <b>0</b>');
   });
 
@@ -85,7 +86,7 @@ describe('daily-report', () => {
     expect(r.perShowroom).toHaveLength(1);
     expect(r.perShowroom[0].id).toBe('sr9');
     expect(r.perShowroom[0].stats.total).toBe(0);
-    expect(r.perShowroom[0].text).toContain('<b>Showroom Đài Tư</b>');
+    expect(r.perShowroom[0].text).toContain('<b>Kính gửi Quý Anh/Chị Showroom Đài Tư</b>');
   });
 
   it('seed + có lead cùng showroom: gộp đúng 1 bucket, không tạo trùng', () => {
@@ -135,10 +136,28 @@ describe('daily-report', () => {
       headerName: 'SR PVD', teams: [{ id: 't1', name: 'Phòng 1' }, { id: 't2', name: 'Phòng 2' }],
     });
     const text = renderChannelDaily(r);
-    expect(text).toContain('BÁO CÁO NGÀY 24/06');
-    expect(text).toContain('<b>SR PVD</b>');
+    expect(text).toContain('Em xin kính gửi Báo cáo Ngày 24/06');
+    expect(text).toContain('<b>Kính gửi Quý Anh/Chị SR PVD</b>');
     expect(text).toContain('<b>Theo phòng bán hàng</b>');
     expect(text).toContain('• <b>Phòng 1</b>');
+  });
+
+  it('buildChannelReport: gom lead tồn đọng theo TVBH (chỉ phòng trong kênh), sắp giảm dần', () => {
+    const now = new Date('2026-06-24T18:00:00Z');
+    const r = buildChannelReport([], 'NGÀY 24/06', now,
+      { headerName: 'SR', teams: [{ id: 't1', name: 'Phòng 1' }, { id: 't2', name: 'Phòng 2' }] },
+      new Set(),
+      [
+        { sales_team_id: 't1', assignee_name: 'Nguyễn A' },
+        { sales_team_id: 't1', assignee_name: 'Nguyễn A' },
+        { sales_team_id: 't2', assignee_name: 'Trần B' },
+        { sales_team_id: 'tX', assignee_name: 'Ngoài kênh' }, // phòng ngoài kênh → bỏ
+      ],
+    );
+    expect(r.uncontacted).toEqual([
+      { name: 'Nguyễn A', count: 2 },
+      { name: 'Trần B', count: 1 },
+    ]);
   });
 
   it('buildChannelReport: phòng seed 0 lead vẫn xuất hiện; chỉ gom lead trong tập phòng', () => {
@@ -195,8 +214,8 @@ describe('buildLongPeriodReport (tuần/tháng — tập trung kết quả)', ()
     const sr = r.perShowroom[0];
     expect(sr.stats.total).toBe(4);
     expect(sr.stats.KyHD).toBe(1);
-    expect(sr.text).toContain('BÁO CÁO TUẦN 13/07–19/07');
-    expect(sr.text).toContain('<b>KIA HN</b>');
+    expect(sr.text).toContain('Em xin kính gửi Báo cáo Tuần 13/07–19/07');
+    expect(sr.text).toContain('<b>Kính gửi Quý Anh/Chị KIA HN</b>');
     expect(sr.text).toContain('Tổng Lead: <b>4</b>');
     expect(sr.text).toContain('KHĐ <b>1</b>');
     // so sánh kỳ trước: tổng 4 vs 2 → ↑2
@@ -214,8 +233,8 @@ describe('buildLongPeriodReport (tuần/tháng — tập trung kết quả)', ()
       L({ showroom_id: 'sr2', showroom_name: 'Mazda HN', brand_id: 'maz', brand_name: 'Mazda', status: 'KHĐ', last_contact_at: '2026-07-15T09:00:00Z' }),
     ];
     const r = buildLongPeriodReport(current, [], 'THÁNG 06/2026', 'THÁNG 05/2026', now);
-    expect(r.management).toContain('BÁO CÁO THÁNG 06/2026');
-    expect(r.management).toContain('TỔNG HỢP BAN LÃNH ĐẠO');
+    expect(r.management).toContain('Em xin kính gửi Báo cáo Tháng 06/2026');
+    expect(r.management).toContain('Kính gửi Quý Ban lãnh đạo cùng các Anh/Chị');
     expect(r.management).not.toContain('Xếp hạng showroom');
     expect(r.management).toContain('<b>Theo thương hiệu</b>');
     expect(r.management).toContain('• <b>Mazda</b>: <b>2</b> Lead');
@@ -285,8 +304,8 @@ describe('buildChannelPeriodReport (kênh nhóm bán hàng — tuần/tháng k�
       headerName: 'SR PVD', teams: [{ id: 't1', name: 'Phòng 1' }, { id: 't2', name: 'Phòng 2' }],
     });
     const text = renderChannelPeriod(r);
-    expect(text).toContain('BÁO CÁO TUẦN 13/07–19/07');
-    expect(text).toContain('<b>SR PVD</b>');
+    expect(text).toContain('Em xin kính gửi Báo cáo Tuần 13/07–19/07');
+    expect(text).toContain('<b>Kính gửi Quý Anh/Chị SR PVD</b>');
     expect(text).toContain('<b>Theo phòng bán hàng</b>');
     expect(text).toContain('• <b>Phòng 1</b>');
     expect(text).toContain('Kỳ trước (TUẦN 06/07–12/07)');
@@ -302,7 +321,7 @@ describe('buildChannelPeriodReport (kênh nhóm bán hàng — tuần/tháng k�
       headerName: 'Nhóm Tải Bus', teams: [{ id: 't1', name: 'Phòng Tải Bus' }],
     });
     const text = renderChannelPeriod(r);
-    expect(text).toContain('<b>Phòng Tải Bus</b>');
+    expect(text).toContain('<b>Kính gửi Quý Anh/Chị Phòng Tải Bus</b>');
     expect(text).not.toContain('Theo phòng bán hàng');
     expect(text).toContain('Kỳ trước (TUẦN 06/07–12/07)');
   });

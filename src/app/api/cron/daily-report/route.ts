@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { checkCronSecret } from '@/lib/cron-auth';
-import { buildPeriodReport, buildChannelReport, buildChannelPeriodReport, buildLongPeriodReport, buildBrandReport, type ReportLead } from '@/lib/daily-report';
+import { buildPeriodReport, buildChannelReport, buildChannelPeriodReport, buildLongPeriodReport, buildBrandReport, type ReportLead, type UncontactedLead } from '@/lib/daily-report';
 import { getMutedTeamIdsGlobal, getInactiveShowroomIdsGlobal, isBrandClosed } from '@/lib/company-brands';
 import { buildDailyPushPerUser, type DailyPushUser, type DailyPushLead } from '@/lib/push-daily';
 import { sendPushToUsers } from '@/lib/push';
@@ -145,6 +145,29 @@ export async function POST(request: NextRequest) {
   const { data: mbRows } = await db.from('brands').select('id').eq('report_by_model', true);
   const modelBreakBrandIds = new Set((mbRows ?? []).map((b) => String(b.id)));
 
+  // Lead TỒN ĐỌNG chưa liên hệ (CHỈ báo cáo NGÀY): chưa từng liên hệ + đã giao TVBH, KHÔNG giới hạn ngày.
+  // Áp cùng bộ lọc showroom tắt / hãng đóng như query chính. Gom theo phòng+TVBH ở buildChannelReport.
+  let uncontacted: UncontactedLead[] = [];
+  if (period === 'daily') {
+    const { data: uncRows } = await db
+      .from('leads')
+      .select('company_id, brand_id, showroom_id, sales_team_id, users!assigned_to(full_name)')
+      .is('last_contact_at', null)
+      .not('assigned_to', 'is', null)
+      .not('sales_team_id', 'is', null);
+    uncontacted = (uncRows ?? [])
+      .filter((l) => {
+        if (inactiveSrIds.has(String((l.showroom_id as string | null) ?? ''))) return false;
+        const cid = (l.company_id as string | null) ?? null;
+        if (!cid) return true;
+        return !isBrandClosed(openByCompany.get(cid) ?? [], (l.brand_id as string | null) ?? null);
+      })
+      .map((l) => {
+        const j = l as unknown as { users: { full_name: string } | null };
+        return { sales_team_id: (l.sales_team_id as string | null) ?? null, assignee_name: j.users?.full_name ?? null };
+      });
+  }
+
   // Seed showroom: BLĐ theo showroom đã cấu hình group cho kỳ này → luôn có báo cáo (0 lead vẫn gửi).
   const showroomSeedIds = [...new Set((channels ?? []).filter((c) => has(c) && c.scope === 'management' && c.showroom_id && !inactiveSrIds.has(c.showroom_id as string)).map((c) => c.showroom_id as string))];
   const { data: srRows } = showroomSeedIds.length
@@ -169,7 +192,7 @@ export async function POST(request: NextRequest) {
     const teams = ids.map((id) => ({ id, name: teamNameById.get(id) ?? 'Phòng', brand_ids: teamBrandIds.get(id) ?? [] }));
     const seed = { headerName: c.name ?? 'Showroom', teams, brands: brandList };
     const text = period === 'daily'
-      ? renderChannelDaily(buildChannelReport(mapped, dateLabel, now, seed, modelBreakBrandIds))
+      ? renderChannelDaily(buildChannelReport(mapped, dateLabel, now, seed, modelBreakBrandIds, uncontacted))
       : renderChannelPeriod(buildChannelPeriodReport(mapped, mappedPrev, dateLabel, prevLabel, now, seed, modelBreakBrandIds));
     inserts.push({ channel: c.channel, channel_id: c.id, status: 'pending',
       payload: { event, target: c.target, text } });

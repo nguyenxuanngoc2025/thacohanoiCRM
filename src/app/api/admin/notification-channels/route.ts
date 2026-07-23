@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { requireAdmin } from '@/lib/admin-guard';
 import { createServiceClient } from '@/lib/supabase/server';
-import { buildPeriodReport, buildChannelReport, buildBrandReport, type ReportLead } from '@/lib/daily-report';
+import { buildPeriodReport, buildChannelReport, buildBrandReport, type ReportLead, type UncontactedLead } from '@/lib/daily-report';
 import { renderChannelDaily, renderBrandReport } from '@/lib/notify-templates';
 import { getOpenBrandIds, isBrandClosed, getInactiveShowroomIds, isShowroomInactive } from '@/lib/company-brands';
 
@@ -70,7 +70,24 @@ async function buildTestReportText(
     const brands = (brandRows ?? []).map((b) => ({ id: b.id, name: b.name }));
     const { data: mbRows } = await service.from('brands').select('id').eq('report_by_model', true);
     const modelBreakBrandIds = new Set((mbRows ?? []).map((b) => String(b.id)));
-    const cr = buildChannelReport(mapped, dateLabel, now, { headerName: ch.name ?? 'Showroom', teams, brands }, modelBreakBrandIds);
+    // Lead TỒN ĐỌNG chưa liên hệ (KHÔNG giới hạn ngày) — để test khớp báo cáo thật.
+    const { data: uncRows } = await service
+      .from('leads')
+      .select('brand_id, showroom_id, sales_team_id, users!assigned_to(full_name)')
+      .eq('company_id', companyId)
+      .is('last_contact_at', null)
+      .not('assigned_to', 'is', null)
+      .in('sales_team_id', ch.sales_team_ids);
+    const uncontacted: UncontactedLead[] = (uncRows ?? [])
+      .filter((l) =>
+        !isBrandClosed(openBrands, (l.brand_id as string | null) ?? null) &&
+        !isShowroomInactive(inactiveSr, (l.showroom_id as string | null) ?? null)
+      )
+      .map((l) => {
+        const j = l as unknown as { users: { full_name: string } | null };
+        return { sales_team_id: (l.sales_team_id as string | null) ?? null, assignee_name: j.users?.full_name ?? null };
+      });
+    const cr = buildChannelReport(mapped, dateLabel, now, { headerName: ch.name ?? 'Showroom', teams, brands }, modelBreakBrandIds, uncontacted);
     body = renderChannelDaily(cr);
   } else if (ch.scope === 'brand' && ch.brand_ids.length > 0) {
     const { data: bRows } = await service.from('brands').select('id, name').in('id', ch.brand_ids);
