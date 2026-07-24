@@ -28,7 +28,10 @@ export async function updateSession(request: NextRequest) {
   // /connect/* = trang công khai (vd popup chọn Google Sheet chạy ở apex, người dùng
   // không có session apex) → không tính là dashboard, không ép đăng nhập.
   const isConnect = request.nextUrl.pathname.startsWith('/connect');
-  const isDashboard = !isAuthPage && !isApiRoute && !isConnect;
+  // /embed/* = nhúng iframe từ Budget; phiên đến qua postMessage (client) chứ không phải cookie
+  // sẵn có → KHÔNG ép redirect /login (nếu không bridge nhận token sẽ không kịp chạy).
+  const isEmbed = request.nextUrl.pathname.startsWith('/embed');
+  const isDashboard = !isAuthPage && !isApiRoute && !isConnect && !isEmbed;
 
   // helper: redirect while preserving cookies refreshed/cleared on supabaseResponse
   const redirectTo = (pathname: string) => {

@@ -48,7 +48,7 @@ const TAB_ICONS: Record<ReportTab, React.ReactNode> = {
 
 export default function ReportsView({
   leads, prevLeads, sourceCatalog, range, from, to, fromMs, toMs, showB10, reportLevel, models = [], showMktPlanning = false,
-  kpiRows = [], kpiYear = 0, kpiMonth = 0,
+  kpiRows = [], kpiYear = 0, kpiMonth = 0, basePath = '/reports',
 }: {
   leads: ReportLead[];
   prevLeads: ReportLead[];
@@ -65,6 +65,8 @@ export default function ReportsView({
   kpiRows?: KpiRow[];
   kpiYear?: number;
   kpiMonth?: number;
+  /** Đường dẫn gốc để đổi kỳ thời gian ('/reports' hoặc '/embed/reports' khi nhúng iframe). */
+  basePath?: string;
 }) {
   const router = useRouter();
   const nowMs = useMemo(() => Date.now(), []);
@@ -163,11 +165,11 @@ export default function ReportsView({
   const dealRateDelta = dealRate(cmp.current) - dealRate(cmp.previous);
 
   const setRange = (r: string) => {
-    if (r === 'custom') { router.push(`/reports?range=custom&from=${cFrom}&to=${cTo}`); return; }
-    router.push(`/reports?range=${r}`);
+    if (r === 'custom') { router.push(`${basePath}?range=custom&from=${cFrom}&to=${cTo}`); return; }
+    router.push(`${basePath}?range=${r}`);
   };
-  const applyCustom = () => router.push(`/reports?range=custom&from=${cFrom}&to=${cTo}`);
-  const pickMonth = (f: string, t: string) => router.push(`/reports?range=custom&from=${f}&to=${t}`);
+  const applyCustom = () => router.push(`${basePath}?range=custom&from=${cFrom}&to=${cTo}`);
+  const pickMonth = (f: string, t: string) => router.push(`${basePath}?range=custom&from=${f}&to=${t}`);
 
   // Label kỳ cho ManagementTab
   const periodLabel: string = useMemo(() => {
