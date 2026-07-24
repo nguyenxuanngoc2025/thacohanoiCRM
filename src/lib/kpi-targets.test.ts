@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   CHANNEL_LABEL, pct, rollupTotals, budgetValue, groupKpiRows, kpiDimValue,
+  cpbqPerKhqt, convKhqtGdtd, convGdtdKhd,
   type KpiRow,
 } from './kpi-targets';
 
@@ -40,6 +41,24 @@ describe('kpi-targets helper', () => {
   it('budgetValue: có thực chi lấy thực chi, không thì lấy kế hoạch', () => {
     expect(budgetValue(rollupTotals([rows[0]]))).toBe(4800000); // có actual_ns
     expect(budgetValue(rollupTotals([rows[1]]))).toBe(2000000); // actual_ns = 0 -> plan_ns
+  });
+
+  it('cpbqPerKhqt: ngân sách / KHQT thực; chưa có KHQT → null', () => {
+    // budgetValue = actual_ns 4.800.000, actual_khqt 80 → 60.000
+    expect(cpbqPerKhqt(rollupTotals([rows[0]]))).toBe(60000);
+    // actual_ns=0 → dùng plan_ns 2.000.000, actual_khqt 60 → 33333.33…
+    expect(cpbqPerKhqt(rollupTotals([rows[1]]))).toBeCloseTo(2000000 / 60);
+    expect(cpbqPerKhqt(rollupTotals([row({ actual_khqt: 0, actual_ns: 5000000 })]))).toBeNull();
+  });
+
+  it('convKhqtGdtd: GDTD/KHQT %, chưa có KHQT → null', () => {
+    expect(convKhqtGdtd(rollupTotals([rows[0]]))).toBe(38); // 30/80 = 37.5 → 38
+    expect(convKhqtGdtd(rollupTotals([row({ actual_khqt: 0, actual_gdtd: 3 })]))).toBeNull();
+  });
+
+  it('convGdtdKhd: KHĐ/GDTD %, chưa có GDTD → null', () => {
+    expect(convGdtdKhd(rollupTotals([rows[0]]))).toBe(27); // 8/30 = 26.67 → 27
+    expect(convGdtdKhd(rollupTotals([row({ actual_gdtd: 0, actual_khd: 2 })]))).toBeNull();
   });
 
   it('kpiDimValue: model key gồm brand để tránh trùng tên', () => {

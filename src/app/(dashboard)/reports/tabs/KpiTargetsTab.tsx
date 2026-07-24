@@ -3,6 +3,7 @@ import React, { useMemo, useState } from 'react';
 import { Download, ChevronRight, ChevronDown } from 'lucide-react';
 import {
   pct, rollupTotals, budgetValue, groupKpiRows, buildShowroomOrder, buildModelOrder,
+  cpbqPerKhqt, convKhqtGdtd, convGdtdKhd,
   type KpiRow, type KpiDim, type KpiGroup, type KpiTotals,
 } from '@/lib/kpi-targets';
 import { Panel, BRAND, fmt } from '../ui';
@@ -31,7 +32,14 @@ const METRICS: { label: string; plan: keyof KpiTotals; actual: keyof KpiTotals }
   { label: 'KHĐ', plan: 'plan_khd', actual: 'actual_khd' },
 ];
 
-const TOTAL_COLS = 1 /*dim*/ + 1 /*budget*/ + METRICS.length * 3;
+// Nhóm "Đánh giá hiệu quả": 3 cột dẫn xuất từ số THỰC HIỆN.
+const EFF_COLS: { label: string; title: string }[] = [
+  { label: 'CPBQ/KHQT', title: 'Chi phí bình quân trên 1 KHQT (triệu)' },
+  { label: 'KHQT→GDTD', title: 'Tỷ lệ chuyển đổi KHQT sang GDTD' },
+  { label: 'GDTD→KHĐ', title: 'Tỷ lệ chuyển đổi GDTD sang KHĐ' },
+];
+
+const TOTAL_COLS = 1 /*dim*/ + 1 /*budget*/ + METRICS.length * 3 + EFF_COLS.length;
 
 // Đường phân khu giữa các nhóm cột.
 const SEP = 'border-l border-slate-300';
@@ -51,6 +59,20 @@ function MetricCells({ t }: { t: KpiTotals }) {
           </React.Fragment>
         );
       })}
+    </>
+  );
+}
+
+/** Nhóm 3 ô đánh giá hiệu quả (CPBQ/KHQT theo triệu, 2 tỷ lệ chuyển đổi %). */
+function EffCells({ t }: { t: KpiTotals }) {
+  const cpbq = cpbqPerKhqt(t);
+  const c1 = convKhqtGdtd(t);
+  const c2 = convGdtdKhd(t);
+  return (
+    <>
+      <td className={`py-2 px-3 text-right text-slate-700 ${SEP}`}>{cpbq == null ? '—' : money(cpbq)}</td>
+      <td className="py-2 px-3 text-right text-slate-700">{c1 == null ? '—' : `${c1}%`}</td>
+      <td className="py-2 px-3 text-right text-slate-700">{c2 == null ? '—' : `${c2}%`}</td>
     </>
   );
 }
@@ -83,6 +105,7 @@ function DrillRow({ group, chain, depth, modelOrder, showroomOrder }: {
         </td>
         <td className={`py-2 px-3 text-right text-slate-600 ${SEP}`}>{money(budgetValue(t))}</td>
         <MetricCells t={t} />
+        <EffCells t={t} />
       </tr>
       {open && canExpand && (
         <DrillGroup rows={group.rows} chain={childChain} depth={depth + 1} modelOrder={modelOrder} showroomOrder={showroomOrder} />
@@ -131,10 +154,14 @@ function KpiTable({ title, chain, rows, modelOrder, showroomOrder, periodSlug }:
       cols.push({ header: `${m.label} TH`, value: (g) => g.totals[m.actual] as number });
       cols.push({ header: `${m.label} %TH`, value: (g) => pct(g.totals[m.actual] as number, g.totals[m.plan] as number) });
     }
+    cols.push({ header: 'CPBQ/KHQT (triệu)', value: (g) => cpbqPerKhqt(g.totals) ?? '' });
+    cols.push({ header: 'KHQT→GDTD %', value: (g) => convKhqtGdtd(g.totals) ?? '' });
+    cols.push({ header: 'GDTD→KHĐ %', value: (g) => convGdtdKhd(g.totals) ?? '' });
     const totalRow: (string | number)[] = ['Tổng', budgetValue(totals)];
     for (const m of METRICS) {
       totalRow.push(totals[m.plan] as number, totals[m.actual] as number, pct(totals[m.actual] as number, totals[m.plan] as number));
     }
+    totalRow.push(cpbqPerKhqt(totals) ?? '', convKhqtGdtd(totals) ?? '', convGdtdKhd(totals) ?? '');
     exportXlsx(`kpi-${dim}-${periodSlug}`, [tableSheet(title, cols, topGroups, totalRow)]);
   };
 
@@ -154,7 +181,7 @@ function KpiTable({ title, chain, rows, modelOrder, showroomOrder, periodSlug }:
         <div className="py-12 text-center text-slate-400 text-sm">Không có dữ liệu trong kỳ / bộ lọc.</div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-sm table-fixed min-w-[860px]">
+          <table className="w-full text-sm table-fixed min-w-[1120px]">
             <colgroup>
               <col style={{ width: 220 }} />
               <col style={{ width: 104 }} />
@@ -162,6 +189,9 @@ function KpiTable({ title, chain, rows, modelOrder, showroomOrder, periodSlug }:
                 <React.Fragment key={m.label}>
                   <col /><col /><col />
                 </React.Fragment>
+              ))}
+              {EFF_COLS.map((c) => (
+                <col key={c.label} style={{ width: 92 }} />
               ))}
             </colgroup>
             <thead>
@@ -171,6 +201,7 @@ function KpiTable({ title, chain, rows, modelOrder, showroomOrder, periodSlug }:
                 {METRICS.map((m) => (
                   <th key={m.label} className={`py-2 px-3 text-center font-bold text-slate-700 ${SEP}`} colSpan={3}>{m.label}</th>
                 ))}
+                <th className={`py-2 px-3 text-center font-bold text-slate-700 ${SEP}`} colSpan={EFF_COLS.length}>Đánh giá hiệu quả</th>
               </tr>
               <tr className="text-[10px] uppercase tracking-wide text-slate-400 bg-slate-50 border-b border-slate-200">
                 {METRICS.map((m) => (
@@ -179,6 +210,9 @@ function KpiTable({ title, chain, rows, modelOrder, showroomOrder, periodSlug }:
                     <th className="py-1.5 px-3 text-right font-medium">TH</th>
                     <th className="py-1.5 px-3 text-right font-medium">%TH</th>
                   </React.Fragment>
+                ))}
+                {EFF_COLS.map((c, i) => (
+                  <th key={c.label} title={c.title} className={`py-1.5 px-3 text-right font-medium ${i === 0 ? SEP : ''}`}>{c.label}</th>
                 ))}
               </tr>
             </thead>
@@ -190,6 +224,7 @@ function KpiTable({ title, chain, rows, modelOrder, showroomOrder, periodSlug }:
                 <td className="py-2 px-3 sticky left-0 bg-slate-50">Tổng</td>
                 <td className={`py-2 px-3 text-right ${SEP}`}>{money(budgetValue(totals))}</td>
                 <MetricCells t={totals} />
+                <EffCells t={totals} />
               </tr>
             </tfoot>
           </table>
@@ -219,7 +254,7 @@ export default function KpiTargetsTab({ rows, year, month }: {
   return (
     <div className="space-y-5">
       <div className="text-sm text-slate-500">
-        Kỳ mục tiêu: tháng {month}/{year} · Ngân sách lấy từ App Budget (ưu tiên thực chi, chưa có thì lấy kế hoạch) · KH = kế hoạch, TH = thực hiện.
+        Kỳ mục tiêu: tháng {month}/{year} · Ngân sách lấy từ App Budget (ưu tiên thực chi, chưa có thì lấy kế hoạch) · KH = kế hoạch, TH = thực hiện · Đánh giá hiệu quả tính trên số thực hiện: CPBQ/KHQT = ngân sách ÷ KHQT (triệu), KHQT→GDTD và GDTD→KHĐ là tỷ lệ chuyển đổi.
       </div>
       {TABLES.map((tbl) => (
         <KpiTable key={tbl.title} title={tbl.title} chain={tbl.chain} rows={rows} modelOrder={modelOrder} showroomOrder={showroomOrder} periodSlug={periodSlug} />

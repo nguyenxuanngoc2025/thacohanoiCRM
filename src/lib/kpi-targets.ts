@@ -58,6 +58,23 @@ export function budgetValue(t: KpiTotals): number {
   return t.actual_ns > 0 ? t.actual_ns : t.plan_ns;
 }
 
+// ---- Đánh giá hiệu quả (tính trên số THỰC HIỆN) --------------------------
+
+/** Chi phí bình quân trên 1 KHQT (đồng). Chưa có KHQT thực → null (hiển thị "—"). */
+export function cpbqPerKhqt(t: KpiTotals): number | null {
+  return t.actual_khqt > 0 ? budgetValue(t) / t.actual_khqt : null;
+}
+
+/** Tỷ lệ chuyển đổi KHQT→GDTD (%), làm tròn. Chưa có KHQT thực → null. */
+export function convKhqtGdtd(t: KpiTotals): number | null {
+  return t.actual_khqt > 0 ? Math.round((t.actual_gdtd / t.actual_khqt) * 100) : null;
+}
+
+/** Tỷ lệ chuyển đổi GDTD→KHĐ (%), làm tròn. Chưa có GDTD thực → null. */
+export function convGdtdKhd(t: KpiTotals): number | null {
+  return t.actual_gdtd > 0 ? Math.round((t.actual_khd / t.actual_gdtd) * 100) : null;
+}
+
 // ---- Gom nhóm cho báo cáo dạng cây (giống Bảng quản trị) -----------------
 
 export type KpiDim = 'showroom' | 'brand' | 'model' | 'channel';
