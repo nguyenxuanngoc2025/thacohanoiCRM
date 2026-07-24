@@ -314,9 +314,19 @@ function dailyHeadline(s: DailySrStats): string {
   return `Tổng Lead: <b>${s.total}</b>, trong đó đã liên hệ <b>${s.contacted}</b>. Có <b>${s.KHQT}</b> KHQT`;
 }
 
-// Dòng tổng KỲ DÀI (tuần/tháng): tổng + so kỳ trước, nhấn số KHĐ (ký hợp đồng).
+// Kết quả kỳ DÀI: nhấn GDTD (đàm phán/gần ký). KHĐ (ký hợp đồng) chỉ nêu khi thực sự có.
+function periodResult(s: DailySrStats): string {
+  return `GDTD <b>${s.GDTD}</b>${s.KyHD > 0 ? ` · KHĐ <b>${s.KyHD}</b>` : ''}`;
+}
+
+// Bản không in đậm (dùng cho dòng nghiêng "Kỳ trước").
+function periodResultPlain(s: DailySrStats): string {
+  return `GDTD ${s.GDTD}${s.KyHD > 0 ? ` · KHĐ ${s.KyHD}` : ''}`;
+}
+
+// Dòng tổng KỲ DÀI (tuần/tháng): tổng + so kỳ trước, nhấn GDTD (KHĐ chỉ khi có hợp đồng).
 function periodHeadline(cur: DailySrStats, prev: DailySrStats): string {
-  return `Tổng Lead: <b>${cur.total}</b> (${deltaStr(cur.total, prev.total)} so kỳ trước), trong đó đã liên hệ <b>${cur.contacted}</b>. KHĐ <b>${cur.KyHD}</b>`;
+  return `Tổng Lead: <b>${cur.total}</b> (${deltaStr(cur.total, prev.total)} so kỳ trước), trong đó đã liên hệ <b>${cur.contacted}</b>. ${periodResult(cur)}`;
 }
 
 // 1 dòng bullet cho báo cáo NGÀY (thương hiệu / dòng xe / phòng): tên đậm + số đậm.
@@ -324,9 +334,9 @@ function dailyBreakLine(name: string, s: DailySrStats): string {
   return `• <b>${name}</b>: <b>${s.total}</b> Lead · Đã LH <b>${s.contacted}</b> · KHQT <b>${s.KHQT}</b>`;
 }
 
-// 1 dòng bullet cho báo cáo KỲ DÀI (thương hiệu / dòng xe / phòng): nhấn KHĐ.
+// 1 dòng bullet cho báo cáo KỲ DÀI (thương hiệu / dòng xe / phòng): nhấn GDTD (KHĐ khi có).
 function periodBreakLine(name: string, s: DailySrStats): string {
-  return `• <b>${name}</b>: <b>${s.total}</b> Lead · KHĐ <b>${s.KyHD}</b>`;
+  return `• <b>${name}</b>: <b>${s.total}</b> Lead · ${periodResult(s)}`;
 }
 
 // Khối chi tiết hãng/dòng xe cho MỌI báo cáo.
@@ -443,7 +453,7 @@ export function deltaStr(cur: number, prev: number): string {
 
 // Dòng chốt "Kỳ trước" — nhắc lại số kỳ liền trước (in nghiêng) để đối chiếu nhanh.
 function renderPrevFoot(prevLabel: string, prev: DailySrStats): string {
-  return `${SEP}\n<i>Kỳ trước (${prevLabel}): ${prev.total} Lead · KHĐ ${prev.KyHD}</i>`;
+  return `${SEP}\n<i>Kỳ trước (${prevLabel}): ${prev.total} Lead · ${periodResultPlain(prev)}</i>`;
 }
 
 // Báo cáo TUẦN/THÁNG của 1 showroom (gửi nhóm BLĐ showroom). dateLabel/prevLabel đã gồm từ chỉ kỳ.

@@ -5,7 +5,13 @@
  * Thuần (không I/O) → dễ test, luôn ra kết quả ổn định.
  */
 import { buildPeriodReport, buildLongPeriodReport, buildChannelReport, buildChannelPeriodReport, type ReportLead } from './daily-report';
-import { renderChannelDaily, renderChannelPeriod } from './notify-templates';
+import {
+  renderChannelDaily, renderChannelPeriod,
+  renderOverdue, renderCallbackReminder, renderUnassignedReminder,
+} from './notify-templates';
+import { buildRosterReminderText, fmtRosterDate } from './roster-reminders';
+import { buildHealthDigestText } from './health-digest';
+import type { SystemHealth } from './system-health';
 
 export type SamplePeriod = 'daily' | 'weekly' | 'monthly';
 
@@ -122,4 +128,86 @@ export function samplePeriodOfUnit(unit: string): SamplePeriod | null {
   if (base === 'cron-weekly-report') return 'weekly';
   if (base === 'cron-monthly-report') return 'monthly';
   return null;
+}
+
+// ————— TIN NHẮC VIỆC (cron-reminders): quá hạn / gọi lại / chưa phân giao —————
+function buildReminderSample(): SampleSection[] {
+  const team = 'Phòng KIA–Mazda 1';
+  const overdue = renderOverdue(team, [
+    { fullName: 'Nguyễn Văn An', phone: '0901234567', assignee: 'Lê Thị Bình', overdueMinutes: 185 },
+    { fullName: 'Trần Thị Cúc', phone: '0912345678', assignee: null, overdueMinutes: 95 },
+    { fullName: null, phone: '0987654321', assignee: 'Phạm Văn Dũng', overdueMinutes: 40 },
+  ]);
+  const callback = renderCallbackReminder(team, [
+    { fullName: 'Hoàng Văn Em', phone: '0934567890', assignee: 'Lê Thị Bình', noAnswerCount: 3 },
+    { fullName: 'Vũ Thị Phương', phone: '0945678901', assignee: 'Phạm Văn Dũng', noAnswerCount: 2 },
+  ]);
+  const unassigned = renderUnassignedReminder(team, [
+    { fullName: 'Đỗ Văn Giang', phone: '0956789012', waitMinutes: 130 },
+    { fullName: null, phone: '0967890123', waitMinutes: 55 },
+  ]);
+  return [
+    { label: 'Nhóm Zalo phòng bán hàng — Lead quá hạn liên hệ', text: overdue },
+    { label: 'Nhóm Zalo phòng bán hàng — Khách cần gọi lại', text: callback },
+    { label: 'Nhóm Zalo phòng bán hàng — Lead chưa phân giao', text: unassigned },
+  ];
+}
+
+// ————— TIN NHẮC ĐẶT LỊCH TRỰC (cron-roster-reminders) —————
+function buildRosterSample(now: Date): SampleSection[] {
+  const tomorrow = new Date(now.getTime() + 7 * 3600000 + 86400000);
+  const label = fmtRosterDate(
+    `${tomorrow.getUTCFullYear()}-${p2(tomorrow.getUTCMonth() + 1)}-${p2(tomorrow.getUTCDate())}`,
+  );
+  return [{
+    label: 'Nhóm Zalo BLĐ showroom + thông báo trên App (GĐ showroom)',
+    text: buildRosterReminderText('Showroom Hà Nội 1', label),
+  }];
+}
+
+// ————— TIN BÁO SỨC KHOẺ HỆ THỐNG (cron-health-digest) — gửi Zalo cá nhân —————
+function buildHealthSample(now: Date): SampleSection[] {
+  const health: SystemHealth = {
+    overall: 'warn',
+    generatedAt: now.toISOString(),
+    groups: [
+      { title: 'Kênh Facebook', items: [
+        { key: 'fb_1', label: 'Fanpage KIA Hà Nội', status: 'ok', detail: 'Kết nối tốt.' },
+        { key: 'fb_2', label: 'Fanpage Mazda Hà Nội', status: 'ok', detail: 'Kết nối tốt.' },
+      ] },
+      { title: 'Bot Zalo', items: [
+        { key: 'zalo_bot', label: 'Bot Zalo gửi thông báo', status: 'ok', detail: 'Đang kết nối.' },
+      ] },
+      { title: 'Hàng đợi thông báo', items: [
+        { key: 'notif_failed', label: 'Tin báo gửi lỗi (24h)', status: 'warn', detail: '2 tin gửi lỗi, sẽ thử lại.' },
+      ] },
+    ],
+  };
+  return [{
+    label: 'Zalo cá nhân của chủ hệ thống (sáng 06:00 và tối 20:00)',
+    text: buildHealthDigestText('Thaco Auto Hà Nội', health, now),
+  }];
+}
+
+/**
+ * Dựng tin mẫu cho MỌI timer có gửi tin (báo cáo + nhắc việc + lịch trực + sức khoẻ).
+ * Trả null nếu timer không gửi tin để xem trước.
+ */
+export function buildSampleForUnit(unit: string, now: Date): SampleSection[] | null {
+  const period = samplePeriodOfUnit(unit);
+  if (period) return buildSampleReport(period, now);
+  const base = unit.replace(/\.timer$/, '');
+  if (base === 'cron-reminders') return buildReminderSample();
+  if (base === 'cron-roster-reminders') return buildRosterSample(now);
+  if (base === 'cron-health-digest') return buildHealthSample(now);
+  return null;
+}
+
+/** Timer này có nội dung tin để xem trước không? (dùng cho nút "Xem nội dung mẫu"). */
+export function unitHasSample(unit: string): boolean {
+  const base = unit.replace(/\.timer$/, '');
+  return samplePeriodOfUnit(unit) !== null
+    || base === 'cron-reminders'
+    || base === 'cron-roster-reminders'
+    || base === 'cron-health-digest';
 }

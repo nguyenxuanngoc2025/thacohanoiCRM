@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildSampleReport, samplePeriodOfUnit } from './report-sample';
+import { buildSampleReport, samplePeriodOfUnit, buildSampleForUnit, unitHasSample } from './report-sample';
 
 const NOW = new Date('2026-07-20T04:00:00Z'); // 11:00 giờ VN, thứ 2
 
@@ -46,5 +46,46 @@ describe('buildSampleReport — tin TUẦN/THÁNG', () => {
     const all = s.map((x) => x.text).join('\n');
     expect(all).toContain('Tháng 06/2026');
     expect(all).toContain('THÁNG 05/2026');
+  });
+});
+
+describe('unitHasSample', () => {
+  it('true cho mọi timer có gửi tin', () => {
+    for (const u of [
+      'cron-daily-report.timer', 'cron-weekly-report.timer', 'cron-monthly-report.timer',
+      'cron-reminders.timer', 'cron-roster-reminders.timer', 'cron-health-digest.timer',
+    ]) expect(unitHasSample(u)).toBe(true);
+  });
+  it('false cho timer không gửi tin xem trước', () => {
+    expect(unitHasSample('cron-watchdog.timer')).toBe(false);
+    expect(unitHasSample('certbot.timer')).toBe(false);
+    expect(unitHasSample('leads-export.timer')).toBe(false);
+  });
+});
+
+describe('buildSampleForUnit — tin nhắc việc / lịch trực / sức khoẻ', () => {
+  it('cron-reminders: 3 khối quá hạn + gọi lại + chưa phân giao, SĐT che', () => {
+    const s = buildSampleForUnit('cron-reminders.timer', NOW)!;
+    expect(s).toHaveLength(3);
+    const all = s.map((x) => x.text).join('\n');
+    expect(all).toContain('QUÁ HẠN LIÊN HỆ');
+    expect(all).toContain('CẦN GỌI LẠI');
+    expect(all).toContain('CHƯA PHÂN GIAO');
+    expect(all).toMatch(/\*{3}/); // SĐT được che
+  });
+  it('cron-roster-reminders: 1 khối nhắc đặt lịch trực ngày mai (21/07)', () => {
+    const s = buildSampleForUnit('cron-roster-reminders.timer', NOW)!;
+    expect(s).toHaveLength(1);
+    expect(s[0].text).toContain('NHẮC LỊCH TRỰC');
+    expect(s[0].text).toContain('21/07/2026');
+  });
+  it('cron-health-digest: 1 khối báo sức khoẻ, có mục cần chú ý', () => {
+    const s = buildSampleForUnit('cron-health-digest.timer', NOW)!;
+    expect(s).toHaveLength(1);
+    expect(s[0].text).toContain('CẦN CHÚ Ý');
+    expect(s[0].text).toContain('Thaco Auto Hà Nội');
+  });
+  it('timer không gửi tin → null', () => {
+    expect(buildSampleForUnit('cron-watchdog.timer', NOW)).toBeNull();
   });
 });

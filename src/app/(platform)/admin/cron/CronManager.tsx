@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Play, Power, CalendarClock, AlertTriangle, RefreshCw, Eye } from 'lucide-react';
 import { presetToCalendar, describeCalendar, type Preset } from '@/lib/cron-admin';
-import { samplePeriodOfUnit } from '@/lib/report-sample';
+import { unitHasSample } from '@/lib/report-sample';
 
 interface TimerView {
   unit: string;
@@ -129,7 +129,7 @@ export default function CronManager() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5 justify-end">
-                          {samplePeriodOfUnit(t.unit) && (
+                          {unitHasSample(t.unit) && (
                             <IconBtn title="Xem nội dung mẫu" onClick={() => setPreview(t)}>
                               <Eye size={15} />
                             </IconBtn>
@@ -274,7 +274,7 @@ function Legend() {
         </div>
       </div>
       <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-500 pt-1 border-t border-slate-100">
-        <span><Eye size={12} className="inline -mt-0.5 mr-1" />Xem nội dung mẫu (báo cáo)</span>
+        <span><Eye size={12} className="inline -mt-0.5 mr-1" />Xem nội dung mẫu tin</span>
         <span><Play size={12} className="inline -mt-0.5 mr-1" />Chạy ngay một lần</span>
         <span><CalendarClock size={12} className="inline -mt-0.5 mr-1" />Đổi lịch chạy</span>
         <span><Power size={12} className="inline -mt-0.5 mr-1" />Bật hoặc tắt</span>
