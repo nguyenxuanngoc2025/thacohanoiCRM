@@ -144,16 +144,16 @@ export default function OverviewTab({
           {modelData.length > 0 && (
             <div className={`h-full ${childDim !== null && childData.length > 0 ? '' : 'lg:col-span-2'}`}>
               <Panel fill title="Dòng xe hút khách" desc="Top dòng xe theo số lead">
-                <div style={{ height: 200 }}>
+                <div style={{ height: Math.max(220, modelData.length * 52) }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={modelData} layout="vertical" margin={{ top: 4, right: 12, left: 4, bottom: 4 }} barCategoryGap={10}>
+                    <BarChart data={modelData} layout="vertical" margin={{ top: 4, right: 12, left: 4, bottom: 4 }} barCategoryGap={16} barGap={3}>
                       <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                       <XAxis type="number" tick={AXIS} tickLine={false} axisLine={false} allowDecimals={false} />
                       <YAxis type="category" dataKey="name" tick={AXIS} tickLine={false} axisLine={false} width={110} />
                       <Tooltip content={<TipGeneric unit="lead" />} cursor={{ fill: '#f8fafc' }} />
                       <Legend wrapperStyle={{ fontSize: 11 }} />
-                      <Bar dataKey="lead" name="Lead" fill={PALETTE[0]} radius={[0, 4, 4, 0]} />
-                      <Bar dataKey="khqt" name="KHQT" fill={PALETTE[3]} radius={[0, 4, 4, 0]} />
+                      <Bar dataKey="lead" name="Lead" fill={PALETTE[0]} radius={[0, 4, 4, 0]} barSize={14} />
+                      <Bar dataKey="khqt" name="KHQT" fill={PALETTE[3]} radius={[0, 4, 4, 0]} barSize={14} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
