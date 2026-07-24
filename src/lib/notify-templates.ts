@@ -378,7 +378,7 @@ function reportName(dateLabel: string): string {
 
 // Tiêu đề 2 dòng: người nhận (đậm) + dòng dẫn "Em xin kính gửi Báo cáo <kỳ>".
 function reportHeader(dateLabel: string, scope: string): string[] {
-  return [`<b>${scope}</b>`, `Em xin kính gửi Báo cáo ${reportName(dateLabel)}`, SEP];
+  return [`<b>${scope}</b>`, `Em xin kính gửi <b>Báo cáo ${reportName(dateLabel)}</b>`, SEP];
 }
 
 // dateLabel đã gồm từ chỉ kỳ: 'NGÀY 24/06' | 'TUẦN 23/06–29/06' | 'THÁNG 06/2026'.

@@ -89,7 +89,7 @@ describe('renderChannelDaily', () => {
       uncontacted: [],
     };
     const t = renderChannelDaily(view);
-    expect(t).toContain('Em xin kính gửi Báo cáo Ngày 11/07');
+    expect(t).toContain('Em xin kính gửi <b>Báo cáo Ngày 11/07</b>');
     expect(t).toContain('<b>Kính gửi Quý Anh/Chị Showroom PVD</b>');
     expect(t).toContain('<b>Theo thương hiệu</b>');
     expect(t).toContain('• <b>KIA</b>: <b>2</b> Lead');
@@ -369,7 +369,7 @@ describe('notify-templates', () => {
       total: 10, contacted: 6, pending: 4, overdue: 2,
       KHQT: 3, GDTD: 2, KyHD: 1, Fail: 1,
     }, [{ name: 'Trần B', overdue: 2 }]);
-    expect(t).toContain('Em xin kính gửi Báo cáo Ngày 24/06');
+    expect(t).toContain('Em xin kính gửi <b>Báo cáo Ngày 24/06</b>');
     expect(t).toContain('<b>Kính gửi Quý Anh/Chị KIA Hà Nội</b>');
     expect(t).toContain('Tổng Lead: <b>10</b>');
     expect(t).toContain('đã liên hệ <b>6</b>');
@@ -401,7 +401,7 @@ describe('notify-templates', () => {
         { name: 'KIA', stats: stats({ total: 10, contacted: 9, KHQT: 3 }) },
         { name: 'Mazda', stats: stats({ total: 8, contacted: 2, KHQT: 2 }) },
       ]);
-    expect(t).toContain('Em xin kính gửi Báo cáo Ngày 24/06');
+    expect(t).toContain('Em xin kính gửi <b>Báo cáo Ngày 24/06</b>');
     expect(t).toContain('Kính gửi Quý Ban lãnh đạo cùng các Anh/Chị');
     expect(t).toContain('Tổng Lead: <b>18</b>');
     expect(t).toContain('<b>Theo thương hiệu</b>');
@@ -438,7 +438,7 @@ describe('renderBrandReport', () => {
 
   it('tiêu đề khối + mục theo dòng xe', () => {
     const t = renderBrandReport(view);
-    expect(t).toContain('Em xin kính gửi Báo cáo Ngày 20/07');
+    expect(t).toContain('Em xin kính gửi <b>Báo cáo Ngày 20/07</b>');
     expect(t).toContain('<b>Kính gửi Quý Anh/Chị PKD Thương hiệu KIA</b>');
     expect(t).toContain('Tổng Lead: <b>3</b>');
     expect(t).toContain('<b>Theo dòng xe</b>');
