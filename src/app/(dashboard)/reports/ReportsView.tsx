@@ -3,7 +3,7 @@
 import React, { useMemo, useRef, useState, useDeferredValue } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
-import { Users, PhoneCall, TrendingUp, FileSignature, Clock, Percent, LayoutDashboard, Table2, BarChart2, GitBranch, ListFilter, ClipboardList, Target } from 'lucide-react';
+import { Users, PhoneCall, TrendingUp, Clock, Percent, LayoutDashboard, Table2, BarChart2, GitBranch, ListFilter, ClipboardList, Target } from 'lucide-react';
 import { compareKpis, type ReportLead, type ReportLevel } from '@/lib/reports';
 import { type RangeKey } from '@/lib/report-range';
 import { sourcePlatform, type SourceCatalog } from '@/lib/source';
@@ -165,9 +165,9 @@ export default function ReportsView({
   // Delta tỷ lệ (% - % = điểm %)
   const contactRate = (k: typeof kpis) => (k.total ? (k.contacted / k.total) * 100 : 0);
   const contactRateDelta = contactRate(cmp.current) - contactRate(cmp.previous);
-  // Tỷ lệ GDTD = số lead đang giao dịch / tổng lead
-  const dealRate = (k: typeof kpis) => (k.total ? (k.following / k.total) * 100 : 0);
-  const dealRateDelta = dealRate(cmp.current) - dealRate(cmp.previous);
+  // Tỷ lệ KHQT = số lead đạt tối thiểu nấc KHQT / tổng lead
+  const khqtRate = (k: typeof kpis) => (k.total ? (k.interested / k.total) * 100 : 0);
+  const khqtRateDelta = khqtRate(cmp.current) - khqtRate(cmp.previous);
 
   const setRange = (r: string) => {
     if (r === 'custom') { router.push(`${basePath}?range=custom&from=${cFrom}&to=${cTo}`); return; }
@@ -272,33 +272,33 @@ export default function ReportsView({
         />
         <Kpi
           icon={<PhoneCall size={16} />}
-          label={isPersonal ? 'Đã liên hệ' : 'Tỷ lệ liên hệ'}
-          value={isPersonal ? fmt(kpis.contacted) : `${contactRate(kpis).toFixed(1)}%`}
+          label="Đã liên hệ"
+          value={fmt(kpis.contacted)}
+          tone="#1d4ed8"
+          delta={cmp.delta.contacted}
+        />
+        <Kpi
+          icon={<Percent size={16} />}
+          label="Tỷ lệ LH"
+          value={`${contactRate(kpis).toFixed(1)}%`}
           tone="#1d4ed8"
           delta={contactRateDelta}
           deltaPct
         />
         <Kpi
           icon={<TrendingUp size={16} />}
-          label="GDTD"
-          value={fmt(kpis.following)}
+          label="KHQT"
+          value={fmt(kpis.interested)}
           tone="#b45309"
-          delta={cmp.delta.following}
+          delta={cmp.delta.interested}
         />
         <Kpi
           icon={<Percent size={16} />}
-          label="Tỷ lệ GDTD"
-          value={`${dealRate(kpis).toFixed(1)}%`}
+          label="Tỷ lệ KHQT"
+          value={`${khqtRate(kpis).toFixed(1)}%`}
           tone="#b45309"
-          delta={dealRateDelta}
+          delta={khqtRateDelta}
           deltaPct
-        />
-        <Kpi
-          icon={<FileSignature size={16} />}
-          label="KHĐ"
-          value={fmt(kpis.won)}
-          tone="#047857"
-          delta={cmp.delta.won}
         />
         <Kpi
           icon={<Clock size={16} />}

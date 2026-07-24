@@ -46,9 +46,9 @@ export default function OverviewTab({
 
   const statusData = statusDist.map((s) => ({ name: s.label, value: s.count, code: s.code }));
   const brandData = byBrand.map((r) => ({ name: r.label, value: r.leads }));
-  const sourceData = bySource.slice(0, 6).map((r) => ({ name: shorten(r.label), lead: r.leads, won: r.won }));
-  const childData = byChild.map((r) => ({ name: shorten(r.label), lead: r.leads, won: r.won, winRate: r.winRate }));
-  const modelData = byModel.slice(0, 8).map((r) => ({ name: shorten(r.label), lead: r.leads, won: r.won, winRate: r.winRate }));
+  const sourceData = bySource.slice(0, 6).map((r) => ({ name: shorten(r.label), lead: r.leads, khqt: r.interested }));
+  const childData = byChild.map((r) => ({ name: shorten(r.label), lead: r.leads, khqt: r.interested }));
+  const modelData = byModel.slice(0, 8).map((r) => ({ name: shorten(r.label), lead: r.leads, khqt: r.interested }));
   const trendData = trend.map((d) => ({ date: d.date.slice(5), count: d.count }));
 
   const showBrandDonut = reportLevel === 'company' || reportLevel === 'showroom';
@@ -101,7 +101,7 @@ export default function OverviewTab({
           </div>
         )}
         <div className={`${showBrandDonut ? 'lg:col-span-4' : 'lg:col-span-7'} h-full`}>
-          <Panel fill title="Lead & hợp đồng theo nguồn" desc="Số lead và ký HĐ từng kênh">
+          <Panel fill title="Lead & KHQT theo nguồn" desc="Số lead và KHQT từng kênh">
             <div style={{ height: Math.max(200, sourceData.length * 34) }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={sourceData} layout="vertical" margin={{ top: 4, right: 12, left: 4, bottom: 4 }} barCategoryGap={12}>
@@ -111,7 +111,7 @@ export default function OverviewTab({
                   <Tooltip content={<TipGeneric unit="lead" />} cursor={{ fill: '#f8fafc' }} />
                   <Legend wrapperStyle={{ fontSize: 11 }} iconSize={9} />
                   <Bar dataKey="lead" name="Lead" fill={BRAND} radius={[0, 4, 4, 0]} />
-                  <Bar dataKey="won" name="Ký HĐ" fill="#0d9488" radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="khqt" name="KHQT" fill="#0d9488" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -124,7 +124,7 @@ export default function OverviewTab({
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
           {childDim !== null && childData.length > 0 && (
             <div className="h-full">
-              <Panel fill title={`So sánh ${DIMENSION_LABEL[childDim]}`} desc="Cột: số lead & ký HĐ">
+              <Panel fill title={`So sánh ${DIMENSION_LABEL[childDim]}`} desc="Cột: số lead & KHQT">
                 <div style={{ height: 200 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={childData} margin={{ top: 8, right: 8, left: -18, bottom: 0 }} barGap={4}>
@@ -134,7 +134,7 @@ export default function OverviewTab({
                       <Tooltip content={<TipGeneric unit="lead" />} cursor={{ fill: '#f8fafc' }} />
                       <Legend wrapperStyle={{ fontSize: 11 }} />
                       <Bar dataKey="lead" name="Lead" fill={BRAND} radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="won" name="Ký HĐ" fill="#0d9488" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="khqt" name="KHQT" fill="#0d9488" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -153,7 +153,7 @@ export default function OverviewTab({
                       <Tooltip content={<TipGeneric unit="lead" />} cursor={{ fill: '#f8fafc' }} />
                       <Legend wrapperStyle={{ fontSize: 11 }} />
                       <Bar dataKey="lead" name="Lead" fill={PALETTE[0]} radius={[0, 4, 4, 0]} />
-                      <Bar dataKey="won" name="Ký HĐ" fill={PALETTE[3]} radius={[0, 4, 4, 0]} />
+                      <Bar dataKey="khqt" name="KHQT" fill={PALETTE[3]} radius={[0, 4, 4, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
