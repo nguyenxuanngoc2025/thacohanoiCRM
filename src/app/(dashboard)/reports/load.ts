@@ -67,12 +67,25 @@ export async function loadReportsProps(
   user: User,
   me: { role: string; company_id: string | null },
   sp: { range?: string; from?: string; to?: string },
+  opts: { scopeToUser?: boolean } = {},
 ): Promise<ReportsProps> {
   const range = isRangeKey(sp.range) ? sp.range : 'this_month';
   const { fromMs, toMs } = resolveRange(range, Date.now(), sp.from, sp.to);
 
   const openBrandIds = await getOpenBrandIds(supabase, me.company_id ?? null);
   const inactiveSrIds = new Set(await getInactiveShowroomIds(supabase, me.company_id ?? null));
+
+  // Phạm vi thương hiệu/showroom của người xem — CHỈ dùng cho bản NHÚNG /digital: báo cáo phải
+  // theo đúng vai trò brand/showroom của user, không phơi toàn hệ thống. Báo cáo CRM gốc
+  // (/reports, scopeToUser=false) GIỮ NGUYÊN hành vi cũ.
+  const scope = opts.scopeToUser ? await resolveCreatorScope(supabase, user.id) : null;
+  const scopeLead = (l: ReportLead): boolean => {
+    if (!scope) return true;
+    if (scope.kind === 'brand' && scope.brandIds) return scope.brandIds.includes(l.brand_id);
+    if (scope.kind === 'showroom' && scope.showroomIds) return scope.showroomIds.includes(String(l.showroom_id ?? ''));
+    if (scope.kind === 'team' && scope.teamId) return l.sales_team_id === scope.teamId;
+    return true; // company / null = không giới hạn
+  };
 
   const tenant = await getTenant();
   const showB10 = tenant?.b10_enabled ?? false;
@@ -115,7 +128,8 @@ export async function loadReportsProps(
 
   const leads: ReportLead[] = ((raw ?? []) as unknown as RawLead[])
     .map(mapLead)
-    .filter((l) => !inactiveSrIds.has(String(l.showroom_id ?? '')));
+    .filter((l) => !inactiveSrIds.has(String(l.showroom_id ?? '')))
+    .filter(scopeLead);
 
   const periodMs = toMs - fromMs;
   const prevFromMs = fromMs - periodMs;
@@ -129,7 +143,8 @@ export async function loadReportsProps(
 
   const prevLeads: ReportLead[] = ((rawPrev ?? []) as unknown as RawLead[])
     .map(mapLead)
-    .filter((l) => !inactiveSrIds.has(String(l.showroom_id ?? '')));
+    .filter((l) => !inactiveSrIds.has(String(l.showroom_id ?? '')))
+    .filter(scopeLead);
 
   const { data: modelRows } = await supabase
     .from('models')
@@ -140,6 +155,7 @@ export async function loadReportsProps(
     id: string; brand_id: string; name: string; sort_order: number | null; brand: { name: string } | null;
   }[])
     .filter((m) => !openBrandIds.length || openBrandIds.includes(m.brand_id))
+    .filter((m) => !scope || scope.kind !== 'brand' || !scope.brandIds || scope.brandIds.includes(m.brand_id))
     .map((m) => ({ id: m.id, brand_id: m.brand_id, brand_name: m.brand?.name ?? '—', name: m.name, sort_order: m.sort_order ?? 0 }));
 
   const showMktPlanning = (['admin', 'mkt_cty', 'digital_mkt', 'mkt_brand'] as UserRole[]).includes(me.role as UserRole);

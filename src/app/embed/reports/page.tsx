@@ -32,6 +32,7 @@ export default async function EmbedReportsPage({
     );
   }
 
-  const props = await loadReportsProps(supabase, user, me, sp);
-  return <ReportsView {...props} basePath="/embed/reports" />;
+  // Bản nhúng /digital: lọc theo phạm vi vai trò của user (brand/showroom) + chỉ 2 tab.
+  const props = await loadReportsProps(supabase, user, me, sp, { scopeToUser: true });
+  return <ReportsView {...props} basePath="/embed/reports" allowedTabs={['overview', 'kpi-targets']} compactKpi />;
 }

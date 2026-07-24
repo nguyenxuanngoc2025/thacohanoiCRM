@@ -48,7 +48,7 @@ const TAB_ICONS: Record<ReportTab, React.ReactNode> = {
 
 export default function ReportsView({
   leads, prevLeads, sourceCatalog, range, from, to, fromMs, toMs, showB10, reportLevel, models = [], showMktPlanning = false,
-  kpiRows = [], kpiYear = 0, kpiMonth = 0, basePath = '/reports',
+  kpiRows = [], kpiYear = 0, kpiMonth = 0, basePath = '/reports', allowedTabs, compactKpi = false,
 }: {
   leads: ReportLead[];
   prevLeads: ReportLead[];
@@ -67,16 +67,21 @@ export default function ReportsView({
   kpiMonth?: number;
   /** Đường dẫn gốc để đổi kỳ thời gian ('/reports' hoặc '/embed/reports' khi nhúng iframe). */
   basePath?: string;
+  /** Giới hạn tab hiển thị (bản nhúng /digital chỉ để Tổng quan + KPI). Bỏ trống = đủ tab theo cấp. */
+  allowedTabs?: ReportTab[];
+  /** Lưới card KPI đạt 6 cột sớm hơn — dùng cho bản nhúng (Budget có sidebar ăn bớt bề rộng). */
+  compactKpi?: boolean;
 }) {
   const router = useRouter();
   const nowMs = useMemo(() => Date.now(), []);
 
-  const tabs: ReportTab[] = [
+  const allTabs: ReportTab[] = [
     ...tabsForLevel(reportLevel),
     ...(showMktPlanning ? (['mkt-planning'] as ReportTab[]) : []),
     ...(kpiYear > 0 ? (['kpi-targets'] as ReportTab[]) : []),
   ];
-  const [tab, setTab] = useState<ReportTab>(defaultTab(reportLevel));
+  const tabs: ReportTab[] = allowedTabs ? allTabs.filter((t) => allowedTabs.includes(t)) : allTabs;
+  const [tab, setTab] = useState<ReportTab>(tabs.includes(defaultTab(reportLevel)) ? defaultTab(reportLevel) : (tabs[0] ?? defaultTab(reportLevel)));
   const [brand, setBrand] = useState('');
   const [model, setModel] = useState('');
   const [showroom, setShowroom] = useState('');
@@ -257,7 +262,7 @@ export default function ReportsView({
       )}
 
       {/* KPI strip — với delta so kỳ trước */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+      <div className={`grid gap-3 ${compactKpi ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6' : 'grid-cols-2 lg:grid-cols-3 xl:grid-cols-6'}`}>
         <Kpi
           icon={<Users size={16} />}
           label={isPersonal ? 'Lead được giao' : 'Tổng Lead'}
