@@ -4,7 +4,6 @@ import { loadSourceCatalog } from '@/lib/source-catalog';
 import { getTenant } from '@/lib/tenant';
 import type { UserRole } from '@/types/database';
 import type { ReportLead, ReportLevel } from '@/lib/reports';
-import type { ModelCatalogItem } from '@/lib/mkt-planning-report';
 import type { KpiRow } from '@/lib/kpi-targets';
 import type { SourceCatalog } from '@/lib/source';
 import { resolveRange, isRangeKey, type RangeKey } from '@/lib/report-range';
@@ -49,8 +48,6 @@ export interface ReportsProps {
   toMs: number;
   showB10: boolean;
   reportLevel: ReportLevel;
-  models: ModelCatalogItem[];
-  showMktPlanning: boolean;
   kpiRows: KpiRow[];
   kpiYear: number;
   kpiMonth: number;
@@ -146,20 +143,6 @@ export async function loadReportsProps(
     .filter((l) => !inactiveSrIds.has(String(l.showroom_id ?? '')))
     .filter(scopeLead);
 
-  const { data: modelRows } = await supabase
-    .from('models')
-    .select('id, brand_id, name, sort_order, brand:brands(name)')
-    .eq('is_active', true)
-    .order('sort_order', { ascending: true });
-  const models: ModelCatalogItem[] = ((modelRows ?? []) as unknown as {
-    id: string; brand_id: string; name: string; sort_order: number | null; brand: { name: string } | null;
-  }[])
-    .filter((m) => !openBrandIds.length || openBrandIds.includes(m.brand_id))
-    .filter((m) => !scope || scope.kind !== 'brand' || !scope.brandIds || scope.brandIds.includes(m.brand_id))
-    .map((m) => ({ id: m.id, brand_id: m.brand_id, brand_name: m.brand?.name ?? '—', name: m.name, sort_order: m.sort_order ?? 0 }));
-
-  const showMktPlanning = (['admin', 'mkt_cty', 'digital_mkt', 'mkt_brand'] as UserRole[]).includes(me.role as UserRole);
-
   const reportLevel = roleToReportLevel(me.role as UserRole);
 
   const sourceCatalog = await loadSourceCatalog(supabase);
@@ -195,6 +178,6 @@ export async function loadReportsProps(
     leads, prevLeads, sourceCatalog, range,
     from: sp.from ?? ymd(fromMs),
     to: sp.to ?? ymd(toMs),
-    fromMs, toMs, showB10, reportLevel, models, showMktPlanning, kpiRows, kpiYear, kpiMonth,
+    fromMs, toMs, showB10, reportLevel, kpiRows, kpiYear, kpiMonth,
   };
 }

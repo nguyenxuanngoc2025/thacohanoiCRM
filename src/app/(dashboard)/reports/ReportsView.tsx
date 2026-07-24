@@ -3,7 +3,7 @@
 import React, { useMemo, useRef, useState, useDeferredValue } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
-import { Users, PhoneCall, TrendingUp, Clock, Percent, LayoutDashboard, Table2, GitBranch, ListFilter, ClipboardList, Target } from 'lucide-react';
+import { Users, PhoneCall, TrendingUp, Clock, Percent, LayoutDashboard, Table2, GitBranch, ListFilter, Target } from 'lucide-react';
 import { compareKpis, type ReportLead, type ReportLevel } from '@/lib/reports';
 import { type RangeKey } from '@/lib/report-range';
 import { sourcePlatform, type SourceCatalog } from '@/lib/source';
@@ -13,10 +13,8 @@ import { tabsForLevel, defaultTab, dimensionsForLevel, type ReportTab } from './
 import OverviewTab from './OverviewTab';
 import TablesTab from './TablesTab';
 import ManagementTab from './tabs/ManagementTab';
-import MktPlanningTab from './tabs/MktPlanningTab';
 import KpiTargetsTab from './tabs/KpiTargetsTab';
 import { type KpiRow } from '@/lib/kpi-targets';
-import { type ModelCatalogItem } from '@/lib/mkt-planning-report';
 
 const RANGE_OPTS: Opt[] = [
   { value: 'today', label: 'Hôm nay' },
@@ -31,7 +29,6 @@ const TAB_LABELS: Record<ReportTab, string> = {
   overview: 'Tổng quan',
   management: 'Bảng quản trị',
   tables: 'Bảng chi tiết',
-  'mkt-planning': 'Báo cáo cho Marketing',
   'kpi-targets': 'Báo cáo theo KPI',
 };
 
@@ -39,12 +36,11 @@ const TAB_ICONS: Record<ReportTab, React.ReactNode> = {
   overview: <LayoutDashboard size={15} />,
   management: <GitBranch size={15} />,
   tables: <Table2 size={15} />,
-  'mkt-planning': <ClipboardList size={15} />,
   'kpi-targets': <Target size={15} />,
 };
 
 export default function ReportsView({
-  leads, prevLeads, sourceCatalog, range, from, to, fromMs, toMs, showB10, reportLevel, models = [], showMktPlanning = false,
+  leads, prevLeads, sourceCatalog, range, from, to, fromMs, toMs, showB10, reportLevel,
   kpiRows = [], kpiYear = 0, kpiMonth = 0, basePath = '/reports', allowedTabs, compactKpi = false,
 }: {
   leads: ReportLead[];
@@ -57,8 +53,6 @@ export default function ReportsView({
   toMs: number;
   showB10: boolean;
   reportLevel: ReportLevel;
-  models?: ModelCatalogItem[];
-  showMktPlanning?: boolean;
   kpiRows?: KpiRow[];
   kpiYear?: number;
   kpiMonth?: number;
@@ -74,7 +68,6 @@ export default function ReportsView({
 
   const allTabs: ReportTab[] = [
     ...tabsForLevel(reportLevel),
-    ...(showMktPlanning ? (['mkt-planning'] as ReportTab[]) : []),
     ...(kpiYear > 0 ? (['kpi-targets'] as ReportTab[]) : []),
   ];
   const tabs: ReportTab[] = allowedTabs ? allTabs.filter((t) => allowedTabs.includes(t)) : allTabs;
@@ -171,7 +164,6 @@ export default function ReportsView({
     router.push(`${basePath}?range=${r}`);
   };
   const applyCustom = () => router.push(`${basePath}?range=custom&from=${cFrom}&to=${cTo}`);
-  const pickMonth = (f: string, t: string) => router.push(`${basePath}?range=custom&from=${f}&to=${t}`);
 
   // Label kỳ cho ManagementTab
   const periodLabel: string = useMemo(() => {
@@ -325,9 +317,6 @@ export default function ReportsView({
       )}
       {tab === 'tables' && (
         <TablesTab leads={tabLeads} showB10={showB10} dims={dimensionsForLevel(reportLevel)} sourceCatalog={sourceCatalog} />
-      )}
-      {tab === 'mkt-planning' && (
-        <MktPlanningTab leads={leads} models={models} sourceCatalog={sourceCatalog} from={from} to={to} onPickMonth={pickMonth} />
       )}
       {tab === 'kpi-targets' && (
         <KpiTargetsTab rows={kpiFiltered} year={kpiYear} month={kpiMonth} />
