@@ -2,7 +2,7 @@ import { ROLE_SCOPE_KIND } from '@/lib/nav';
 import { type UserRole } from '@/types/database';
 import { type ReportLevel, type Dimension } from '@/lib/reports';
 
-export type ReportTab = 'overview' | 'ranking' | 'management' | 'tables' | 'mkt-planning' | 'kpi-targets';
+export type ReportTab = 'overview' | 'management' | 'tables' | 'mkt-planning' | 'kpi-targets';
 
 /** Vai trò → cấp báo cáo (dùng ROLE_SCOPE_KIND; 'assigned' = cá nhân TVBH). */
 export function roleToReportLevel(role: UserRole): ReportLevel {
@@ -10,10 +10,10 @@ export function roleToReportLevel(role: UserRole): ReportLevel {
   return kind === 'assigned' ? 'personal' : kind as ReportLevel;
 }
 
-const FULL: ReportTab[] = ['overview', 'ranking', 'management', 'tables'];
+const FULL: ReportTab[] = ['overview', 'management', 'tables'];
 const PERSONAL: ReportTab[] = ['overview', 'tables'];
 
-/** Tập tab theo cấp: personal ẩn Xếp hạng + Bảng quản trị. */
+/** Tập tab theo cấp: personal ẩn Bảng quản trị. */
 export function tabsForLevel(level: ReportLevel): ReportTab[] {
   return level === 'personal' ? PERSONAL : FULL;
 }

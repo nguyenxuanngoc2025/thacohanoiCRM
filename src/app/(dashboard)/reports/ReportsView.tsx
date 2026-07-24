@@ -3,7 +3,7 @@
 import React, { useMemo, useRef, useState, useDeferredValue } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
-import { Users, PhoneCall, TrendingUp, Clock, Percent, LayoutDashboard, Table2, BarChart2, GitBranch, ListFilter, ClipboardList, Target } from 'lucide-react';
+import { Users, PhoneCall, TrendingUp, Clock, Percent, LayoutDashboard, Table2, GitBranch, ListFilter, ClipboardList, Target } from 'lucide-react';
 import { compareKpis, type ReportLead, type ReportLevel } from '@/lib/reports';
 import { type RangeKey } from '@/lib/report-range';
 import { sourcePlatform, type SourceCatalog } from '@/lib/source';
@@ -12,7 +12,6 @@ import { Dropdown, uniqOpts, BRAND, fmt, DeltaArrow, type Opt } from './ui';
 import { tabsForLevel, defaultTab, dimensionsForLevel, type ReportTab } from './report-level';
 import OverviewTab from './OverviewTab';
 import TablesTab from './TablesTab';
-import RankingTab from './tabs/RankingTab';
 import ManagementTab from './tabs/ManagementTab';
 import MktPlanningTab from './tabs/MktPlanningTab';
 import KpiTargetsTab from './tabs/KpiTargetsTab';
@@ -30,7 +29,6 @@ const RANGE_OPTS: Opt[] = [
 
 const TAB_LABELS: Record<ReportTab, string> = {
   overview: 'Tổng quan',
-  ranking: 'Xếp hạng',
   management: 'Bảng quản trị',
   tables: 'Bảng chi tiết',
   'mkt-planning': 'Báo cáo cho Marketing',
@@ -39,7 +37,6 @@ const TAB_LABELS: Record<ReportTab, string> = {
 
 const TAB_ICONS: Record<ReportTab, React.ReactNode> = {
   overview: <LayoutDashboard size={15} />,
-  ranking: <BarChart2 size={15} />,
   management: <GitBranch size={15} />,
   tables: <Table2 size={15} />,
   'mkt-planning': <ClipboardList size={15} />,
@@ -322,9 +319,6 @@ export default function ReportsView({
 
       {tab === 'overview' && (
         <OverviewTab leads={tabLeads} fromMs={fromMs} toMs={toMs} reportLevel={reportLevel} prevLeads={tabPrev} sourceCatalog={sourceCatalog} />
-      )}
-      {tab === 'ranking' && (
-        <RankingTab leads={tabLeads} prevLeads={tabPrev} level={reportLevel} showB10={showB10} />
       )}
       {tab === 'management' && (
         <ManagementTab leads={tabLeads} prevLeads={tabPrev} level={reportLevel} showB10={showB10} periodLabel={periodLabel} sourceCatalog={sourceCatalog} />

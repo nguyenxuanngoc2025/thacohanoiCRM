@@ -15,16 +15,15 @@ describe('roleToReportLevel', () => {
 });
 
 describe('tabsForLevel', () => {
-  it('personal ẩn ranking + management', () => {
+  it('personal ẩn management', () => {
     const tabs = tabsForLevel('personal');
     expect(tabs).toContain('overview');
     expect(tabs).toContain('tables');
-    expect(tabs).not.toContain('ranking');
     expect(tabs).not.toContain('management');
     expect(tabs).not.toContain('source');
   });
-  it('company có 4 tab (không còn tab Nguồn)', () => {
-    expect(tabsForLevel('company')).toEqual(['overview', 'ranking', 'management', 'tables']);
+  it('company có 3 tab (đã bỏ Xếp hạng)', () => {
+    expect(tabsForLevel('company')).toEqual(['overview', 'management', 'tables']);
   });
 });
 
