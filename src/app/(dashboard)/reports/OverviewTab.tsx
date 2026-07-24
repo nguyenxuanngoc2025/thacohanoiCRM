@@ -257,7 +257,7 @@ function FunnelDiagram({ funnel }: { funnel: { label: string; count: number; pct
         const conv = i > 0 && prev && prev.count > 0 ? Math.round((s.count / prev.count) * 1000) / 10 : null;
 
         return (
-          <div key={i} className="flex items-stretch" style={{ height: BAND_H }}>
+          <div key={i} className="funnel-band flex items-stretch" style={{ height: BAND_H, animationDelay: `${i * 110}ms` }}>
             {/* Nhãn + badge số bên trái */}
             <div className="w-[128px] shrink-0 flex items-center justify-end gap-2 pr-2.5">
               <span className="text-[12px] text-slate-600 text-right leading-tight">{s.label}</span>

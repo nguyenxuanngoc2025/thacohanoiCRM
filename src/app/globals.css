@@ -67,6 +67,16 @@ html, body {
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* Phễu chuyển đổi: từng dải trượt xuống + hiện dần khi biểu đồ xuất hiện. */
+@keyframes funnelBandIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.funnel-band { opacity: 0; animation: funnelBandIn 0.42s ease-out forwards; }
+@media (prefers-reduced-motion: reduce) {
+  .funnel-band { opacity: 1; animation: none; }
+}
+
 /* ── dropdown-panel: popup nền trắng ───────────────────────── */
 .dropdown-panel {
   background: #ffffff;
