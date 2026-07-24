@@ -3,12 +3,17 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
-const BUDGET_ORIGIN = process.env.NEXT_PUBLIC_BUDGET_ORIGIN || 'https://thacoautohn-mkt.com';
-
 /**
  * Nhận phiên đăng nhập từ Budget (parent) qua postMessage → setSession (ghi cookie CRM) → reload.
- * Cùng 1 Supabase project nên access_token của Budget hợp lệ với CRM. Chỉ nhận từ đúng origin Budget.
+ * Cùng 1 Supabase project nên access_token của Budget hợp lệ với CRM.
+ * Budget có thể chạy ở apex HOẶC www (2 origin đều được phục vụ, không redirect) → chấp nhận mọi
+ * origin thuộc registrable-domain thacoautohn-mkt.com. An toàn: CSP frame-ancestors đã giới hạn ai
+ * được nhúng /embed đúng bộ domain này; token push vào là phiên của chính user.
  */
+function isTrustedBudgetOrigin(origin: string) {
+  return /^https:\/\/([a-z0-9-]+\.)?thacoautohn-mkt\.com$/.test(origin);
+}
+
 export default function EmbedAuthBridge() {
   const [err, setErr] = useState<string | null>(null);
 
@@ -17,7 +22,7 @@ export default function EmbedAuthBridge() {
     let handling = false;
 
     const onMessage = async (e: MessageEvent) => {
-      if (e.origin !== BUDGET_ORIGIN) return;
+      if (!isTrustedBudgetOrigin(e.origin)) return;
       const d = e.data as { type?: string; access_token?: string; refresh_token?: string } | null;
       if (!d || d.type !== 'crm-embed-token' || typeof d.access_token !== 'string' || typeof d.refresh_token !== 'string') return;
       if (handling) return;
@@ -28,9 +33,13 @@ export default function EmbedAuthBridge() {
     };
 
     window.addEventListener('message', onMessage);
-    // Báo parent đã sẵn sàng nhận token.
-    try { window.parent?.postMessage({ type: 'crm-embed-ready' }, BUDGET_ORIGIN); } catch { /* noop */ }
-    return () => window.removeEventListener('message', onMessage);
+    // Báo parent đã sẵn sàng nhận token. Gửi '*' (không kèm bí mật) + lặp vài lần phòng parent chưa
+    // gắn listener kịp / origin parent khác apex.
+    const ping = () => { try { window.parent?.postMessage({ type: 'crm-embed-ready' }, '*'); } catch { /* noop */ } };
+    ping();
+    const t1 = setTimeout(ping, 300);
+    const t2 = setTimeout(ping, 1000);
+    return () => { window.removeEventListener('message', onMessage); clearTimeout(t1); clearTimeout(t2); };
   }, []);
 
   return (
