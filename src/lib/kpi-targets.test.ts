@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  CHANNEL_LABEL, pct, rollupTotals, budgetValue, groupKpiRows, kpiDimValue,
+  CHANNEL_LABEL, pct, rollupTotals, budgetValue, budgetOfRows, groupKpiRows, kpiDimValue,
   cpbqPerKhqt, convKhqtGdtd, convGdtdKhd,
   type KpiRow,
 } from './kpi-targets';
@@ -43,12 +43,17 @@ describe('kpi-targets helper', () => {
     expect(budgetValue(rollupTotals([rows[1]]))).toBe(2000000); // actual_ns = 0 -> plan_ns
   });
 
+  it('budgetOfRows: quyết định THEO TỪNG DÒNG rồi cộng (không bị hụt kế hoạch)', () => {
+    // rows[0] có thực chi 4.800.000; rows[1] chưa chi -> kế hoạch 2.000.000. Tổng 6.800.000.
+    expect(budgetOfRows(rows)).toBe(6800000);
+    // đối chiếu cách SAI cũ: budgetValue(rollup) = sum(actual)=4.8tr (bỏ mất kế hoạch rows[1])
+    expect(budgetValue(rollupTotals(rows))).toBe(4800000);
+  });
+
   it('cpbqPerKhqt: ngân sách / KHQT thực; chưa có KHQT → null', () => {
-    // budgetValue = actual_ns 4.800.000, actual_khqt 80 → 60.000
-    expect(cpbqPerKhqt(rollupTotals([rows[0]]))).toBe(60000);
-    // actual_ns=0 → dùng plan_ns 2.000.000, actual_khqt 60 → 33333.33…
-    expect(cpbqPerKhqt(rollupTotals([rows[1]]))).toBeCloseTo(2000000 / 60);
-    expect(cpbqPerKhqt(rollupTotals([row({ actual_khqt: 0, actual_ns: 5000000 })]))).toBeNull();
+    expect(cpbqPerKhqt(4800000, 80)).toBe(60000);
+    expect(cpbqPerKhqt(2000000, 60)).toBeCloseTo(2000000 / 60);
+    expect(cpbqPerKhqt(5000000, 0)).toBeNull();
   });
 
   it('convKhqtGdtd: GDTD/KHQT %, chưa có KHQT → null', () => {

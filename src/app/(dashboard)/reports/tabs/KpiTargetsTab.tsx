@@ -2,7 +2,7 @@
 import React, { useMemo, useState } from 'react';
 import { Download, ChevronRight, ChevronDown } from 'lucide-react';
 import {
-  pct, rollupTotals, budgetValue, groupKpiRows, buildShowroomOrder, buildModelOrder,
+  pct, rollupTotals, budgetOfRows, groupKpiRows, buildShowroomOrder, buildModelOrder,
   cpbqPerKhqt, convKhqtGdtd, convGdtdKhd,
   type KpiRow, type KpiDim, type KpiGroup, type KpiTotals,
 } from '@/lib/kpi-targets';
@@ -64,8 +64,8 @@ function MetricCells({ t }: { t: KpiTotals }) {
 }
 
 /** Nhóm 3 ô đánh giá hiệu quả (CPBQ/KHQT theo triệu, 2 tỷ lệ chuyển đổi %). */
-function EffCells({ t }: { t: KpiTotals }) {
-  const cpbq = cpbqPerKhqt(t);
+function EffCells({ t, budget }: { t: KpiTotals; budget: number }) {
+  const cpbq = cpbqPerKhqt(budget, t.actual_khqt);
   const c1 = convKhqtGdtd(t);
   const c2 = convGdtdKhd(t);
   return (
@@ -85,6 +85,7 @@ function DrillRow({ group, chain, depth, modelOrder, showroomOrder }: {
   const childChain = chain.slice(1);
   const canExpand = childChain.length > 0;
   const t = group.totals;
+  const budget = budgetOfRows(group.rows);
   return (
     <>
       <tr className="border-b border-slate-50 hover:bg-slate-50/60">
@@ -103,9 +104,9 @@ function DrillRow({ group, chain, depth, modelOrder, showroomOrder }: {
             </span>
           </div>
         </td>
-        <td className={`py-2 px-3 text-right text-slate-600 ${SEP}`}>{money(budgetValue(t))}</td>
+        <td className={`py-2 px-3 text-right text-slate-600 ${SEP}`}>{money(budget)}</td>
         <MetricCells t={t} />
-        <EffCells t={t} />
+        <EffCells t={t} budget={budget} />
       </tr>
       {open && canExpand && (
         <DrillGroup rows={group.rows} chain={childChain} depth={depth + 1} modelOrder={modelOrder} showroomOrder={showroomOrder} />
@@ -143,25 +144,26 @@ function KpiTable({ title, chain, rows, modelOrder, showroomOrder, periodSlug }:
   const dim = chain[0];
   const topGroups = useMemo(() => groupKpiRows(rows, dim, modelOrder, showroomOrder), [rows, dim, modelOrder, showroomOrder]);
   const totals = useMemo(() => rollupTotals(rows), [rows]);
+  const totalBudget = useMemo(() => budgetOfRows(rows), [rows]);
 
   const handleExport = () => {
     const cols: SheetCol<KpiGroup>[] = [
       { header: DIM_LABEL[dim], value: (g) => g.label },
-      { header: 'Ngân sách', value: (g) => budgetValue(g.totals) },
+      { header: 'Ngân sách', value: (g) => budgetOfRows(g.rows) },
     ];
     for (const m of METRICS) {
       cols.push({ header: `${m.label} KH`, value: (g) => g.totals[m.plan] as number });
       cols.push({ header: `${m.label} TH`, value: (g) => g.totals[m.actual] as number });
       cols.push({ header: `${m.label} %TH`, value: (g) => pct(g.totals[m.actual] as number, g.totals[m.plan] as number) });
     }
-    cols.push({ header: 'CPBQ/KHQT (triệu)', value: (g) => cpbqPerKhqt(g.totals) ?? '' });
+    cols.push({ header: 'CPBQ/KHQT (triệu)', value: (g) => cpbqPerKhqt(budgetOfRows(g.rows), g.totals.actual_khqt) ?? '' });
     cols.push({ header: 'KHQT→GDTD %', value: (g) => convKhqtGdtd(g.totals) ?? '' });
     cols.push({ header: 'GDTD→KHĐ %', value: (g) => convGdtdKhd(g.totals) ?? '' });
-    const totalRow: (string | number)[] = ['Tổng', budgetValue(totals)];
+    const totalRow: (string | number)[] = ['Tổng', totalBudget];
     for (const m of METRICS) {
       totalRow.push(totals[m.plan] as number, totals[m.actual] as number, pct(totals[m.actual] as number, totals[m.plan] as number));
     }
-    totalRow.push(cpbqPerKhqt(totals) ?? '', convKhqtGdtd(totals) ?? '', convGdtdKhd(totals) ?? '');
+    totalRow.push(cpbqPerKhqt(totalBudget, totals.actual_khqt) ?? '', convKhqtGdtd(totals) ?? '', convGdtdKhd(totals) ?? '');
     exportXlsx(`kpi-${dim}-${periodSlug}`, [tableSheet(title, cols, topGroups, totalRow)]);
   };
 
@@ -222,9 +224,9 @@ function KpiTable({ title, chain, rows, modelOrder, showroomOrder, periodSlug }:
             <tfoot>
               <tr className="border-t-2 border-slate-300 text-slate-800 font-semibold bg-slate-50/50">
                 <td className="py-2 px-3 sticky left-0 bg-slate-50">Tổng</td>
-                <td className={`py-2 px-3 text-right ${SEP}`}>{money(budgetValue(totals))}</td>
+                <td className={`py-2 px-3 text-right ${SEP}`}>{money(totalBudget)}</td>
                 <MetricCells t={totals} />
-                <EffCells t={totals} />
+                <EffCells t={totals} budget={totalBudget} />
               </tr>
             </tfoot>
           </table>

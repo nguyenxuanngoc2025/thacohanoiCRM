@@ -58,11 +58,20 @@ export function budgetValue(t: KpiTotals): number {
   return t.actual_ns > 0 ? t.actual_ns : t.plan_ns;
 }
 
+/**
+ * Ngân sách tổng của TẬP DÒNG: quyết định thực chi/kế hoạch THEO TỪNG DÒNG rồi cộng.
+ * Khác `budgetValue(rollup)` — nếu chỉ vài dòng có thực chi, cộng-rồi-chọn sẽ bỏ mất
+ * kế hoạch của các dòng chưa chi (tổng bị hụt). Đây là hàm dùng cho mọi ô tổng.
+ */
+export function budgetOfRows(rows: KpiRow[]): number {
+  return rows.reduce((s, r) => s + (r.actual_ns > 0 ? r.actual_ns : r.plan_ns), 0);
+}
+
 // ---- Đánh giá hiệu quả (tính trên số THỰC HIỆN) --------------------------
 
-/** Chi phí bình quân trên 1 KHQT (đồng). Chưa có KHQT thực → null (hiển thị "—"). */
-export function cpbqPerKhqt(t: KpiTotals): number | null {
-  return t.actual_khqt > 0 ? budgetValue(t) / t.actual_khqt : null;
+/** Chi phí bình quân trên 1 KHQT (theo đơn vị của ngân sách). Chưa có KHQT thực → null. */
+export function cpbqPerKhqt(budget: number, actualKhqt: number): number | null {
+  return actualKhqt > 0 ? budget / actualKhqt : null;
 }
 
 /** Tỷ lệ chuyển đổi KHQT→GDTD (%), làm tròn. Chưa có KHQT thực → null. */
